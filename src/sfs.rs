@@ -1,47 +1,71 @@
-use ssa::ReactionRates;
+use crate::{
+    neutral::{Genotype, StemCell},
+    MAX_SUBCLONES,
+};
+use anyhow::ensure;
+use rand::Rng;
+use sosa::NbIndividuals;
 use std::collections::HashMap;
-use std::rc::Rc;
-use uuid::Uuid;
 
-pub type CloneId = Uuid;
-/// We assume that each division generates a different set of neutral
-/// mutations (inifinte-site assumption?).
-pub type NeutralMutation = Uuid;
-
-#[derive(Debug, Clone, Copy)]
-pub struct SubClone {
-    pub id: CloneId,
-    /// The fitness coefficient
-    pub s: f32,
-}
+pub type CloneId = usize;
 
 #[derive(Debug, Clone)]
-pub struct StemCell {
-    pub id: u64,
-    pub subclone: Rc<SubClone>,
-    pub mutations: Vec<NeutralMutation>,
+pub struct SubClone {
+    cells: Vec<StemCell>,
+    pub id: CloneId,
 }
 
-pub fn assign_cell(cell: &mut StemCell, clone: &Rc<SubClone>) {
-    cell.subclone = Rc::clone(clone);
+impl SubClone {
+    pub fn new(id: CloneId, cell_capacity: usize) -> SubClone {
+        SubClone {
+            cells: Vec::with_capacity(cell_capacity),
+            id,
+        }
+    }
+
+    pub fn get_cells(&self) -> &[StemCell] {
+        &self.cells
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.get_cells().is_empty()
+    }
+
+    pub fn assign_cell(&mut self, cell: StemCell) {
+        self.cells.push(cell);
+    }
+
+    pub fn random_cell(&mut self, rng: &mut impl Rng) -> anyhow::Result<StemCell> {
+        ensure!(!self.cells.is_empty());
+        Ok(self.cells.swap_remove(rng.gen_range(0..self.cells.len())))
+    }
+
+    pub fn proliferate(
+        &mut self,
+        mut cell: StemCell,
+        proliferative_events: usize,
+        is_new_clone: bool,
+    ) -> Option<StemCell> {
+        Genotype::mutate(&mut cell, proliferative_events);
+
+        if is_new_clone {
+            return Some(cell);
+        }
+        self.cells.push(cell);
+        None
+    }
+
+    pub fn cell_count(&self) -> u64 {
+        self.cells.len() as u64
+    }
 }
 
-pub fn compute_reactions<const MAX_SUBCLONES: usize>(
-    cells: &[StemCell],
-) -> ReactionRates<MAX_SUBCLONES> {
-    // sfs(cells)
-    todo!();
-}
-
-pub fn sfs(cells: &[StemCell]) -> HashMap<CloneId, u16> {
+pub fn sfs(subclones: &[SubClone]) -> HashMap<CloneId, NbIndividuals> {
     //! Compute the site frequency spectrum for clones that have a
     //! proliferative advantage.
-    let mut clones = HashMap::<CloneId, u16>::new();
-    for cell in cells {
-        clones
-            .entry(cell.subclone.id)
-            .and_modify(|count| *count += 1)
-            .or_insert(1);
+    let mut clones = HashMap::<CloneId, NbIndividuals>::with_capacity(MAX_SUBCLONES);
+    for clone in subclones {
+        clones.insert(clone.id, clone.cell_count());
     }
     clones
 }
@@ -64,85 +88,35 @@ pub fn sfs(cells: &[StemCell]) -> HashMap<CloneId, u16> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use quickcheck::{Arbitrary, Gen};
     use quickcheck_macros::quickcheck;
-    use rand::SeedableRng;
-    use std::num::NonZeroU8;
 
-    #[test]
-    fn assign_cell_test() {
-        let clone = SubClone {
-            id: CloneId::new_v4(),
-            s: 1.9,
-        };
-        let neutral_clone = SubClone {
-            id: CloneId::new_v4(),
-            s: 0.,
-        };
-        let mut cell = StemCell {
-            id: 0,
-            subclone: Rc::new(neutral_clone),
-            mutations: Vec::new(),
-        };
-        assert_eq!(neutral_clone.id, cell.subclone.id);
-        assert_ne!(clone.id, cell.subclone.id);
+    #[quickcheck]
+    fn assign_cell_test(id: usize) -> bool {
+        let mut neutral_clone = SubClone { cells: vec![], id };
+        let cell = StemCell::new();
+        assert!(neutral_clone.cells.is_empty());
 
-        assign_cell(&mut cell, &Rc::new(clone));
-        assert_eq!(clone.id, cell.subclone.id);
-        assert_ne!(neutral_clone.id, cell.subclone.id);
+        neutral_clone.assign_cell(cell);
+        !neutral_clone.cells.is_empty()
     }
 
     #[quickcheck]
-    fn sfs_test(s0: f32, s1: f32) -> bool {
-        let clone0 = SubClone {
-            id: CloneId::new_v4(),
-            s: s0,
+    fn sfs_test(id0: usize) -> bool {
+        let mut clone0 = SubClone {
+            cells: Vec::with_capacity(2),
+            id: id0,
         };
+        let id1 = id0 / 2 + 2;
         let clone1 = SubClone {
-            id: CloneId::new_v4(),
-            s: s1,
+            cells: Vec::with_capacity(2),
+            id: id1,
         };
 
-        let cell = StemCell {
-            id: 0,
-            subclone: Rc::new(clone0),
-            mutations: Vec::new(),
-        };
-        let cell_1 = StemCell {
-            id: 1,
-            subclone: Rc::new(clone1),
-            mutations: Vec::new(),
-        };
+        let cell = StemCell::new();
 
-        let sfs = sfs(&[cell, cell_1]);
-        sfs[&clone0.id] == 1u16 && sfs[&clone1.id] == 1
-    }
+        clone0.assign_cell(cell);
 
-    #[quickcheck]
-    fn sfs_after_assignment_test(s0: f32, s1: f32) -> bool {
-        let clone0 = SubClone {
-            id: CloneId::new_v4(),
-            s: s0,
-        };
-        let clone1 = SubClone {
-            id: CloneId::new_v4(),
-            s: s1,
-        };
-
-        let cell = StemCell {
-            id: 0,
-            subclone: Rc::new(clone0),
-            mutations: Vec::new(),
-        };
-        let mut cell_1 = StemCell {
-            id: 1,
-            subclone: Rc::new(clone1),
-            mutations: Vec::new(),
-        };
-
-        assign_cell(&mut cell_1, &Rc::new(clone0));
-
-        let sfs = sfs(&[cell, cell_1]);
-        sfs[&clone0.id] == 2 && sfs.get(&clone1.id) == None
+        let sfs = sfs(&[clone0, clone1]);
+        sfs[&id0] == 1 && sfs[&id1] == 0
     }
 }

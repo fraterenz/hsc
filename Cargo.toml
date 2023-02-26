@@ -5,10 +5,16 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.69"
-ssa = { path = "../ssa", version = "0.4.0" }
+chrono = "0.4"
+indicatif = { version = "*", features = ["rayon"] }
+serde = { version = "1.0.152", features = ["derive"] }
+serde_json = "1.0"
+sosa = "2"
 rand = "0.8.5"
 rand_distr = "0.4.3"
-rand_pcg = "0.3.1"
+rand_chacha = "0.3.1"
+rayon = "1.6.1"
+thiserror = "1.0"
 
 [dev-dependencies]
 quickcheck = "1"
