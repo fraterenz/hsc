@@ -87,6 +87,7 @@ impl Default for HSCProcess {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct CellDivisionProbabilities {
     pub p_asymmetric: f64,
     /// Rate of
@@ -168,6 +169,9 @@ impl HSCProcess {
         rng: &mut impl Rng,
     ) {
         //! Mutate proliferating cells and assign them to new subclones if needed
+        if self.verbosity > 1 {
+            println!("{:#?} cells are dividing", stem_cells);
+        }
         for stem_cell in stem_cells.into_iter() {
             self.counter_divisions += 1;
             let cell = division(
@@ -202,6 +206,12 @@ impl HSCProcess {
     }
 
     fn proliferating_cells(&mut self, subclone_id: usize, rng: &mut impl Rng) -> Vec<StemCell> {
+        if self.verbosity > 1 {
+            println!(
+                "a cell from clone {:#?} will divide",
+                self.subclones[subclone_id]
+            );
+        }
         if self.distributions.bern_asymmetric.sample(rng) {
             vec![asymmetric_division(&mut self.subclones[subclone_id], rng).unwrap()]
         } else {

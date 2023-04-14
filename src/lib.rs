@@ -39,7 +39,7 @@ pub fn write2file<T: std::fmt::Display>(
     header: Option<&str>,
     endline: bool,
 ) -> anyhow::Result<()> {
-    //! Write vector of float into new file with a precision of 4 decimals.
+    //! Write vector of float into new file with a precision of 6 decimals.
     //! Write NAN if the slice to write to file is empty.
     fs::create_dir_all(path.parent().unwrap()).expect("Cannot create dir");
     let f = fs::OpenOptions::new()
@@ -57,7 +57,7 @@ pub fn write2file<T: std::fmt::Display>(
         }
 
         for ele in data.iter() {
-            write!(buffer, "{:.8},", ele)?;
+            write!(buffer, "{:.6},", ele)?;
         }
 
         if endline {
