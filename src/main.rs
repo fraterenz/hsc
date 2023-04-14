@@ -28,6 +28,7 @@ pub struct SimulationOptions {
     parallel: Parallel,
     probabilities: CellDivisionProbabilities,
     path: PathBuf,
+    snapshots: Vec<f32>,
     options: Options,
 }
 
@@ -86,6 +87,10 @@ fn main() {
     };
     let possible_reactions = core::array::from_fn(|i| i);
 
+    println!(
+        "saving variant fraction at timepoints: {:#?}",
+        app.snapshots
+    );
     println!("{} starting simulation", Utc::now(),);
     let run_simulations = |idx| {
         let mut rng = ChaCha8Rng::seed_from_u64(app.seed);
@@ -94,10 +99,10 @@ fn main() {
         let mut process = HSCProcess::new(
             app.probabilities.clone(),
             subclones.clone(),
-            Some(vec![100, 500, app.options.max_iter - 1]),
+            app.snapshots.clone(),
             app.path.clone(),
             idx,
-            vec![0.],
+            0.,
             app.options.verbosity,
         );
         let stop = simulate(

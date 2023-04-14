@@ -5,6 +5,7 @@ use anyhow::{ensure, Context};
 use rand::Rng;
 use rand_distr::{Bernoulli, Distribution, Poisson, WeightedIndex};
 use sosa::{AdvanceStep, CurrentState, NextReaction};
+use std::collections::VecDeque;
 use std::fs;
 use std::path::PathBuf;
 
@@ -57,8 +58,8 @@ pub struct HSCProcess {
     /// The counter for the number of proliferative events.
     pub counter_divisions: usize,
     pub id: usize,
-    pub time: Vec<f32>,
-    pub snapshot: Option<Vec<usize>>,
+    pub time: f32,
+    pub snapshot: VecDeque<f32>,
     pub path2dir: PathBuf,
     pub verbosity: u8,
     distributions: Distributions,
@@ -78,10 +79,10 @@ impl Default for HSCProcess {
                 p: 0.1,
             },
             subclones,
-            None,
+            vec![0.01, 0.1],
             PathBuf::from("./output"),
             0,
-            vec![0.],
+            0.,
             1,
         )
     }
@@ -116,10 +117,10 @@ impl HSCProcess {
     pub fn new(
         probabilities: CellDivisionProbabilities,
         initial_subclones: [SubClone; MAX_SUBCLONES],
-        snapshot: Option<Vec<usize>>,
+        mut snapshot: Vec<f32>,
         path2dir: PathBuf,
         id: usize,
-        time: Vec<f32>,
+        time: f32,
         verbosity: u8,
     ) -> HSCProcess {
         let distributions = Distributions::new(
@@ -128,6 +129,8 @@ impl HSCProcess {
             probabilities.p,
             verbosity,
         );
+        snapshot.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let snapshot = VecDeque::from(snapshot);
         let hsc = HSCProcess {
             subclones: initial_subclones,
             distributions,
@@ -258,11 +261,6 @@ impl HSCProcess {
     pub fn save(&self, rng: &mut impl Rng) -> anyhow::Result<()> {
         //! Save the process.
         //! Save the SFS, SFS neutral and time.
-        let path2sfs = self.path2dir.join("time");
-        fs::create_dir_all(&path2sfs).expect("Cannot create dir");
-        let path2file = path2sfs.join(self.id.to_string()).with_extension("csv");
-        write2file(&self.time, &path2file, None, false)?;
-
         let path2sfs = self.path2dir.join("sfs");
         fs::create_dir_all(&path2sfs).expect("Cannot create dir");
         let path2file = path2sfs.join(self.id.to_string()).with_extension("json");
@@ -302,26 +300,33 @@ impl AdvanceStep<MAX_SUBCLONES> for HSCProcess {
         //! Select the next cell that will proliferate which belongs to the
         //! `CloneId` found by the next `reaction`.
         //! This cell will generate either a symmetric or asymmetric division.
-        self.time.push(self.time.last().unwrap() + reaction.time);
         let stem_cells = self.proliferating_cells(reaction.event, rng);
 
         self.mutate_and_assign(reaction.event, stem_cells, rng);
+
+        // take snapshot
+        self.time += reaction.time;
+        if self.verbosity > 1 {
+            println!("time: {}", self.time);
+        }
+        if let Some(&time) = self.snapshot.front() {
+            if self.time >= time {
+                if self.verbosity > 0 {
+                    println!(
+                        "saving variant fraction for {:#?} at time {}",
+                        time, self.time
+                    );
+                }
+                self.save_variant_fraction(self.snapshot.len())
+                    .expect("cannot save snapshot");
+                self.snapshot.pop_front();
+            }
+        }
     }
 
     fn update_state(&self, state: &mut CurrentState<MAX_SUBCLONES>) {
         for i in 0..state.population.len() {
             state.population[i] = self.subclones[i].cell_count();
-        }
-        // take snapshot
-        let iteration = self
-            .snapshot
-            .iter()
-            .flatten()
-            .find(|&iteration| iteration == &self.counter_divisions);
-
-        if let Some(&iteration) = iteration {
-            self.save_variant_fraction(iteration)
-                .expect("cannot save snapshot");
         }
     }
 }

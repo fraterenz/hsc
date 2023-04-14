@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.5.0
+Snapshots taken based on the time (not iterations). Many bugs fixed.
+
 ## 0.4.0
 Tweek cli arguments.
 

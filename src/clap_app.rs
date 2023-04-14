@@ -16,21 +16,24 @@ pub enum Parallel {
 #[command(name = "hsc")]
 #[command(version, about = "TODO")]
 pub struct Cli {
-    #[arg(short, long, default_value_t = 100)]
-    iters: usize,
+    /// Number of years to simulate
+    #[arg(short, long, default_value_t = 1)]
+    years: usize,
+    /// Number of cells to simulate
     #[arg(short, long, default_value_t = 100)]
     cells: NbIndividuals,
     #[arg(short, long, default_value_t = 1)]
     runs: usize,
-    /// division rate for the wild-type
+    /// division rate for the wild-type in 1 year
     #[arg(long, default_value_t = 1.)]
     b0: f32,
     /// avg fit mutations arising in 1 year
     #[arg(long, default_value_t = 2.)]
     mu0: f32,
-    /// avg number of neutral mutations per each proliferative event
+    /// avg number of neutral mutations per each proliferative event assuming a
+    /// Poisson distribution
     #[arg(long, default_value_t = 1.)]
-    lambda_poisson: f32,
+    neutral_rate: f32,
     #[arg(short, default_value_t = 0.15)]
     /// proliferative advantage conferred by fit mutations
     s: f32,
@@ -54,6 +57,19 @@ pub struct Cli {
 }
 
 impl Cli {
+    fn build_snapshots_from_time(time: f32) -> Vec<f32> {
+        let n = 10;
+        let dx = time / ((n - 1) as f32);
+        let mut x = vec![0.1; n];
+        for i in 1..n - 1 {
+            x[i] = x[i - 1] + dx;
+        }
+
+        x.shrink_to_fit();
+        x[n - 1] = time;
+        x
+    }
+
     pub fn build() -> SimulationOptions {
         let cli = Cli::parse();
 
@@ -65,11 +81,14 @@ impl Cli {
             (Parallel::True, cli.runs)
         };
 
-        let (max_cells, max_iter, b0, mu0, verbosity) = if cli.debug {
-            (11, 20usize, 1., 4., u8::MAX)
+        let (max_cells, years, b0, mu0, verbosity) = if cli.debug {
+            (11, 1, 1., 4., u8::MAX)
         } else {
-            (cli.cells + 1, cli.iters, cli.b0, cli.mu0, cli.verbosity)
+            (cli.cells + 1, cli.years + 1, cli.b0, cli.mu0, cli.verbosity)
         };
+
+        let max_iter = max_cells as usize * b0 as usize * years;
+        let snapshots = Cli::build_snapshots_from_time(cli.years as f32);
 
         // rate of fit variant per cell division
         let u = if (cli.p_asymmetric - 0.).abs() <= f64::EPSILON {
@@ -82,7 +101,7 @@ impl Cli {
         };
         let probabilities = CellDivisionProbabilities {
             p_asymmetric: cli.p_asymmetric,
-            lambda_poisson: cli.lambda_poisson,
+            lambda_poisson: cli.neutral_rate,
             p: u,
         };
 
@@ -99,6 +118,7 @@ impl Cli {
             runs,
             b0,
             seed: cli.seed,
+            snapshots,
             probabilities,
             path: cli.path,
             options,
@@ -106,8 +126,13 @@ impl Cli {
     }
 }
 
-#[test]
-fn verify_cli() {
-    use clap::CommandFactory;
-    Cli::command().debug_assert()
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn verify_cli() {
+        use clap::CommandFactory;
+        Cli::command().debug_assert()
+    }
 }
