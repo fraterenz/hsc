@@ -16,11 +16,11 @@ pub enum Parallel {
 #[command(name = "hsc")]
 #[command(version, about = "TODO")]
 pub struct Cli {
-    #[arg(long, default_value_t = 100)]
-    niters: usize,
-    #[arg(long, default_value_t = 100)]
-    ncells: NbIndividuals,
-    #[arg(long, default_value_t = 1)]
+    #[arg(short, long, default_value_t = 100)]
+    iters: usize,
+    #[arg(short, long, default_value_t = 100)]
+    cells: NbIndividuals,
+    #[arg(short, long, default_value_t = 1)]
     runs: usize,
     /// division rate for the wild-type
     #[arg(long, default_value_t = 1.)]
@@ -31,7 +31,7 @@ pub struct Cli {
     /// avg number of neutral mutations per each proliferative event
     #[arg(long, default_value_t = 1.)]
     lambda_poisson: f32,
-    #[arg(long, default_value_t = 0.15)]
+    #[arg(short, default_value_t = 0.15)]
     /// proliferative advantage conferred by fit mutations
     s: f32,
     /// probability of getting an asymmetric division per each proliferate event
@@ -49,7 +49,7 @@ pub struct Cli {
     #[arg(value_name = "DIR")]
     path: PathBuf,
     /// Run sequentially each run instead of using rayon for parallelisation
-    #[arg(short, long, action = ArgAction::SetTrue, default_value_t = false, conflicts_with = "debug")]
+    #[arg(long, action = ArgAction::SetTrue, default_value_t = false, conflicts_with = "debug")]
     sequential: bool,
 }
 
@@ -68,7 +68,7 @@ impl Cli {
         let (max_cells, max_iter, b0, mu0, verbosity) = if cli.debug {
             (11, 20usize, 1., 4., u8::MAX)
         } else {
-            (cli.ncells + 1, cli.niters, cli.b0, cli.mu0, cli.verbosity)
+            (cli.cells + 1, cli.iters, cli.b0, cli.mu0, cli.verbosity)
         };
 
         // rate of fit variant per cell division
