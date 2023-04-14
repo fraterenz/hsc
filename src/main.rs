@@ -1,7 +1,12 @@
 use std::path::PathBuf;
 
 use chrono::Utc;
-use hsc::{neutral::StemCell, process::HSCProcess, sfs::SubClone, MAX_SUBCLONES};
+use hsc::{
+    neutral::StemCell,
+    process::{CellDivisionProbabilities, HSCProcess},
+    sfs::SubClone,
+    MAX_SUBCLONES,
+};
 use indicatif::ParallelProgressIterator;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
@@ -87,9 +92,11 @@ fn main() {
             rng.set_stream(idx as u64);
 
             let mut process = HSCProcess::new(
-                P_ASYMMETRIC,
-                LAMBDA_POISSON,
-                u,
+                CellDivisionProbabilities {
+                    p_asymmetric: P_ASYMMETRIC,
+                    lambda_poisson: LAMBDA_POISSON,
+                    p: u,
+                },
                 subclones.clone(),
                 Some(vec![100, 500, NITERS - 1]),
                 PathBuf::from("./test"),

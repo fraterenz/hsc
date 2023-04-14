@@ -1,0 +1,81 @@
+name: Release
+
+permissions:
+  contents: write
+
+on:
+  push:
+    tags:
+      - v[0-9]+.*
+
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_NET_GIT_FETCH_WITH_CLI: true
+  CARGO_NET_RETRY: 10
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  RUSTFLAGS: -D warnings
+  RUSTUP_MAX_RETRIES: 10
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  create-release:
+    name: Create GitHub release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          persist-credentials: false
+      - uses: taiki-e/github-actions/install-rust@main
+        with:
+          toolchain: stable
+      - run: cargo package
+      - uses: taiki-e/create-gh-release-action@v1
+        with:
+          changelog: CHANGELOG.md
+          title: $version
+          branch: master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  upload-assets:
+    name: ${{ matrix.target }}
+    needs:
+      - create-release
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            build_tool: cross
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            build_tool: cross
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            build_tool: cargo
+          - target: x86_64-pc-windows-msvc
+            os: windows-2019
+            build_tool: cargo
+    runs-on: ${{ matrix.os || 'ubuntu-20.04' }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          persist-credentials: false
+      - uses: taiki-e/github-actions/install-rust@main
+        with:
+          toolchain: stable
+      - uses: taiki-e/upload-rust-binary-action@v1
+        with:
+          bin: hsc
+          target: ${{ matrix.target }}
+          build_tool: ${{ matrix.build_tool }}
+          tar: unix
+          zip: windows
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 1
+          CARGO_PROFILE_RELEASE_LTO: true

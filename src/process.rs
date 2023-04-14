@@ -72,9 +72,11 @@ impl Default for HSCProcess {
             subclone
         });
         HSCProcess::new(
-            0.5,
-            1.,
-            0.1,
+            CellDivisionProbabilities {
+                p_asymmetric: 0.5,
+                lambda_poisson: 1.,
+                p: 0.1,
+            },
             subclones,
             None,
             PathBuf::from("./output"),
@@ -85,9 +87,17 @@ impl Default for HSCProcess {
     }
 }
 
+pub struct CellDivisionProbabilities {
+    pub p_asymmetric: f64,
+    /// Rate of
+    pub lambda_poisson: f32,
+    /// Probability of getting a fit mutant upon cell division
+    pub p: f64,
+}
+
 impl HSCProcess {
-    /// Create a Moran process with wild-type subclone with neutral fitness, to
-    /// which all cells will be assigned.
+    /// A Moran process with wild-type subclone with neutral fitness, to which
+    /// all cells will be assigned.
     ///
     /// # Arguments
     /// * `p_asymmetric` - The parameter of a Bernouilli trial modelling the
@@ -103,9 +113,7 @@ impl HSCProcess {
     /// When p<0 or p>1 and when lambda < 0 or nan.
     /// When `p_asymmetric` is < 0 or > 1
     pub fn new(
-        p_asymmetric: f64,
-        lambda_poisson: f32,
-        p: f64,
+        probabilities: CellDivisionProbabilities,
         initial_subclones: [SubClone; MAX_SUBCLONES],
         snapshot: Option<Vec<usize>>,
         path2dir: PathBuf,
@@ -113,7 +121,12 @@ impl HSCProcess {
         time: Vec<f32>,
         verbosity: u8,
     ) -> HSCProcess {
-        let distributions = Distributions::new(p_asymmetric, lambda_poisson, p, verbosity);
+        let distributions = Distributions::new(
+            probabilities.p_asymmetric,
+            probabilities.lambda_poisson,
+            probabilities.p,
+            verbosity,
+        );
         let hsc = HSCProcess {
             subclones: initial_subclones,
             distributions,
