@@ -1,9 +1,6 @@
 name: Clippy and Rustfmt
 
-on:
-  push:
-    paths-ignore:
-      - 'ecdna-plot/**'
+on: [push]
 
 env:
   CARGO_TERM_COLOR: always
