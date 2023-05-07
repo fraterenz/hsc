@@ -1,7 +1,7 @@
 use crate::neutral::{Genotype, NbPoissonNeutralMutations, StemCell};
 use crate::sfs::{sfs, CloneId, SubClone};
 use crate::{write2file, MAX_SUBCLONES};
-use anyhow::{ensure, Context};
+use anyhow::Context;
 use rand::Rng;
 use rand_distr::{Bernoulli, Distribution, Poisson, WeightedIndex};
 use sosa::{AdvanceStep, CurrentState, NextReaction};
@@ -215,8 +215,14 @@ impl HSCProcess {
                 self.subclones[subclone_id]
             );
         }
+        let mut proliferating_cells = Vec::with_capacity(2);
         if self.distributions.bern_asymmetric.sample(rng) {
-            vec![asymmetric_division(&mut self.subclones[subclone_id], rng).unwrap()]
+            proliferating_cells.push(
+                self.subclones[subclone_id]
+                    .random_cell(rng)
+                    .with_context(|| "found empty subclone")
+                    .unwrap(),
+            )
         } else {
             // remove a cell from a subclone first and then divide
             let id2remove = if let Some(id) = self.the_only_one_subclone_present() {
@@ -234,11 +240,15 @@ impl HSCProcess {
             if self.verbosity > 1 {
                 println!("removing one cell from clone {}", id2remove);
             }
-
-            symmetric_division(&mut self.subclones[subclone_id], rng)
-                .unwrap()
-                .to_vec()
+            let cell1 = self.subclones[subclone_id]
+                .random_cell(rng)
+                .with_context(|| "found empty subclone")
+                .unwrap();
+            let cell2 = cell1.clone();
+            proliferating_cells.push(cell1);
+            proliferating_cells.push(cell2);
         }
+        proliferating_cells
     }
 
     pub fn save_variant_fraction(&self, timepoint: usize) -> anyhow::Result<()> {
@@ -391,30 +401,6 @@ fn division(
     None
 }
 
-fn asymmetric_division(subclone: &mut SubClone, rng: &mut impl Rng) -> anyhow::Result<StemCell> {
-    //! An asymmetric division generates a differentiated cell and a stem cell.
-    //! It removes a cell from the subclone.
-    subclone.random_cell(rng)
-}
-
-fn symmetric_division(
-    subclone: &mut SubClone,
-    rng: &mut impl Rng,
-) -> anyhow::Result<[StemCell; 2]> {
-    //! A symmetric division generates two stem cells belonging to `subclone`.
-    //! It removes a cell from the subclone.
-    //!
-    //! Since we are simulating a Moran process, another stem cell must be
-    //! removed from the system each time a symmetric division occurs.
-    ensure!(!subclone.is_empty());
-    let cell1 = subclone
-        .random_cell(rng)
-        .with_context(|| "found empty subclone")?;
-    let cell2 = cell1.clone();
-
-    Ok([cell1, cell2])
-}
-
 #[cfg(test)]
 mod tests {
     use crate::tests::LambdaFromNonZeroU8;
@@ -503,47 +489,6 @@ mod tests {
             &mut rng,
         )
         .is_some()
-    }
-
-    #[test]
-    #[should_panic]
-    fn asymmetric_should_panic_empty_subclone_test() {
-        let mut rng = ChaCha8Rng::seed_from_u64(26);
-        let mut neutral_clone = SubClone::new(1, 2);
-        asymmetric_division(&mut neutral_clone, &mut rng).unwrap();
-    }
-
-    #[quickcheck]
-    fn asymmetric_division_test(seed: u64, id: usize) -> bool {
-        let mut rng = ChaCha8Rng::seed_from_u64(seed);
-        let mut neutral_clone = SubClone::new(id, 2);
-        let cell = StemCell::new();
-        neutral_clone.assign_cell(cell);
-
-        let stem_cell = asymmetric_division(&mut neutral_clone, &mut rng).unwrap();
-        neutral_clone.cell_count() == 0 && !stem_cell.has_mutations()
-    }
-
-    #[test]
-    #[should_panic]
-    fn symmetric_should_panic_empty_subclone_test() {
-        let mut rng = ChaCha8Rng::seed_from_u64(26);
-        let mut neutral_clone = SubClone::new(1, 2);
-        symmetric_division(&mut neutral_clone, &mut rng).unwrap();
-    }
-
-    #[quickcheck]
-    fn symmetric_division_test(seed: u64, id: usize) -> bool {
-        let mut rng = ChaCha8Rng::seed_from_u64(seed);
-        let mut neutral_clone = SubClone::new(id, 2);
-        let cell = StemCell::new();
-        neutral_clone.assign_cell(cell);
-        assert_eq!(neutral_clone.cell_count(), 1);
-
-        let stem_cells = symmetric_division(&mut neutral_clone, &mut rng).unwrap();
-        neutral_clone.cell_count() == 0
-            && stem_cells.iter().all(|cell| !cell.has_mutations())
-            && stem_cells.len() == 2
     }
 
     #[test]
