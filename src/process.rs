@@ -91,7 +91,7 @@ impl Default for HSCProcess {
 #[derive(Debug, Clone)]
 pub struct CellDivisionProbabilities {
     pub p_asymmetric: f64,
-    /// Rate of
+    /// Rate of neutral mutations per cell-division
     pub lambda_poisson: f32,
     /// Probability of getting a fit mutant upon cell division
     pub p: f64,
@@ -165,50 +165,39 @@ impl HSCProcess {
         None
     }
 
-    fn mutate_and_assign(
-        &mut self,
-        subclone_id: usize,
-        stem_cells: Vec<StemCell>,
-        rng: &mut impl Rng,
-    ) {
-        //! Mutate proliferating cells and assign them to new subclones if needed
-        if self.verbosity > 1 {
-            println!("{:#?} cells are dividing", stem_cells);
+    fn assign(&mut self, subclone_id: usize, stem_cell: StemCell, rng: &mut impl Rng) {
+        //! TODO
+        let cell = assign(
+            &mut self.subclones[subclone_id],
+            stem_cell,
+            &self.distributions,
+            rng,
+        );
+        let mut rnd_clone_id = rng.gen_range(0..self.subclones.len());
+        let mut counter = 0;
+        while rnd_clone_id == subclone_id && counter <= self.subclones.len() {
+            rnd_clone_id = rng.gen_range(0..self.subclones.len());
+            counter += 1;
         }
-        for stem_cell in stem_cells.into_iter() {
-            self.counter_divisions += 1;
-            let cell = division(
-                &mut self.subclones[subclone_id],
-                stem_cell,
-                &self.distributions,
-                self.counter_divisions,
-                rng,
-            );
-            let mut rnd_clone_id = rng.gen_range(0..self.subclones.len());
-            let mut counter = 0;
-            while rnd_clone_id == subclone_id && counter <= self.subclones.len() {
-                rnd_clone_id = rng.gen_range(0..self.subclones.len());
-                counter += 1;
+        assert!(
+            counter <= self.subclones.len(),
+            "max number of clones reached"
+        );
+        if let Some(cell) = cell {
+            if self.verbosity > 1 {
+                println!(
+                    "assgin {:#?} to clone {:#?}",
+                    cell, self.subclones[rnd_clone_id]
+                );
             }
-            assert!(
-                counter <= self.subclones.len(),
-                "max number of clones reached"
-            );
-            if let Some(cell) = cell {
-                if self.verbosity > 1 {
-                    println!(
-                        "division generated {:#?} cells to assign to clone {:#?}",
-                        cell, self.subclones[rnd_clone_id]
-                    );
-                }
-                self.subclones[rnd_clone_id].assign_cell(cell);
-            } else if cell.is_none() && self.verbosity > 1 {
-                println!("division resulted in no new fit variants");
-            }
+            self.subclones[rnd_clone_id].assign_cell(cell);
+        } else if cell.is_none() && self.verbosity > 1 {
+            println!("no new fit variants");
         }
     }
 
     fn proliferating_cells(&mut self, subclone_id: usize, rng: &mut impl Rng) -> Vec<StemCell> {
+        //! Take a random cell from `subclone_id` and make it proliferate.
         if self.verbosity > 1 {
             println!(
                 "a cell from clone {:#?} will divide",
@@ -224,7 +213,8 @@ impl HSCProcess {
                     .unwrap(),
             )
         } else {
-            // remove a cell from a subclone first and then divide
+            // remove a cell from a random subclone based on the frequencies of
+            // the clones at the current state
             let id2remove = if let Some(id) = self.the_only_one_subclone_present() {
                 id
             } else {
@@ -233,6 +223,7 @@ impl HSCProcess {
                 variants[subclone_id] -= 1;
                 WeightedIndex::new(variants).unwrap().sample(rng)
             };
+            // remove a cell from the random subclone
             let _ = self.subclones[id2remove]
                 .random_cell(rng)
                 .with_context(|| "found empty subclone")
@@ -247,6 +238,9 @@ impl HSCProcess {
             let cell2 = cell1.clone();
             proliferating_cells.push(cell1);
             proliferating_cells.push(cell2);
+        }
+        if self.verbosity > 1 {
+            println!("proliferating cells {:#?}", proliferating_cells)
         }
         proliferating_cells
     }
@@ -289,7 +283,7 @@ impl HSCProcess {
             .collect();
         let sfs = serde_json::to_string(&Genotype::sfs_neutral(
             &cells,
-            &self.distributions,
+            &self.distributions.poisson,
             self.verbosity,
             rng,
         ))
@@ -310,9 +304,23 @@ impl AdvanceStep<MAX_SUBCLONES> for HSCProcess {
         //! Select the next cell that will proliferate which belongs to the
         //! `CloneId` found by the next `reaction`.
         //! This cell will generate either a symmetric or asymmetric division.
+        // pick the proliferating cells that belong the to clone with id
+        // `reaction.event` that will proliferate next according to the
+        // Gillespie algorithm (which generated `reaction.event`).
         let stem_cells = self.proliferating_cells(reaction.event, rng);
 
-        self.mutate_and_assign(reaction.event, stem_cells, rng);
+        if self.verbosity > 1 {
+            println!("{:#?} cells are dividing", stem_cells);
+        }
+
+        for mut stem_cell in stem_cells.into_iter() {
+            // perform division
+            self.counter_divisions += 1;
+            Genotype::mutate(&mut stem_cell, self.counter_divisions);
+            // check if the division resulted into a cell being assigned to a
+            // another clone
+            self.assign(reaction.event, stem_cell, rng);
+        }
 
         // take snapshot
         self.time += reaction.time;
@@ -341,11 +349,29 @@ impl AdvanceStep<MAX_SUBCLONES> for HSCProcess {
     }
 }
 
+/// The Poisson probability distribution modeling the appearance of neutral
+/// mutations upon cell-division, aka neutral mutations are assumed to follow
+/// a [Poisson point process](https://en.wikipedia.org/wiki/Poisson_point_process).
+#[derive(Debug, Clone)]
+pub struct NeutralMutationPoisson(pub Poisson<f32>);
+
+impl NeutralMutationPoisson {
+    pub fn nb_neutral_mutations(&self, rng: &mut impl Rng) -> NbPoissonNeutralMutations {
+        //! The number of neutral mutations acquired upon cell division.
+        let mut mutations = self.0.sample(rng);
+        while mutations >= u8::MAX as f32 || mutations.is_sign_negative() || !mutations.is_normal()
+        {
+            mutations = self.0.sample(rng);
+        }
+        NbPoissonNeutralMutations::new(mutations as u8).unwrap()
+    }
+}
+
 /// Distribution probabilities used to model acquisition of neutral and
 /// conferring-fitness mutations upon cell division.
 #[derive(Debug, Clone)]
 pub struct Distributions {
-    poisson: Poisson<f32>,
+    poisson: NeutralMutationPoisson,
     bern: Bernoulli,
     bern_asymmetric: Bernoulli,
 }
@@ -356,21 +382,12 @@ impl Distributions {
             println!("creating distributions with parameters asymmetric: {}, neutral_lambda: {}, p_fitness: {}", p_asymmetric, lambda_poisson, p_fitness);
         }
         Self {
-            poisson: Poisson::new(lambda_poisson)
-                .expect("Invalid lambda found: lambda <= 0 or nan"),
+            poisson: NeutralMutationPoisson(
+                Poisson::new(lambda_poisson).expect("Invalid lambda found: lambda <= 0 or nan"),
+            ),
             bern: Bernoulli::new(p_fitness).expect("Invalid p: p<0 or p>1"),
             bern_asymmetric: Bernoulli::new(p_asymmetric).expect("Invalid p: p<0 or p>1"),
         }
-    }
-
-    pub fn nb_neutral_mutations(&self, rng: &mut impl Rng) -> NbPoissonNeutralMutations {
-        //! The number of neutral mutations acquired upon cell division.
-        let mut mutations = self.poisson.sample(rng);
-        while mutations >= u8::MAX as f32 || mutations.is_sign_negative() || !mutations.is_normal()
-        {
-            mutations = self.poisson.sample(rng);
-        }
-        NbPoissonNeutralMutations::new(mutations as u8).unwrap()
     }
 
     pub fn acquire_p_mutation(&self, rng: &mut impl Rng) -> bool {
@@ -378,22 +395,19 @@ impl Distributions {
     }
 }
 
-fn division(
+fn assign(
     subclone: &mut SubClone,
-    mut cell: StemCell,
+    cell: StemCell,
     distr: &Distributions,
-    proliferative_events: usize,
     rng: &mut impl Rng,
 ) -> Option<StemCell> {
-    //! Mutate a cell: add a poisson number of neutral mutations (with rate
-    //! `lambda`, see [`Distributions::new`]) and a variant conferring a
-    //! fitness advantage (with probability `p`, see [`Distributions::new`]).
+    //! Check if `cell` will be assigned to `subclone`, according to a
+    //! Bernouilli trial with probability `p` (see [`Distributions::new`]).
     //! Assign cell to `subclone` if no fit variant has been generated.
     //!
     //! ## Returns
     //! If the cell gets one fitness advantage mutation, then the function
     //! returns the cell, otherwise it returns None.
-    Genotype::mutate(&mut cell, proliferative_events);
     if distr.acquire_p_mutation(rng) {
         return Some(cell);
     }
@@ -444,51 +458,30 @@ mod tests {
     #[quickcheck]
     fn test_nb_neutral_mutations(lambda_poisson: LambdaFromNonZeroU8) {
         let mut rng = ChaCha8Rng::seed_from_u64(26);
-        Distributions::new(1., lambda_poisson.0, 0., 0).nb_neutral_mutations(&mut rng);
+        NeutralMutationPoisson(Poisson::new(lambda_poisson.0).unwrap())
+            .nb_neutral_mutations(&mut rng);
     }
 
     #[quickcheck]
-    fn division_no_new_clone(
-        lambda: LambdaFromNonZeroU8,
-        proliferative_events: usize,
-        seed: u64,
-    ) -> bool {
+    fn division_no_new_clone(lambda: LambdaFromNonZeroU8, seed: u64) -> bool {
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
         let distr = Distributions::new(1., lambda.0, 0f64, 0);
 
         let mut neutral_clone = SubClone::new(1, 2);
         let cell = StemCell::new();
 
-        division(
-            &mut neutral_clone,
-            cell,
-            &distr,
-            proliferative_events,
-            &mut rng,
-        )
-        .is_none()
+        assign(&mut neutral_clone, cell, &distr, &mut rng).is_none()
     }
 
     #[quickcheck]
-    fn division_new_clone(
-        lambda: LambdaFromNonZeroU8,
-        proliferative_events: usize,
-        seed: u64,
-    ) -> bool {
+    fn division_new_clone(lambda: LambdaFromNonZeroU8, seed: u64) -> bool {
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
         let distr = Distributions::new(1., lambda.0, 1f64, 0);
 
         let mut neutral_clone = SubClone::new(1, 2);
         let cell = StemCell::new();
 
-        division(
-            &mut neutral_clone,
-            cell,
-            &distr,
-            proliferative_events,
-            &mut rng,
-        )
-        .is_some()
+        assign(&mut neutral_clone, cell, &distr, &mut rng).is_some()
     }
 
     #[test]

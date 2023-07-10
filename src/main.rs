@@ -78,7 +78,7 @@ fn main() {
     // initial state
     let mut subclones: [SubClone; MAX_SUBCLONES] =
         std::array::from_fn(|i| SubClone::new(i, app.options.max_cells as usize));
-    for _ in 0..app.options.max_cells - 1 {
+    for _ in 0..app.options.max_cells {
         subclones[0].assign_cell(StemCell::new());
     }
     let init_population = core::array::from_fn(|i| subclones[i].cell_count());

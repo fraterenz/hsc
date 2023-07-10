@@ -1,15 +1,21 @@
-use crate::{
-    neutral::{Genotype, StemCell},
-    MAX_SUBCLONES,
-};
+use crate::{neutral::StemCell, MAX_SUBCLONES};
 use anyhow::ensure;
 use rand::Rng;
 use sosa::NbIndividuals;
 use std::collections::HashMap;
 
+/// Id of the [`SubClone`]s used for the computation of the [`sfs`].
 pub type CloneId = usize;
 
 #[derive(Debug, Clone)]
+/// A group of cells sharing the same genetic background with a specific
+/// proliferation rate.
+///
+/// The main loop of the simulation delegates the proliferation of cells to
+/// this structure, meaning that the `SubClone` will randomly pick one of its
+/// cells and make it proliferate.
+/// Upon proliferation, the cell can be assigned to a new clone with
+/// probability `p` (see [`crate::process::CellDivisionProbabilities`]).
 pub struct SubClone {
     cells: Vec<StemCell>,
     pub id: CloneId,
@@ -40,21 +46,6 @@ impl SubClone {
         Ok(self.cells.swap_remove(rng.gen_range(0..self.cells.len())))
     }
 
-    pub fn proliferate(
-        &mut self,
-        mut cell: StemCell,
-        proliferative_events: usize,
-        is_new_clone: bool,
-    ) -> Option<StemCell> {
-        Genotype::mutate(&mut cell, proliferative_events);
-
-        if is_new_clone {
-            return Some(cell);
-        }
-        self.cells.push(cell);
-        None
-    }
-
     pub fn cell_count(&self) -> u64 {
         self.cells.len() as u64
     }
@@ -63,6 +54,8 @@ impl SubClone {
 pub fn sfs(subclones: &[SubClone]) -> HashMap<CloneId, NbIndividuals> {
     //! Compute the site frequency spectrum for clones that have a
     //! proliferative advantage.
+    //! Each key of the sfs is the `CloneId` while the value is the number of
+    //! cells corresponding the to clone identified by the key.
     let mut clones = HashMap::<CloneId, NbIndividuals>::with_capacity(MAX_SUBCLONES);
     for clone in subclones {
         clones.insert(clone.id, clone.cell_count());
