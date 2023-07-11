@@ -263,8 +263,7 @@ impl HSCProcess {
     }
 
     pub fn save(&self, rng: &mut impl Rng) -> anyhow::Result<()> {
-        //! Save the process.
-        //! Save the SFS, SFS neutral and time.
+        //! Save the SFS and SFS neutral.
         let path2sfs = self.path2dir.join("sfs");
         fs::create_dir_all(&path2sfs).expect("Cannot create dir");
         let path2file = path2sfs.join(self.id.to_string()).with_extension("json");

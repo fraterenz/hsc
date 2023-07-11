@@ -32,31 +32,7 @@ pub struct SimulationOptions {
     options: Options,
 }
 
-// const NITERS: usize = 20;
-// const NCELLS: usize = 20;
-// const NITERS: usize = 2_000_000;
-// const NCELLS: usize = 200_000;
-// const RUNS: usize = 1;
-//
-// // division rate for the wild-type
-// const B0: f32 = 1.;
-// // avg fit mutations arising in 1 year
-// const MU0: f32 = 40.;
-// // avg number of neutral mutations per each proliferative event
-// const LAMBDA_POISSON: f32 = 1.;
-//
-// // proliferative advantage conferred by fit mutations
-// const S: f32 = 0.15;
-// // const LAMBDA_EXP: f32 = 1.;
-//
-// // probability of getting an asymmetric division per each proliferate event
-// const P_ASYMMETRIC: f64 = 0.;
-// const SEED: u64 = 26;
-// const VERBOSITY: u8 = 1;
-
 fn main() {
-    // let mut rng = ChaCha8Rng::seed_from_u64(SEED);
-    // let exp = Exp::new(LAMBDA_EXP).unwrap();
     let app = Cli::build();
     let rates = ReactionRates(core::array::from_fn(|i| {
         if i == 0 {
@@ -78,7 +54,7 @@ fn main() {
     // initial state
     let mut subclones: [SubClone; MAX_SUBCLONES] =
         std::array::from_fn(|i| SubClone::new(i, app.options.max_cells as usize));
-    for _ in 0..app.options.max_cells {
+    for _ in 0..app.options.max_cells - 1 {
         subclones[0].assign_cell(StemCell::new());
     }
     let init_population = core::array::from_fn(|i| subclones[i].cell_count());

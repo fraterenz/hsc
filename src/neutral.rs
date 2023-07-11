@@ -44,12 +44,21 @@ impl Genotype {
         poisson_dist: &NeutralMutationPoisson,
         verbosity: u8,
         rng: &mut impl Rng,
-    ) -> Vec<NonZeroU64> {
-        //! The neutral SFS is a *sorted* (increasing order) vector where each
-        //! entry represents the number of cells with an unique neutral mutation.
+    ) -> HashMap<u64, u64> {
+        //! The neutral SFS's keys are the number of mutations present in j
+        //! cells (X_j) and values are the number of j cells.
+        //!
+        //! To plot the neutral SFS, plot on the y-axis the keys (X_j) and on
+        //! the x-axis the values (j cells).
         //!
         //! Calling `sfs_neutral` transforms the set of genotypes present in
         //! `cells` [`StemCell`] into neutral unique mutations.
+        //!
+        //! In a Moran process with neutral selection, the expected number of
+        //! variants present in j cells E(X_j) is equal to Nu(1/j) (in a sample
+        //! of n cells?), where N is the total population size and u is the
+        //! neutral mutation rate per unit of time, j are the cells.
+        //!
         //! # Example
         //! ```
         //! use hsc::neutral::{Genotype, StemCell};
@@ -87,7 +96,7 @@ impl Genotype {
         }
         assert!(!cells.is_empty(), "found empty cells");
         let mut total_burden = 0usize;
-        let mut frequencies = HashMap::with_capacity(cells.len());
+        let mut counts = HashMap::with_capacity(cells.len());
         // key is the genotype id and value is the number of mutations
         // it's a "database" of mutations
         let mut genotypes_poisson = HashMap::new();
@@ -100,21 +109,20 @@ impl Genotype {
                     genotypes_poisson.insert(division_id, poisson_nb);
                     total_burden += poisson_nb.get() as usize;
                 }
-                frequencies
+                counts
                     .entry(division_id)
                     .and_modify(|counter| *counter += 1)
                     .or_insert(1);
             }
         }
-        dbg!(&frequencies);
-        dbg!(&genotypes_poisson);
-        let mut sfs = Vec::with_capacity(total_burden);
-        for (id, freq) in frequencies.into_iter() {
+        let mut sfs = HashMap::with_capacity(total_burden);
+        for (id, count) in counts.into_iter() {
             for _ in 0..genotypes_poisson[&id].get() {
-                sfs.push(unsafe { NonZeroU64::new_unchecked(freq) });
+                sfs.entry(count)
+                    .and_modify(|counter| *counter += 1)
+                    .or_insert(1);
             }
         }
-        sfs.sort_unstable();
         sfs
     }
 }
