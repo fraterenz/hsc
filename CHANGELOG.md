@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.7.1
+Forgot to commit new files...
+
 ## 0.7.0
 Rename files and fix bug in the SFS, still not sure whether it's correct or not.
 
