@@ -3,9 +3,9 @@ use std::path::PathBuf;
 use chrono::Utc;
 use clap_app::Parallel;
 use hsc::{
-    neutral::StemCell,
     process::{CellDivisionProbabilities, HSCProcess},
-    sfs::SubClone,
+    stemcell::StemCell,
+    subclone::SubClone,
     MAX_SUBCLONES,
 };
 use indicatif::ParallelProgressIterator;

@@ -1,5 +1,5 @@
-use crate::neutral::{Genotype, NbPoissonNeutralMutations, StemCell};
-use crate::sfs::{sfs, CloneId, SubClone};
+use crate::stemcell::{Genotype, NbPoissonNeutralMutations, StemCell};
+use crate::subclone::{CloneId, SubClone};
 use crate::{write2file, MAX_SUBCLONES};
 use anyhow::Context;
 use rand::Rng;
@@ -16,7 +16,7 @@ impl Variants {
         //! The total variant count is the number of cells in all subclones.
         //! ```
         //! use hsc::MAX_SUBCLONES;
-        //! # use hsc::{neutral::StemCell, process::{HSCProcess, Variants}};
+        //! # use hsc::{stemcell::StemCell, process::{HSCProcess, Variants}};
         //! // create a process with one cell in each `MAX_SUBCLONES` subclones
         //! let mut hsc = HSCProcess::default();
         //!
@@ -35,7 +35,7 @@ impl Variants {
         //!
         //! ```
         //! use hsc::MAX_SUBCLONES;
-        //! # use hsc::{neutral::StemCell, process::{HSCProcess, Variants}};
+        //! # use hsc::{stemcell::StemCell, process::{HSCProcess, Variants}};
         //! // create a process with one cell in each `MAX_SUBCLONES` subclones
         //! let mut hsc = HSCProcess::default();
         //!
@@ -51,6 +51,9 @@ impl Variants {
     }
 }
 
+/// The Moran process saves the state of the agents and simulates new
+/// proliferative events at each timestep according to the Gillespie algorithm,
+/// see [`HSCProcess::advance_step`].
 #[derive(Debug, Clone)]
 pub struct HSCProcess {
     /// A collection of clones having a proliferative advantage.
@@ -166,7 +169,8 @@ impl HSCProcess {
     }
 
     fn assign(&mut self, subclone_id: usize, stem_cell: StemCell, rng: &mut impl Rng) {
-        //! TODO
+        //! Check if the `stem_cell` will be assigned to the subclone with id
+        //! `subclone_id` or not. If that's the case, perform assignment.
         let cell = assign(
             &mut self.subclones[subclone_id],
             stem_cell,
@@ -197,7 +201,8 @@ impl HSCProcess {
     }
 
     fn proliferating_cells(&mut self, subclone_id: usize, rng: &mut impl Rng) -> Vec<StemCell> {
-        //! Take a random cell from `subclone_id` and make it proliferate.
+        //! Determine which cells will proliferate by randomly selecting a cell
+        //! from the subclone with id `subclone_id`.
         if self.verbosity > 1 {
             println!(
                 "a cell from clone {:#?} will divide",
@@ -268,20 +273,28 @@ impl HSCProcess {
         fs::create_dir_all(&path2sfs).expect("Cannot create dir");
         let path2file = path2sfs.join(self.id.to_string()).with_extension("json");
         // save subclones first
-        let sfs = serde_json::to_string(&sfs(&self.subclones)).expect("cannot serialize the sfs");
-        fs::write(path2file, sfs).with_context(|| "Cannot save the neutral SFS".to_string())?;
-
-        // save SFS neutral
-        let path2sfs = self.path2dir.join("sfs_neutral");
-        fs::create_dir_all(&path2sfs).expect("Cannot create dir");
-        let path2file = path2sfs.join(self.id.to_string()).with_extension("json");
         let cells: Vec<StemCell> = self
             .subclones
             .iter()
             .flat_map(|subclone| subclone.get_cells().to_vec())
             .collect();
-        let sfs = serde_json::to_string(&Genotype::sfs_neutral(
+        let sfs = serde_json::to_string(&Genotype::sfs(
             &cells,
+            &self.distributions.poisson,
+            self.verbosity,
+            rng,
+        ))
+        .expect("Cannot serialize the sfs");
+        fs::write(path2file, sfs).with_context(|| "Cannot save the total SFS".to_string())?;
+
+        // save SFS neutral
+        let path2sfs = self.path2dir.join("sfs_neutral");
+        fs::create_dir_all(&path2sfs).expect("Cannot create dir");
+        let path2file = path2sfs.join(self.id.to_string()).with_extension("json");
+        // subclone 0 is the neutral one
+        let cells = self.subclones[0].get_cells();
+        let sfs = serde_json::to_string(&Genotype::sfs(
+            cells,
             &self.distributions.poisson,
             self.verbosity,
             rng,
@@ -298,11 +311,25 @@ impl AdvanceStep<MAX_SUBCLONES> for HSCProcess {
     type Reaction = CloneId;
 
     fn advance_step(&mut self, reaction: NextReaction<Self::Reaction>, rng: &mut impl Rng) {
-        //! Update the process according to the next `reaction`.
+        //! Update the process by simulating the next proliferative event
+        //! according to the next `reaction` determined by the Gillespie
+        //! algorithm.
         //!
-        //! Select the next cell that will proliferate which belongs to the
-        //! `CloneId` found by the next `reaction`.
-        //! This cell will generate either a symmetric or asymmetric division.
+        //! The proliferation step is implemented as following:
+        //!
+        //! 1. select the cell that will proliferate next from the clone
+        //! with id `reaction` determined by the Gillespie algorithm
+        //!
+        //! 2. if the next proliferation is performed symmetricaly, clone the
+        //! proliferating cell, else continue to step 3
+        //!
+        //! 3. for all proliferating cells (1 cell in case of a asymmetric
+        //! division, 2 cells in the case of a symmetric division):
+        //!     * mutate genome by storing the division id, see
+        //!     [`crate::stemcell::Genotype`]
+        //!
+        //!     * assign to new subclone with a probability determined by the
+        //!     rate of mutations conferring a proliferative advantage
         // pick the proliferating cells that belong the to clone with id
         // `reaction.event` that will proliferate next according to the
         // Gillespie algorithm (which generated `reaction.event`).
@@ -317,7 +344,7 @@ impl AdvanceStep<MAX_SUBCLONES> for HSCProcess {
             self.counter_divisions += 1;
             Genotype::mutate(&mut stem_cell, self.counter_divisions);
             // check if the division resulted into a cell being assigned to a
-            // another clone
+            // another clone, assign if that's the case
             self.assign(reaction.event, stem_cell, rng);
         }
 
@@ -501,7 +528,6 @@ mod tests {
         }
         let tot_cells = hsc.compute_tot_cells();
 
-        dbg!(&hsc.subclones[subclone_id as usize]);
         let proliferating_cells = hsc.proliferating_cells(subclone_id as usize, &mut rng);
 
         let mut subclone_id_has_lost_cell = true;

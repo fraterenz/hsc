@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.7.0
+Rename files and fix bug in the SFS, still not sure whether it's correct or not.
+
 ## 0.6.0
 ### Added
 - Simplify and disantangle the addition of neutral mutations and the positive selection clonal assignment.

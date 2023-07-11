@@ -24,12 +24,12 @@ use std::{
 
 use anyhow::Context;
 
-/// The neutral mutations and genotypes.
-pub mod neutral;
 /// The events to simulate for this Markov process.
 pub mod process;
-/// The site frequency spectrum (also known as the variant allele frequency).
-pub mod sfs;
+/// The agents whose state defines the system simulated by the process.
+pub mod stemcell;
+/// The classes defining the proliferative advantage.
+pub mod subclone;
 
 pub const MAX_SUBCLONES: usize = 40;
 
