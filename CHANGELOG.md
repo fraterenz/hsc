@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.7.2
+Remove dependency `uuid` and `thiserror`, and change backend of the sfs computation.
+
 ## 0.7.1
 Forgot to commit new files...
 

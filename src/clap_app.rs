@@ -24,18 +24,19 @@ pub struct Cli {
     cells: NbIndividuals,
     #[arg(short, long, default_value_t = 1)]
     runs: usize,
-    /// division rate for the wild-type in 1 year
+    /// division rate for the wild-type in 1 year, units: division / (year * cell)
     #[arg(long, default_value_t = 1.)]
     b0: f32,
-    /// avg fit mutations arising in 1 year
+    /// avg fit mutations arising in 1 year, units: division / year
     #[arg(long, default_value_t = 2.)]
     mu0: f32,
     /// avg number of neutral mutations per each proliferative event assuming a
-    /// Poisson distribution
+    /// Poisson distribution, units: mutation / (cell * year)
     #[arg(long, default_value_t = 1.)]
     neutral_rate: f32,
     #[arg(short, default_value_t = 0.15)]
-    /// proliferative advantage conferred by fit mutations
+    /// proliferative advantage conferred by fit mutations, for now we assume
+    /// all clones have the same advantange, units: mutation / cell
     s: f32,
     /// probability of getting an asymmetric division per each proliferate event
     #[arg(long, default_value_t = 0.)]

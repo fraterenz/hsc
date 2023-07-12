@@ -1,4 +1,4 @@
-use crate::stemcell::{Genotype, NbPoissonNeutralMutations, StemCell};
+use crate::stemcell::{Genotype, NbPoissonMutations, StemCell};
 use crate::subclone::{CloneId, SubClone};
 use crate::{write2file, MAX_SUBCLONES};
 use anyhow::Context;
@@ -382,14 +382,14 @@ impl AdvanceStep<MAX_SUBCLONES> for HSCProcess {
 pub struct NeutralMutationPoisson(pub Poisson<f32>);
 
 impl NeutralMutationPoisson {
-    pub fn nb_neutral_mutations(&self, rng: &mut impl Rng) -> NbPoissonNeutralMutations {
+    pub fn nb_neutral_mutations(&self, rng: &mut impl Rng) -> NbPoissonMutations {
         //! The number of neutral mutations acquired upon cell division.
         let mut mutations = self.0.sample(rng);
         while mutations >= u8::MAX as f32 || mutations.is_sign_negative() || !mutations.is_normal()
         {
             mutations = self.0.sample(rng);
         }
-        NbPoissonNeutralMutations::new(mutations as u8).unwrap()
+        NbPoissonMutations::new(mutations as u8).unwrap()
     }
 }
 
