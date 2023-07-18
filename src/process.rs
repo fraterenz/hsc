@@ -1,4 +1,4 @@
-use crate::stemcell::{Genotype, NbPoissonMutations, StemCell};
+use crate::stemcell::{NbPoissonMutations, Sfs, StemCell};
 use crate::subclone::{CloneId, SubClone};
 use crate::{write2file, MAX_SUBCLONES};
 use anyhow::Context;
@@ -9,6 +9,7 @@ use std::collections::VecDeque;
 use std::fs;
 use std::path::PathBuf;
 
+/// Number of cells in subclones.
 pub struct Variants {}
 
 impl Variants {
@@ -59,9 +60,9 @@ pub struct HSCProcess {
     /// A collection of clones having a proliferative advantage.
     pub subclones: [SubClone; MAX_SUBCLONES],
     /// The counter for the number of proliferative events.
-    pub counter_divisions: usize,
-    pub id: usize,
-    pub time: f32,
+    counter_divisions: usize,
+    id: usize,
+    time: f32,
     pub snapshot: VecDeque<f32>,
     pub path2dir: PathBuf,
     pub verbosity: u8,
@@ -103,20 +104,6 @@ pub struct CellDivisionProbabilities {
 impl HSCProcess {
     /// A Moran process with wild-type subclone with neutral fitness, to which
     /// all cells will be assigned.
-    ///
-    /// # Arguments
-    /// * `p_asymmetric` - The parameter of a Bernouilli trial modelling the
-    /// probability of a cell to undergo asymmetric division (1 - p symmetric).
-    /// * `lambda_poisson` - The parameter of the Poisson distribution
-    /// modelling the acquisition of neutral mutations (the average number of
-    /// neutral mutations acquired by cells upon cell division).
-    /// * `p` - The parameter of a Bernouilli trial modelling the probability
-    /// of acquiring a mutation conferring a positive advantage to the cell.
-    /// * `initial_subclones` - The collection of subclones used to start the simulation
-    ///
-    /// # Panics
-    /// When p<0 or p>1 and when lambda < 0 or nan.
-    /// When `p_asymmetric` is < 0 or > 1
     pub fn new(
         probabilities: CellDivisionProbabilities,
         initial_subclones: [SubClone; MAX_SUBCLONES],
@@ -278,7 +265,7 @@ impl HSCProcess {
             .iter()
             .flat_map(|subclone| subclone.get_cells().to_vec())
             .collect();
-        let sfs = serde_json::to_string(&Genotype::sfs(
+        let sfs = serde_json::to_string(&Sfs::from_cells(
             &cells,
             &self.distributions.poisson,
             self.verbosity,
@@ -293,7 +280,7 @@ impl HSCProcess {
         let path2file = path2sfs.join(self.id.to_string()).with_extension("json");
         // subclone 0 is the neutral one
         let cells = self.subclones[0].get_cells();
-        let sfs = serde_json::to_string(&Genotype::sfs(
+        let sfs = serde_json::to_string(&Sfs::from_cells(
             cells,
             &self.distributions.poisson,
             self.verbosity,
@@ -326,7 +313,7 @@ impl AdvanceStep<MAX_SUBCLONES> for HSCProcess {
         //! 3. for all proliferating cells (1 cell in case of a asymmetric
         //! division, 2 cells in the case of a symmetric division):
         //!     * mutate genome by storing the division id, see
-        //!     [`crate::stemcell::Genotype`]
+        //!     [`crate::stemcell::Sfs`]
         //!
         //!     * assign to new subclone with a probability determined by the
         //!     rate of mutations conferring a proliferative advantage
@@ -342,7 +329,8 @@ impl AdvanceStep<MAX_SUBCLONES> for HSCProcess {
         for mut stem_cell in stem_cells.into_iter() {
             // perform division
             self.counter_divisions += 1;
-            Genotype::mutate(&mut stem_cell, self.counter_divisions);
+            // mutate cell
+            stem_cell.record_proliferation_event(self.counter_divisions);
             // check if the division resulted into a cell being assigned to a
             // another clone, assign if that's the case
             self.assign(reaction.event, stem_cell, rng);
