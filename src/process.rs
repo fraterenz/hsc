@@ -373,11 +373,10 @@ impl NeutralMutationPoisson {
     pub fn nb_neutral_mutations(&self, rng: &mut impl Rng) -> NbPoissonMutations {
         //! The number of neutral mutations acquired upon cell division.
         let mut mutations = self.0.sample(rng);
-        while mutations >= u8::MAX as f32 || mutations.is_sign_negative() || !mutations.is_normal()
-        {
+        while mutations >= u8::MAX as f32 || mutations.is_sign_negative() || mutations.is_nan() {
             mutations = self.0.sample(rng);
         }
-        NbPoissonMutations::new(mutations as u8).unwrap()
+        mutations as u8
     }
 }
 
@@ -527,5 +526,12 @@ mod tests {
         subclone_has_lost_cell
             && proliferating_cells.iter().all(|cell| !cell.has_mutations())
             && subclone_id_has_lost_cell
+    }
+
+    #[quickcheck]
+    fn poisson_neutral_mutations(seed: u64) -> bool {
+        let mut rng = ChaCha8Rng::seed_from_u64(seed);
+        let poisson = Poisson::new(0.0001).unwrap();
+        NeutralMutationPoisson(poisson).nb_neutral_mutations(&mut rng) < 2
     }
 }

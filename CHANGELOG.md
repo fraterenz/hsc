@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.3
+### Added
+- Benchmark sfs computation
+- Swap the default hasher for sets and maps from the `std` with crate `rustc-hash`
+
+### BugFix
+Cell can have no neutral mutations upon cell-division: remove that nonzeroU.
+
 ## 0.7.2
 Remove dependency `uuid` and `thiserror`, and change backend of the sfs computation.
 
