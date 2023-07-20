@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use clap::{ArgAction, Parser};
 use hsc::process::CellDivisionProbabilities;
-use sosa::{NbIndividuals, Options};
+use sosa::{IterTime, NbIndividuals, Options};
 
 use crate::SimulationOptions;
 
@@ -55,19 +55,22 @@ pub struct Cli {
     /// Run sequentially each run instead of using rayon for parallelisation
     #[arg(long, action = ArgAction::SetTrue, default_value_t = false, conflicts_with = "debug")]
     sequential: bool,
+    #[arg(long, default_value_t = 10)]
+    /// Number of snapshots to take to save the simulation. Those timepoints
+    /// will be linespaced, starting from 1 to `years`.
+    snapshots: u8,
 }
 
 impl Cli {
-    fn build_snapshots_from_time(time: f32) -> Vec<f32> {
-        let n = 10;
-        let dx = time / ((n - 1) as f32);
-        let mut x = vec![0.1; n];
-        for i in 1..n - 1 {
+    fn build_snapshots_from_time(n_snapshots: usize, time: f32) -> Vec<f32> {
+        let dx = time / ((n_snapshots - 1) as f32);
+        let mut x = vec![1.; n_snapshots];
+        for i in 1..n_snapshots - 1 {
             x[i] = x[i - 1] + dx;
         }
 
         x.shrink_to_fit();
-        x[n - 1] = time;
+        x[n_snapshots - 1] = time;
         x
     }
 
@@ -85,11 +88,11 @@ impl Cli {
         let (max_cells, years, b0, mu0, verbosity) = if cli.debug {
             (11, 1, 1., 4., u8::MAX)
         } else {
-            (cli.cells + 1, cli.years + 1, cli.b0, cli.mu0, cli.verbosity)
+            (cli.cells + 1, cli.years, cli.b0, cli.mu0, cli.verbosity)
         };
 
-        let max_iter = max_cells as usize * b0 as usize * years;
-        let snapshots = Cli::build_snapshots_from_time(cli.years as f32);
+        let max_iter = 2 * max_cells as usize * b0 as usize * years;
+        let snapshots = Cli::build_snapshots_from_time(cli.snapshots as usize, cli.years as f32);
 
         // rate of fit variant per cell division
         let u = if (cli.p_asymmetric - 0.).abs() <= f64::EPSILON {
@@ -107,7 +110,10 @@ impl Cli {
         };
 
         let options = Options {
-            max_iter,
+            max_iter_time: IterTime {
+                iter: max_iter,
+                time: years as f32,
+            },
             max_cells,
             init_iter: 0,
             verbosity,

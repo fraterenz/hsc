@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.1
+### Added
+- Option `snapshots` to specify how many linespaced timepoints to save.
+
+`sosa` version: 3.0.1
+
+### BugFix
+- Now save all timepoints
+
 ## 0.8.0
 ### Added
 - When saving the timepoints, save also the sfs and the sfs neutral

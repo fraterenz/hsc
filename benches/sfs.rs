@@ -28,7 +28,8 @@ fn from_neutral_rate(c: &mut Criterion) {
                     black_box(&distributions),
                     verbosity,
                     &mut rng,
-                );
+                )
+                .unwrap();
             })
         });
     }

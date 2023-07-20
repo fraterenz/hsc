@@ -1,3 +1,4 @@
+use anyhow::{ensure, Context};
 use rand::Rng;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::{
@@ -40,7 +41,7 @@ impl Sfs {
         poisson_dist: &NeutralMutationPoisson,
         verbosity: u8,
         rng: &mut impl Rng,
-    ) -> HashMap<u64, u64> {
+    ) -> anyhow::Result<HashMap<u64, u64>> {
         //! Compute the site frequency spectrum (SFS) of mutations found in the
         //! stem cell population `cells`.
         //!
@@ -65,7 +66,7 @@ impl Sfs {
         //! let poisson = NeutralMutationPoisson(Poisson::new(rate_neutral).unwrap());
         //! let mut rng = ChaChaRng::seed_from_u64(26);
         //!
-        //! let counts = Sfs::from_cells(&cells, &poisson, verbosity, &mut rng);
+        //! let counts = Sfs::from_cells(&cells, &poisson, verbosity, &mut rng).expect("cannot create sfs from cells");
         //! let expected_jcells = [1u64, 2u64];
         //! let mut jcells = counts.into_keys().collect::<Vec<u64>>();
         //! jcells.sort_unstable();
@@ -74,15 +75,16 @@ impl Sfs {
         if verbosity > 0 {
             println!("Computing the sfs for {} cells", cells.len());
         }
-        let stats = StatisticsMutations::from_cells(cells, poisson_dist, rng, verbosity);
-        if verbosity > 1 {
+        let stats = StatisticsMutations::from_cells(cells, poisson_dist, rng, verbosity)
+            .with_context(|| "cannot construct the stats for the sfs")?;
+        if verbosity > 2 {
             println!("stats for SFS: {:#?}", stats);
         }
         let sfs = Sfs::from_stats(stats);
         if verbosity > 1 {
             println!("sfs: {:#?}", sfs);
         }
-        sfs
+        Ok(sfs)
     }
 
     fn from_stats(stats: StatisticsMutations) -> HashMap<u64, u64> {
@@ -120,13 +122,13 @@ impl StatisticsMutations {
         poisson_dist: &NeutralMutationPoisson,
         rng: &mut impl Rng,
         verbosity: u8,
-    ) -> Self {
-        assert!(!cells.is_empty(), "found empty cells");
+    ) -> anyhow::Result<Self> {
+        ensure!(!cells.is_empty(), "found empty cells");
         let mut total_burden = 0usize;
         let mut counts: FxHashMap<GenotypeId, CountsMutations> = FxHashMap::default();
         counts.shrink_to(cells.len());
         for (i, cell) in cells.iter().enumerate() {
-            let printiter = verbosity > 0 && i % 1000 == 0;
+            let printiter = verbosity > 2 && i % 1000 == 0;
             if printiter {
                 println!("{}th cell", i);
             }
@@ -168,10 +170,10 @@ impl StatisticsMutations {
                     });
             }
         }
-        StatisticsMutations {
+        Ok(StatisticsMutations {
             counts,
             total_burden,
-        }
+        })
     }
 }
 
@@ -288,7 +290,7 @@ mod tests {
         let verbosity = 1;
         let distributions = NeutralMutationPoisson(Poisson::new(10.).unwrap());
         let mut rng = ChaChaRng::seed_from_u64(26);
-        Sfs::from_cells(&cells, &distributions, verbosity, &mut rng);
+        Sfs::from_cells(&cells, &distributions, verbosity, &mut rng).unwrap();
     }
 
     #[test]
@@ -296,7 +298,9 @@ mod tests {
         let cells = [StemCell::new()];
         let distributions = NeutralMutationPoisson(Poisson::new(10.).unwrap());
         let mut rng = ChaChaRng::seed_from_u64(26);
-        assert!(Sfs::from_cells(&cells, &distributions, 4, &mut rng).is_empty());
+        assert!(Sfs::from_cells(&cells, &distributions, 4, &mut rng)
+            .unwrap()
+            .is_empty());
     }
 
     #[quickcheck]
@@ -311,7 +315,7 @@ mod tests {
         let distributions = NeutralMutationPoisson(Poisson::new(10.).unwrap());
         let mut rng = ChaChaRng::seed_from_u64(seed);
 
-        let counts = Sfs::from_cells(&cells, &distributions, verbosity, &mut rng);
+        let counts = Sfs::from_cells(&cells, &distributions, verbosity, &mut rng).unwrap();
         let expected_jcells = [1u64];
         counts.into_keys().collect::<Vec<u64>>() == expected_jcells
     }
@@ -331,7 +335,7 @@ mod tests {
         let distributions = NeutralMutationPoisson(Poisson::new(10.).unwrap());
         let mut rng = ChaChaRng::seed_from_u64(seed);
 
-        let counts = Sfs::from_cells(&cells, &distributions, verbosity, &mut rng);
+        let counts = Sfs::from_cells(&cells, &distributions, verbosity, &mut rng).unwrap();
         let expected_jcells = [1u64];
         counts.into_keys().collect::<Vec<u64>>() == expected_jcells
     }
@@ -355,7 +359,7 @@ mod tests {
         let distributions = NeutralMutationPoisson(Poisson::new(10.).unwrap());
         let mut rng = ChaChaRng::seed_from_u64(seed);
 
-        let counts = Sfs::from_cells(&cells, &distributions, verbosity, &mut rng);
+        let counts = Sfs::from_cells(&cells, &distributions, verbosity, &mut rng).unwrap();
         let expected_jcells = [1u64, 2u64];
         let mut jcells = counts.into_keys().collect::<Vec<u64>>();
         jcells.sort_unstable();
@@ -377,7 +381,7 @@ mod tests {
         let distributions = NeutralMutationPoisson(Poisson::new(10.).unwrap());
         let mut rng = ChaChaRng::seed_from_u64(seed);
 
-        let counts = Sfs::from_cells(&cells, &distributions, verbosity, &mut rng);
+        let counts = Sfs::from_cells(&cells, &distributions, verbosity, &mut rng).unwrap();
         let expected_jcells = [2u64];
         counts.into_keys().collect::<Vec<u64>>() == expected_jcells
     }

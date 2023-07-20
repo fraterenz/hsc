@@ -182,14 +182,14 @@ impl HSCProcess {
             "max number of clones reached"
         );
         if let Some(cell) = cell {
-            if self.verbosity > 1 {
+            if self.verbosity > 2 {
                 println!(
                     "assgin {:#?} to clone {:#?}",
                     cell, self.subclones[rnd_clone_id]
                 );
             }
             self.subclones[rnd_clone_id].assign_cell(cell);
-        } else if cell.is_none() && self.verbosity > 1 {
+        } else if cell.is_none() && self.verbosity > 2 {
             println!("no new fit variants");
         }
     }
@@ -197,7 +197,7 @@ impl HSCProcess {
     fn proliferating_cells(&mut self, subclone_id: usize, rng: &mut impl Rng) -> Vec<StemCell> {
         //! Determine which cells will proliferate by randomly selecting a cell
         //! from the subclone with id `subclone_id`.
-        if self.verbosity > 1 {
+        if self.verbosity > 2 {
             println!(
                 "a cell from clone {:#?} will divide",
                 self.subclones[subclone_id]
@@ -227,7 +227,7 @@ impl HSCProcess {
                 .random_cell(rng)
                 .with_context(|| "found empty subclone")
                 .unwrap();
-            if self.verbosity > 1 {
+            if self.verbosity > 2 {
                 println!("removing one cell from clone {}", id2remove);
             }
             let cell1 = self.subclones[subclone_id]
@@ -238,7 +238,7 @@ impl HSCProcess {
             proliferating_cells.push(cell1);
             proliferating_cells.push(cell2);
         }
-        if self.verbosity > 1 {
+        if self.verbosity > 2 {
             println!("proliferating cells {:#?}", proliferating_cells)
         }
         proliferating_cells
@@ -260,28 +260,30 @@ impl HSCProcess {
         if neutral {
             // subclone 0 is the neutral one
             let cells = self.subclones[0].get_cells();
-            let sfs = serde_json::to_string(&Sfs::from_cells(
-                cells,
-                &self.distributions.poisson,
-                self.verbosity,
-                rng,
-            ))
-            .expect("Cannot serialize the neutral sfs");
-            fs::write(path2file, sfs).with_context(|| "Cannot save the neutral SFS".to_string())?;
+            // some simulations might no cells in the wild-type clone
+            if let Ok(sfs) =
+                &Sfs::from_cells(cells, &self.distributions.poisson, self.verbosity, rng)
+                    .with_context(|| "cannot construct the sfs neutral")
+            {
+                let sfs = serde_json::to_string(sfs)
+                    .with_context(|| "cannot serialize the neutral sfs")?;
+                fs::write(path2file, sfs)
+                    .with_context(|| "cannot save the neutral SFS".to_string())?;
+            }
         } else {
             let cells: Vec<StemCell> = self
                 .subclones
                 .iter()
                 .flat_map(|subclone| subclone.get_cells().to_vec())
                 .collect();
-            let sfs = serde_json::to_string(&Sfs::from_cells(
-                &cells,
-                &self.distributions.poisson,
-                self.verbosity,
-                rng,
-            ))
-            .expect("Cannot serialize the sfs");
-            fs::write(path2file, sfs).with_context(|| "Cannot save the total SFS".to_string())?;
+            // some simulations might have only cells in the wild-type clone
+            if let Ok(sfs) =
+                &Sfs::from_cells(&cells, &self.distributions.poisson, self.verbosity, rng)
+            {
+                let sfs = serde_json::to_string(sfs).with_context(|| "cannot serialize the sfs")?;
+                fs::write(path2file, sfs)
+                    .with_context(|| "Cannot save the total SFS".to_string())?;
+            }
         }
 
         Ok(())
@@ -349,7 +351,7 @@ impl AdvanceStep<MAX_SUBCLONES> for HSCProcess {
         // Gillespie algorithm (which generated `reaction.event`).
         let stem_cells = self.proliferating_cells(reaction.event, rng);
 
-        if self.verbosity > 1 {
+        if self.verbosity > 2 {
             println!("{:#?} cells are dividing", stem_cells);
         }
 
@@ -367,6 +369,12 @@ impl AdvanceStep<MAX_SUBCLONES> for HSCProcess {
         self.time += reaction.time;
         if self.verbosity > 1 {
             println!("time: {}", self.time);
+        }
+        if self.verbosity > 1 {
+            println!(
+                "{:#?} timepoints to save, time now is {}",
+                self.snapshot, self.time
+            );
         }
         if let Some(&time) = self.snapshot.front() {
             if self.time >= time {
