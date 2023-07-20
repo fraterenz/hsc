@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.0
+### Added
+- When saving the timepoints, save also the sfs and the sfs neutral
+
 ## 0.7.3
 ### Added
 - Benchmark sfs computation

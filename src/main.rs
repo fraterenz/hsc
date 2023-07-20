@@ -92,7 +92,6 @@ fn main() {
         if app.options.verbosity > 1 {
             println!("simulation {} stopped because {:#?}", idx, stop);
         }
-        process.save(&mut rng).unwrap();
     };
 
     std::process::exit({

@@ -5,9 +5,16 @@ use anyhow::Context;
 use rand::Rng;
 use rand_distr::{Bernoulli, Distribution, Poisson, WeightedIndex};
 use sosa::{AdvanceStep, CurrentState, NextReaction};
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+#[derive(Hash, PartialEq, Eq)]
+enum Stats2Save {
+    VariantFraction,
+    SfsNeutral,
+    Sfs,
+}
 
 /// Number of cells in subclones.
 pub struct Variants {}
@@ -237,57 +244,77 @@ impl HSCProcess {
         proliferating_cells
     }
 
-    pub fn save_variant_fraction(&self, timepoint: usize) -> anyhow::Result<()> {
-        let path2file = self
-            .path2dir
-            .join("variant_fraction")
-            .join(timepoint.to_string());
-        fs::create_dir_all(&path2file).expect("Cannot create dir");
-        let path2file = path2file.join(self.id.to_string()).with_extension("csv");
+    fn save_variant_fraction(&self, path2file: &Path) -> anyhow::Result<()> {
+        let path2file = path2file.with_extension("csv");
         let total_variant_frac =
             Variants::variant_fractions(&self.subclones, self.compute_tot_cells());
         if self.verbosity > 1 {
             println!("total variant fraction in {:#?}", path2file)
         }
-
         write2file(&total_variant_frac, &path2file, None, false)?;
         Ok(())
     }
 
-    pub fn save(&self, rng: &mut impl Rng) -> anyhow::Result<()> {
-        //! Save the SFS and SFS neutral.
-        let path2sfs = self.path2dir.join("sfs");
-        fs::create_dir_all(&path2sfs).expect("Cannot create dir");
-        let path2file = path2sfs.join(self.id.to_string()).with_extension("json");
-        // save subclones first
-        let cells: Vec<StemCell> = self
-            .subclones
-            .iter()
-            .flat_map(|subclone| subclone.get_cells().to_vec())
-            .collect();
-        let sfs = serde_json::to_string(&Sfs::from_cells(
-            &cells,
-            &self.distributions.poisson,
-            self.verbosity,
-            rng,
-        ))
-        .expect("Cannot serialize the sfs");
-        fs::write(path2file, sfs).with_context(|| "Cannot save the total SFS".to_string())?;
+    fn save_sfs(&self, path2file: &Path, neutral: bool, rng: &mut impl Rng) -> anyhow::Result<()> {
+        let path2file = path2file.with_extension("json");
+        if neutral {
+            // subclone 0 is the neutral one
+            let cells = self.subclones[0].get_cells();
+            let sfs = serde_json::to_string(&Sfs::from_cells(
+                cells,
+                &self.distributions.poisson,
+                self.verbosity,
+                rng,
+            ))
+            .expect("Cannot serialize the neutral sfs");
+            fs::write(path2file, sfs).with_context(|| "Cannot save the neutral SFS".to_string())?;
+        } else {
+            let cells: Vec<StemCell> = self
+                .subclones
+                .iter()
+                .flat_map(|subclone| subclone.get_cells().to_vec())
+                .collect();
+            let sfs = serde_json::to_string(&Sfs::from_cells(
+                &cells,
+                &self.distributions.poisson,
+                self.verbosity,
+                rng,
+            ))
+            .expect("Cannot serialize the sfs");
+            fs::write(path2file, sfs).with_context(|| "Cannot save the total SFS".to_string())?;
+        }
 
-        // save SFS neutral
-        let path2sfs = self.path2dir.join("sfs_neutral");
-        fs::create_dir_all(&path2sfs).expect("Cannot create dir");
-        let path2file = path2sfs.join(self.id.to_string()).with_extension("json");
-        // subclone 0 is the neutral one
-        let cells = self.subclones[0].get_cells();
-        let sfs = serde_json::to_string(&Sfs::from_cells(
-            cells,
-            &self.distributions.poisson,
-            self.verbosity,
-            rng,
-        ))
-        .expect("Cannot serialize the neutral sfs");
-        fs::write(path2file, sfs).with_context(|| "Cannot save the neutral SFS".to_string())?;
+        Ok(())
+    }
+
+    pub fn save(&self, timepoint: usize, rng: &mut impl Rng) -> anyhow::Result<()> {
+        //! Save the SFS and SFS neutral.
+        let make_path = |tosave: Stats2Save| -> anyhow::Result<PathBuf> {
+            let path2file = match tosave {
+                Stats2Save::VariantFraction => self
+                    .path2dir
+                    .join("variant_fraction")
+                    .join(timepoint.to_string()),
+                Stats2Save::Sfs => self.path2dir.join("sfs").join(timepoint.to_string()),
+                Stats2Save::SfsNeutral => self
+                    .path2dir
+                    .join("sfs_neutral")
+                    .join(timepoint.to_string()),
+            };
+            fs::create_dir_all(&path2file).with_context(|| "Cannot create dir")?;
+            Ok(path2file.join(self.id.to_string()))
+        };
+        let mut paths = HashMap::with_capacity(3);
+        paths.insert(
+            Stats2Save::VariantFraction,
+            make_path(Stats2Save::VariantFraction)?,
+        );
+        paths.insert(Stats2Save::Sfs, make_path(Stats2Save::Sfs)?);
+        paths.insert(Stats2Save::SfsNeutral, make_path(Stats2Save::SfsNeutral)?);
+
+        self.save_variant_fraction(&paths[&Stats2Save::VariantFraction])?;
+        self.save_sfs(&paths[&Stats2Save::SfsNeutral], true, rng)?;
+        self.save_sfs(&paths[&Stats2Save::Sfs], false, rng)?;
 
         Ok(())
     }
@@ -349,7 +376,7 @@ impl AdvanceStep<MAX_SUBCLONES> for HSCProcess {
                         time, self.time
                     );
                 }
-                self.save_variant_fraction(self.snapshot.len())
+                self.save(self.snapshot.len(), rng)
                     .expect("cannot save snapshot");
                 self.snapshot.pop_front();
             }
