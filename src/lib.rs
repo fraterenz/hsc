@@ -31,7 +31,12 @@ pub mod stemcell;
 /// The classes defining the proliferative advantage.
 pub mod subclone;
 
-pub const MAX_SUBCLONES: usize = 40;
+/// Maximal number of fit clones that can arise during the simulation.
+///
+/// If the parameters of the simulation provided by the user (e.g. fit mutation
+/// rate) are too extreme, the program will exit with error. To avoid this,
+/// increase here the number of clones.
+pub const MAX_SUBCLONES: usize = 60;
 
 pub fn write2file<T: std::fmt::Display>(
     data: &[T],

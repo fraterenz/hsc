@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.0
+Increase the number of clones from 40 to 60.
+
+### BugFix
+- now upon occurence of a fit mutation, assign cells to empty clones only (without overwriting older clones).
+
 ## 0.8.1
 ### Added
 - Option `snapshots` to specify how many linespaced timepoints to save.

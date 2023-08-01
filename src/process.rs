@@ -163,7 +163,7 @@ impl HSCProcess {
     }
 
     fn assign(&mut self, subclone_id: usize, stem_cell: StemCell, rng: &mut impl Rng) {
-        //! Check if the `stem_cell` will be assigned to the subclone with id
+        //! The `stem_cell` will be assigned to a new clone
         //! `subclone_id` or not. If that's the case, perform assignment.
         let cell = assign(
             &mut self.subclones[subclone_id],
@@ -171,17 +171,23 @@ impl HSCProcess {
             &self.distributions,
             rng,
         );
-        let mut rnd_clone_id = rng.gen_range(0..self.subclones.len());
-        let mut counter = 0;
-        while rnd_clone_id == subclone_id && counter <= self.subclones.len() {
-            rnd_clone_id = rng.gen_range(0..self.subclones.len());
-            counter += 1;
-        }
-        assert!(
-            counter <= self.subclones.len(),
-            "max number of clones reached"
-        );
+
+        // assign cell to a new random clone if `assign` returned some cell
         if let Some(cell) = cell {
+            let mut rnd_clone_id = rng.gen_range(0..self.subclones.len());
+            let mut counter = 0;
+            // the new random clone cannot have `subclone_id` id and must be
+            // empty
+            while (rnd_clone_id == subclone_id || !self.subclones[rnd_clone_id].is_empty())
+                && counter <= self.subclones.len()
+            {
+                rnd_clone_id = rng.gen_range(0..self.subclones.len());
+                counter += 1;
+            }
+            assert!(
+                counter <= self.subclones.len(),
+                "max number of clones reached"
+            );
             if self.verbosity > 2 {
                 println!(
                     "assgin {:#?} to clone {:#?}",
@@ -346,9 +352,10 @@ impl AdvanceStep<MAX_SUBCLONES> for HSCProcess {
         //!
         //!     * assign to new subclone with a probability determined by the
         //!     rate of mutations conferring a proliferative advantage
-        // pick the proliferating cells that belong the to clone with id
-        // `reaction.event` that will proliferate next according to the
-        // Gillespie algorithm (which generated `reaction.event`).
+        // The Gillespie sampler samples the clone that will proliferate next,
+        // that is the clone with id `reaction.event`.
+        // Pick random proliferating cells from this clone. **Note that this
+        // removes the cells from the clone with id `reaction.event`.**
         let stem_cells = self.proliferating_cells(reaction.event, rng);
 
         if self.verbosity > 2 {
@@ -360,8 +367,13 @@ impl AdvanceStep<MAX_SUBCLONES> for HSCProcess {
             self.counter_divisions += 1;
             // mutate cell
             stem_cell.record_proliferation_event(self.counter_divisions);
-            // check if the division resulted into a cell being assigned to a
-            // another clone, assign if that's the case
+            // assign cell to clone. This can have two outcomes based on a
+            // Bernouilli trial see `assign` and `self.assign`:
+            // 1. the stem cell is re-assigned to the old clone with id
+            // `reaction.event` (remember that `self.proliferating_cells` has
+            // removed the cells from the clone)
+            // 2. the stem cell is assigned to a new clone with id different
+            // from `reaction.event`.
             self.assign(reaction.event, stem_cell, rng);
         }
 
@@ -568,5 +580,15 @@ mod tests {
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
         let poisson = Poisson::new(0.0001).unwrap();
         NeutralMutationPoisson(poisson).nb_neutral_mutations(&mut rng) < 2
+    }
+
+    #[test]
+    #[should_panic]
+    fn assign_all_clones_occupied() {
+        let mut process = HSCProcess::default();
+        process.distributions.bern = Bernoulli::new(1.).unwrap();
+        let cell = StemCell::new();
+        let mut rng = ChaCha8Rng::seed_from_u64(26);
+        process.assign(0, cell, &mut rng);
     }
 }
