@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.0
+Start simulations at year 0 instead of 1.
+
+### BugFix
+- correct the Poisson rate for the neutral mutations.
+
 ## 0.9.0
 Increase the number of clones from 40 to 60.
 

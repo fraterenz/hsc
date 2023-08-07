@@ -64,7 +64,7 @@ pub struct Cli {
 impl Cli {
     fn build_snapshots_from_time(n_snapshots: usize, time: f32) -> Vec<f32> {
         let dx = time / ((n_snapshots - 1) as f32);
-        let mut x = vec![1.; n_snapshots];
+        let mut x = vec![0.; n_snapshots];
         for i in 1..n_snapshots - 1 {
             x[i] = x[i - 1] + dx;
         }
@@ -103,9 +103,18 @@ impl Cli {
         } else {
             (mu0 / (b0 * max_cells as f32)) as f64
         };
+        // rate of fit variant per cell division
+        let m = if (cli.p_asymmetric - 0.).abs() <= f64::EPSILON {
+            // in the symmetric case we need to divide by 2 because 1 division
+            // corresponds to two cells, hence two draws (i.e. two mutational
+            // events) per division
+            cli.neutral_rate / (b0 * max_cells as f32)
+        } else {
+            cli.neutral_rate / (b0 * max_cells as f32)
+        };
         let probabilities = CellDivisionProbabilities {
             p_asymmetric: cli.p_asymmetric,
-            lambda_poisson: cli.neutral_rate,
+            lambda_poisson: m,
             p: u,
         };
 
