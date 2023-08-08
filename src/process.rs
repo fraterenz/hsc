@@ -1,4 +1,4 @@
-use crate::stemcell::{NbPoissonMutations, Sfs, StemCell};
+use crate::stemcell::{NbPoissonMutations, Sfs, StatisticsMutations, StemCell};
 use crate::subclone::{CloneId, SubClone};
 use crate::{write2file, MAX_SUBCLONES};
 use anyhow::Context;
@@ -73,6 +73,7 @@ pub struct HSCProcess {
     pub snapshot: VecDeque<f32>,
     pub path2dir: PathBuf,
     pub verbosity: u8,
+    stats: StatisticsMutations,
     distributions: Distributions,
 }
 
@@ -137,6 +138,7 @@ impl HSCProcess {
             time,
             snapshot,
             verbosity,
+            stats: StatisticsMutations::default(),
         };
         if verbosity > 1 {
             println!("process created: {:#?}", hsc);
@@ -261,41 +263,18 @@ impl HSCProcess {
         Ok(())
     }
 
-    fn save_sfs(&self, path2file: &Path, neutral: bool, rng: &mut impl Rng) -> anyhow::Result<()> {
+    fn save_sfs(&self, path2file: &Path, stats: &StatisticsMutations) -> anyhow::Result<()> {
         let path2file = path2file.with_extension("json");
-        if neutral {
-            // subclone 0 is the neutral one
-            let cells = self.subclones[0].get_cells();
-            // some simulations might no cells in the wild-type clone
-            if let Ok(sfs) =
-                &Sfs::from_cells(cells, &self.distributions.poisson, self.verbosity, rng)
-                    .with_context(|| "cannot construct the sfs neutral")
-            {
-                let sfs = serde_json::to_string(sfs)
-                    .with_context(|| "cannot serialize the neutral sfs")?;
-                fs::write(path2file, sfs)
-                    .with_context(|| "cannot save the neutral SFS".to_string())?;
-            }
-        } else {
-            let cells: Vec<StemCell> = self
-                .subclones
-                .iter()
-                .flat_map(|subclone| subclone.get_cells().to_vec())
-                .collect();
-            // some simulations might have only cells in the wild-type clone
-            if let Ok(sfs) =
-                &Sfs::from_cells(&cells, &self.distributions.poisson, self.verbosity, rng)
-            {
-                let sfs = serde_json::to_string(sfs).with_context(|| "cannot serialize the sfs")?;
-                fs::write(path2file, sfs)
-                    .with_context(|| "Cannot save the total SFS".to_string())?;
-            }
+        // some simulations might have only cells in the wild-type clone
+        if let Ok(sfs) = &Sfs::from_stats(stats, self.verbosity) {
+            let sfs = serde_json::to_string(sfs).with_context(|| "cannot serialize the sfs")?;
+            fs::write(path2file, sfs).with_context(|| "Cannot save the total SFS".to_string())?;
         }
 
         Ok(())
     }
 
-    pub fn save(&self, timepoint: usize, rng: &mut impl Rng) -> anyhow::Result<()> {
+    pub fn save(&mut self, timepoint: usize, rng: &mut impl Rng) -> anyhow::Result<()> {
         //! Save the SFS and SFS neutral.
         let make_path = |tosave: Stats2Save| -> anyhow::Result<PathBuf> {
             let path2file = match tosave {
@@ -321,8 +300,38 @@ impl HSCProcess {
         paths.insert(Stats2Save::SfsNeutral, make_path(Stats2Save::SfsNeutral)?);
 
         self.save_variant_fraction(&paths[&Stats2Save::VariantFraction])?;
-        self.save_sfs(&paths[&Stats2Save::SfsNeutral], true, rng)?;
-        self.save_sfs(&paths[&Stats2Save::Sfs], false, rng)?;
+
+        // SFS
+        let cells: Vec<StemCell> = self
+            .subclones
+            .iter()
+            .flat_map(|subclone| subclone.get_cells().to_vec())
+            .collect();
+        if self.verbosity > 0 {
+            println!("computing the sfs for {} cells", cells.len());
+            if self.verbosity > 1 {
+                println!("cells: {:#?}", cells);
+            }
+        }
+        StatisticsMutations::update_from_cells(
+            &mut self.stats,
+            &cells,
+            &self.distributions.poisson,
+            rng,
+            self.verbosity,
+        )
+        .with_context(|| "cannot construct the stats for the sfs")?;
+        if self.verbosity > 1 {
+            println!("stats for SFS: {:#?}", self.stats);
+        }
+        self.save_sfs(&paths[&Stats2Save::SfsNeutral], &self.stats)?;
+
+        if self.verbosity > 0 {
+            println!(
+                "saving measurements after {} mutational events",
+                self.counter_divisions
+            );
+        }
 
         Ok(())
     }

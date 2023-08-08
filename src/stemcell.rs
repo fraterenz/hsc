@@ -1,4 +1,4 @@
-use anyhow::{ensure, Context};
+use anyhow::ensure;
 use rand::Rng;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::{
@@ -36,79 +36,32 @@ pub type NbPoissonMutations = u8;
 pub struct Sfs(pub HashMap<u64, u64>);
 
 impl Sfs {
-    pub fn from_cells(
-        cells: &[StemCell],
-        poisson_dist: &NeutralMutationPoisson,
+    pub fn from_stats(
+        stats: &StatisticsMutations,
         verbosity: u8,
-        rng: &mut impl Rng,
-    ) -> anyhow::Result<HashMap<u64, u64>> {
+    ) -> anyhow::Result<FxHashMap<u64, u64>> {
         //! Compute the site frequency spectrum (SFS) of mutations found in the
-        //! stem cell population `cells`.
+        //! stem cell population.
         //!
-        //! Calling `sfs` transforms the set of proliferation events present in
-        //! `cells` into unique mutations, see [`StemCell::proliferation_events_id`].
-        //!
-        //! # Example
-        //! ```
-        //! use hsc::stemcell::{Sfs, StemCell};
-        //! use hsc::process::NeutralMutationPoisson;
-        //! use rand_distr::Poisson;
-        //! use rand_chacha::ChaChaRng;
-        //! use rand_chacha::rand_core::SeedableRng;
-        //!
-        //! let cells = [
-        //!     StemCell::with_set_of_mutations(vec![1, 2]),
-        //!     StemCell::with_set_of_mutations(vec![1, 10, 11])
-        //! ];
-        //! let verbosity = 0;
-        //! // neutral mutations per cell-division
-        //! let rate_neutral = 1.;
-        //! let poisson = NeutralMutationPoisson(Poisson::new(rate_neutral).unwrap());
-        //! let mut rng = ChaChaRng::seed_from_u64(26);
-        //!
-        //! let counts = Sfs::from_cells(&cells, &poisson, verbosity, &mut rng).expect("cannot create sfs from cells");
-        //! let expected_jcells = [1u64, 2u64];
-        //! let mut jcells = counts.into_keys().collect::<Vec<u64>>();
-        //! jcells.sort_unstable();
-        //! assert_eq!(jcells, expected_jcells);
-        //! ```
-        if verbosity > 0 {
-            println!("Computing the sfs for {} cells", cells.len());
+        //! The SFS is implemented with keys being the jmuts and the values
+        //! being the jcells with with jmuts.
+        // let mut sfs = HashMap::with_capacity(stats.nb_variants);
+        ensure!(!stats.counts.is_empty(), "found empty stats");
+        let mut sfs: FxHashMap<u64, u64> = FxHashMap::default();
+        sfs.shrink_to(stats.nb_variants);
+        for stats_mut_id in stats.counts.values() {
+            sfs.entry(stats_mut_id.poisson_mut_number)
+                .and_modify(|jcells| *jcells += stats_mut_id.cell_count.get())
+                .or_insert(stats_mut_id.cell_count.get());
         }
-        let stats = StatisticsMutations::from_cells(cells, poisson_dist, rng, verbosity)
-            .with_context(|| "cannot construct the stats for the sfs")?;
-        if verbosity > 2 {
-            println!("stats for SFS: {:#?}", stats);
-        }
-        let sfs = Sfs::from_stats(stats);
         if verbosity > 1 {
             println!("sfs: {:#?}", sfs);
         }
         Ok(sfs)
     }
-
-    fn from_stats(stats: StatisticsMutations) -> HashMap<u64, u64> {
-        let mut sfs = HashMap::with_capacity(stats.total_burden);
-        for stats_mut_id in stats.counts.into_values() {
-            for _ in 0..stats_mut_id.poisson_mut_number {
-                sfs.entry(stats_mut_id.cell_count.get())
-                    .and_modify(|counter| *counter += 1)
-                    .or_insert(1);
-            }
-        }
-        sfs
-    }
 }
 
-/// Mapping between [`GenotypeId`] and the number of mutations and the number
-/// of cells.
-#[derive(Debug)]
-struct StatisticsMutations {
-    counts: FxHashMap<GenotypeId, CountsMutations>,
-    total_burden: usize,
-}
-
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct CountsMutations {
     // the number of cells carrying a mutation id
     cell_count: NonZeroU64,
@@ -116,17 +69,27 @@ struct CountsMutations {
     poisson_mut_number: u64,
 }
 
+/// Mapping between [`GenotypeId`] and the number of mutations and the number
+/// of cells.
+#[derive(Debug, Default, Clone)]
+pub struct StatisticsMutations {
+    counts: FxHashMap<GenotypeId, CountsMutations>,
+    nb_variants: usize,
+}
+
 impl StatisticsMutations {
-    fn from_cells(
+    pub fn update_from_cells(
+        &mut self,
         cells: &[StemCell],
         poisson_dist: &NeutralMutationPoisson,
         rng: &mut impl Rng,
         verbosity: u8,
-    ) -> anyhow::Result<Self> {
-        ensure!(!cells.is_empty(), "found empty cells");
-        let mut total_burden = 0usize;
-        let mut counts: FxHashMap<GenotypeId, CountsMutations> = FxHashMap::default();
-        counts.shrink_to(cells.len());
+    ) -> anyhow::Result<()> {
+        //! Update the mapping between proliferation events and the number of
+        //! Poisson neutral mutations.
+        ensure!(!cells.is_empty());
+        let mut nb_variants = 0usize;
+        // self.counts.shrink_to(cells.len());
         for (i, cell) in cells.iter().enumerate() {
             let printiter = verbosity > 2 && i % 1000 == 0;
             if printiter {
@@ -134,7 +97,7 @@ impl StatisticsMutations {
             }
             // retrieve divisions assigned to this cell during the simulation
             for division_id in &cell.proliferation_events_id {
-                let mutation_id = counts.entry(*division_id);
+                let mutation_id = self.counts.entry(*division_id);
                 let mut_number = match &mutation_id {
                     // if it's the first time we encounter this mutation id
                     // in the population, we assign to this mut id some poisson
@@ -144,7 +107,7 @@ impl StatisticsMutations {
                             println!("vacant entry");
                         }
                         let poisson_nb = poisson_dist.nb_neutral_mutations(rng);
-                        total_burden += poisson_nb as usize;
+                        nb_variants += poisson_nb as usize;
                         poisson_nb as u64
                     }
 
@@ -160,8 +123,8 @@ impl StatisticsMutations {
                 // mutation id. We also update the counter of mutations
                 mutation_id
                     .and_modify(|stat| {
-                        stat.cell_count =
-                            unsafe { NonZeroU64::new_unchecked(1 + stat.cell_count.get()) };
+                        let new_cell_count = 1 + stat.cell_count.get();
+                        stat.cell_count = unsafe { NonZeroU64::new_unchecked(new_cell_count) };
                         stat.poisson_mut_number = mut_number;
                     })
                     .or_insert(CountsMutations {
@@ -170,10 +133,12 @@ impl StatisticsMutations {
                     });
             }
         }
-        Ok(StatisticsMutations {
-            counts,
-            total_burden,
-        })
+
+        if verbosity > 1 {
+            println!("total nb of variants: {}", nb_variants);
+        }
+
+        Ok(())
     }
 }
 
@@ -240,7 +205,7 @@ mod tests {
     use quickcheck::{Arbitrary, Gen};
     use quickcheck_macros::quickcheck;
     use rand::SeedableRng;
-    use rand_chacha::ChaChaRng;
+    use rand_chacha::ChaCha8Rng;
     use rand_distr::Poisson;
     use std::num::NonZeroU8;
 
@@ -285,110 +250,177 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn test_sfs_neutral_no_cells() {
-        let cells = [];
-        let verbosity = 1;
-        let distributions = NeutralMutationPoisson(Poisson::new(10.).unwrap());
-        let mut rng = ChaChaRng::seed_from_u64(26);
-        Sfs::from_cells(&cells, &distributions, verbosity, &mut rng).unwrap();
+    fn test_update_from_empty_cells() {
+        let mut stats = StatisticsMutations::default();
+        let rng = &mut ChaCha8Rng::seed_from_u64(26);
+        let poisson = &NeutralMutationPoisson(Poisson::new(1.).unwrap());
+        stats.update_from_cells(&[], poisson, rng, 0).unwrap();
+    }
+
+    #[quickcheck]
+    fn test_update_from_cell_without_mutations(lambda: NonZeroU8, seed: u64) -> bool {
+        let mut stats = StatisticsMutations::default();
+        let rng = &mut ChaCha8Rng::seed_from_u64(seed);
+        let poisson = &NeutralMutationPoisson(Poisson::new(lambda.get() as f32).unwrap());
+        let cells = &[StemCell::default()];
+        stats.update_from_cells(cells, poisson, rng, 0).unwrap();
+        stats.counts.is_empty()
+    }
+
+    #[quickcheck]
+    fn test_update_from_cell_with_mutations(lambda: NonZeroU8, seed: u64) -> bool {
+        let mut stats = StatisticsMutations::default();
+        let rng = &mut ChaCha8Rng::seed_from_u64(seed);
+        let poisson = &NeutralMutationPoisson(Poisson::new(lambda.get() as f32).unwrap());
+        let cells = &[StemCell::with_set_of_mutations(vec![1])];
+        stats.update_from_cells(cells, poisson, rng, 0).unwrap();
+        stats
+            .counts
+            .into_values()
+            .map(|ele| ele.cell_count.get())
+            .collect::<Vec<u64>>()
+            == vec![1]
+    }
+
+    #[quickcheck]
+    fn test_update_from_cell_with_mutations_twice_same_cell(lambda: NonZeroU8, seed: u64) -> bool {
+        let mut stats = StatisticsMutations::default();
+        let rng = &mut ChaCha8Rng::seed_from_u64(seed);
+        let poisson = &NeutralMutationPoisson(Poisson::new(lambda.get() as f32).unwrap());
+        let cells = &[StemCell::with_set_of_mutations(vec![1])];
+        stats.update_from_cells(cells, poisson, rng, 0).unwrap();
+        dbg!(&stats);
+        stats.update_from_cells(cells, poisson, rng, 0).unwrap();
+        dbg!(&stats);
+        stats
+            .counts
+            .into_values()
+            .map(|ele| ele.cell_count.get())
+            .collect::<Vec<u64>>()
+            == vec![1]
+    }
+
+    #[quickcheck]
+    fn test_update_from_cell_with_mutations_twice_new_cell(lambda: NonZeroU8, seed: u64) -> bool {
+        // might fail when the random number generates the same number of mutations
+        let mut stats = StatisticsMutations::default();
+        let rng = &mut ChaCha8Rng::seed_from_u64(seed);
+        let poisson = &NeutralMutationPoisson(Poisson::new(lambda.get() as f32).unwrap());
+        let cells = &[StemCell::with_set_of_mutations(vec![1])];
+        stats.update_from_cells(cells, poisson, rng, 0).unwrap();
+        let cells = &[StemCell::with_set_of_mutations(vec![2])];
+        stats.update_from_cells(cells, poisson, rng, 0).unwrap();
+        stats
+            .counts
+            .into_values()
+            .map(|ele| ele.cell_count.get())
+            .collect::<Vec<u64>>()
+            == vec![1, 1]
     }
 
     #[test]
-    fn test_sfs_neutral_cell_no_mutations() {
-        let cells = [StemCell::new()];
-        let distributions = NeutralMutationPoisson(Poisson::new(10.).unwrap());
-        let mut rng = ChaChaRng::seed_from_u64(26);
-        assert!(Sfs::from_cells(&cells, &distributions, 4, &mut rng)
+    #[should_panic]
+    fn test_sfs_neutral_no_cells() {
+        let verbosity = 1;
+        let stats = StatisticsMutations {
+            counts: FxHashMap::default(),
+            nb_variants: 0,
+        };
+        Sfs::from_stats(&stats, verbosity).unwrap();
+    }
+
+    #[quickcheck]
+    fn test_sfs_neutral_cell_no_mutations(cell_count: NonZeroU64) -> bool {
+        let verbosity = 1;
+        let mut counts: FxHashMap<GenotypeId, CountsMutations> = FxHashMap::default();
+        counts.insert(
+            0,
+            CountsMutations {
+                cell_count,
+                poisson_mut_number: 0,
+            },
+        );
+        let stats = StatisticsMutations {
+            counts,
+            nb_variants: 0,
+        };
+        Sfs::from_stats(&stats, verbosity)
             .unwrap()
-            .is_empty());
+            .into_iter()
+            .all(|(jmut, jcell)| jcell == cell_count.get() && jmut == 0)
     }
 
     #[quickcheck]
-    fn test_sfs_neutral_one_cell(mutations: DistinctMutationsId, seed: u64) -> bool {
-        let mutations = vec![
-            mutations.0 as usize,
-            mutations.1 as usize,
-            mutations.2 as usize,
-        ];
-        let cells = [StemCell::with_set_of_mutations(mutations)];
-        let verbosity = 0;
-        let distributions = NeutralMutationPoisson(Poisson::new(10.).unwrap());
-        let mut rng = ChaChaRng::seed_from_u64(seed);
-
-        let counts = Sfs::from_cells(&cells, &distributions, verbosity, &mut rng).unwrap();
-        let expected_jcells = [1u64];
-        counts.into_keys().collect::<Vec<u64>>() == expected_jcells
-    }
-
-    #[quickcheck]
-    fn test_sfs_neutral_two_cells_nothing_in_common(
-        mutations: DistinctMutationsId,
-        seed: u64,
-    ) -> bool {
-        let mutations1 = vec![mutations.0 as usize];
-        let mutations2 = vec![mutations.1 as usize, mutations.2 as usize];
-        let cells = [
-            StemCell::with_set_of_mutations(mutations1),
-            StemCell::with_set_of_mutations(mutations2),
-        ];
-        let verbosity = 0;
-        let distributions = NeutralMutationPoisson(Poisson::new(10.).unwrap());
-        let mut rng = ChaChaRng::seed_from_u64(seed);
-
-        let counts = Sfs::from_cells(&cells, &distributions, verbosity, &mut rng).unwrap();
-        let expected_jcells = [1u64];
-        counts.into_keys().collect::<Vec<u64>>() == expected_jcells
-    }
-
-    #[quickcheck]
-    fn test_sfs_neutral_two_cells_some_in_common(
-        mutations: DistinctMutationsId,
-        seed: u64,
-    ) -> bool {
-        let mutations1 = vec![mutations.0 as usize];
-        let mutations2 = vec![
-            mutations.0 as usize,
-            mutations.1 as usize,
-            mutations.2 as usize,
-        ];
-        let cells = [
-            StemCell::with_set_of_mutations(mutations1),
-            StemCell::with_set_of_mutations(mutations2),
-        ];
-        let verbosity = 0;
-        let distributions = NeutralMutationPoisson(Poisson::new(10.).unwrap());
-        let mut rng = ChaChaRng::seed_from_u64(seed);
-
-        let counts = Sfs::from_cells(&cells, &distributions, verbosity, &mut rng).unwrap();
-        let expected_jcells = [1u64, 2u64];
-        let mut jcells = counts.into_keys().collect::<Vec<u64>>();
-        jcells.sort_unstable();
-        jcells == expected_jcells
-    }
-
-    #[quickcheck]
-    fn test_sfs_neutral_two_cells_all_in_common(mutations: DistinctMutationsId, seed: u64) -> bool {
-        let mutations = vec![
-            mutations.0 as usize,
-            mutations.1 as usize,
-            mutations.2 as usize,
-        ];
-        let cells = [
-            StemCell::with_set_of_mutations(mutations.clone()),
-            StemCell::with_set_of_mutations(mutations),
-        ];
-        let verbosity = 0;
-        let distributions = NeutralMutationPoisson(Poisson::new(10.).unwrap());
-        let mut rng = ChaChaRng::seed_from_u64(seed);
-
-        let counts = Sfs::from_cells(&cells, &distributions, verbosity, &mut rng).unwrap();
-        let expected_jcells = [2u64];
-        counts.into_keys().collect::<Vec<u64>>() == expected_jcells
-    }
-
-    #[quickcheck]
-    fn test_sfs_from_stats(idx: DistinctMutationsId) -> bool {
+    fn test_sfs_one_proliferation_event(idx: DistinctMutationsId) -> bool {
         let random_nbs: [u64; 6] = std::array::from_fn(|i| idx.0 as u64 + i as u64);
+        dbg!(&random_nbs);
+        let mut counts: FxHashMap<GenotypeId, CountsMutations> = FxHashMap::default();
+        counts.insert(
+            random_nbs[0] as usize,
+            CountsMutations {
+                cell_count: unsafe { NonZeroU64::new_unchecked(random_nbs[1]) },
+                poisson_mut_number: random_nbs[2],
+            },
+        );
+        let stats = StatisticsMutations {
+            counts,
+            nb_variants: random_nbs[2] as usize,
+        };
+        let sfs = Sfs::from_stats(&stats, 0).unwrap();
+        let mut keys = sfs.clone().into_keys().collect::<Vec<u64>>();
+        let mut values = sfs.into_values().collect::<Vec<u64>>();
+        keys.sort_unstable();
+        values.sort_unstable();
+
+        let mut expected_jcells = vec![random_nbs[1]];
+        let mut expected_jmuts = vec![random_nbs[2]];
+        expected_jcells.sort_unstable();
+        expected_jmuts.sort_unstable();
+
+        keys == expected_jmuts && values == expected_jcells
+    }
+
+    #[quickcheck]
+    fn test_sfs_two_proliferation_events_all_in_common(idx: DistinctMutationsId) -> bool {
+        let random_nbs: [u64; 6] = std::array::from_fn(|i| idx.0 as u64 + i as u64);
+        dbg!(&random_nbs);
+        let mut counts: FxHashMap<GenotypeId, CountsMutations> = FxHashMap::default();
+        counts.insert(
+            random_nbs[0] as usize,
+            CountsMutations {
+                cell_count: unsafe { NonZeroU64::new_unchecked(random_nbs[1]) },
+                poisson_mut_number: random_nbs[2],
+            },
+        );
+        counts.insert(
+            random_nbs[3] as usize,
+            CountsMutations {
+                cell_count: unsafe { NonZeroU64::new_unchecked(random_nbs[4]) },
+                poisson_mut_number: random_nbs[2],
+            },
+        );
+        let stats = StatisticsMutations {
+            counts,
+            nb_variants: (random_nbs[2] + random_nbs[2]) as usize,
+        };
+        let sfs = Sfs::from_stats(&stats, 0).unwrap();
+        let mut keys = sfs.clone().into_keys().collect::<Vec<u64>>();
+        let mut values = sfs.into_values().collect::<Vec<u64>>();
+        keys.sort_unstable();
+        values.sort_unstable();
+
+        let mut expected_jcells = vec![random_nbs[1] + random_nbs[4]];
+        let mut expected_jmuts = vec![random_nbs[2]];
+        expected_jcells.sort_unstable();
+        expected_jmuts.sort_unstable();
+
+        keys == expected_jmuts && values == expected_jcells
+    }
+
+    #[quickcheck]
+    fn test_sfs_two_proliferation_events_nothing_in_common(idx: DistinctMutationsId) -> bool {
+        let random_nbs: [u64; 6] = std::array::from_fn(|i| idx.0 as u64 + i as u64);
+        dbg!(&random_nbs);
         let mut counts: FxHashMap<GenotypeId, CountsMutations> = FxHashMap::default();
         counts.insert(
             random_nbs[0] as usize,
@@ -406,20 +438,19 @@ mod tests {
         );
         let stats = StatisticsMutations {
             counts,
-            total_burden: random_nbs[1] as usize * random_nbs[2] as usize
-                + random_nbs[4] as usize * random_nbs[5] as usize,
+            nb_variants: (random_nbs[2] + random_nbs[5]) as usize,
         };
-        let sfs = Sfs::from_stats(stats);
+        let sfs = Sfs::from_stats(&stats, 0).unwrap();
         let mut keys = sfs.clone().into_keys().collect::<Vec<u64>>();
         let mut values = sfs.into_values().collect::<Vec<u64>>();
         keys.sort_unstable();
         values.sort_unstable();
 
-        let mut expected_keys = vec![random_nbs[1], random_nbs[4]];
-        let mut expected_values = vec![random_nbs[2], random_nbs[5]];
-        expected_keys.sort_unstable();
-        expected_values.sort_unstable();
+        let mut expected_jcells = vec![random_nbs[1], random_nbs[4]];
+        let mut expected_jmuts = vec![random_nbs[2], random_nbs[5]];
+        expected_jcells.sort_unstable();
+        expected_jmuts.sort_unstable();
 
-        keys == expected_keys && values == expected_values
+        keys == expected_jmuts && values == expected_jcells
     }
 }

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.0
+TODO: solve the problem of the sfs computation with timepoints.
+
+- remove the neutral sfs
+
+### BugFix
+- fix the neutral rate
+- fix the computation of the SFS
+
 ## 0.10.0
 Start simulations at year 0 instead of 1.
 
