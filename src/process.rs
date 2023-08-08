@@ -1,4 +1,4 @@
-use crate::stemcell::{NbPoissonMutations, Sfs, StatisticsMutations, StemCell};
+use crate::stemcell::{Sfs, StemCell};
 use crate::subclone::{CloneId, SubClone};
 use crate::{write2file, MAX_SUBCLONES};
 use anyhow::Context;

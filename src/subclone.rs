@@ -5,7 +5,6 @@ use rand::Rng;
 /// Id of the [`SubClone`]s.
 pub type CloneId = usize;
 
-#[derive(Debug, Clone)]
 /// A group of cells sharing the same genetic background with a specific
 /// proliferation rate.
 ///
@@ -14,6 +13,7 @@ pub type CloneId = usize;
 /// cells and make it proliferate.
 /// Upon proliferation, the cell can be assigned to a new clone with
 /// probability `p` (see [`crate::process::CellDivisionProbabilities`]).
+#[derive(Debug, Clone)]
 pub struct SubClone {
     cells: Vec<StemCell>,
     pub id: CloneId,
