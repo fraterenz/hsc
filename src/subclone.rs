@@ -1,6 +1,6 @@
-use crate::stemcell::StemCell;
-use anyhow::ensure;
-use rand::Rng;
+use crate::stemcell::StemCellId;
+use anyhow::{bail, ensure};
+use rand::{seq::SliceRandom, Rng};
 
 /// Id of the [`SubClone`]s.
 pub type CloneId = usize;
@@ -15,7 +15,8 @@ pub type CloneId = usize;
 /// probability `p` (see [`crate::process::CellDivisionProbabilities`]).
 #[derive(Debug, Clone)]
 pub struct SubClone {
-    cells: Vec<StemCell>,
+    // TODO: transform this into reference
+    cells: Vec<StemCellId>,
     pub id: CloneId,
 }
 
@@ -27,21 +28,33 @@ impl SubClone {
         }
     }
 
-    pub fn get_cells(&self) -> &[StemCell] {
-        &self.cells
-    }
-
     pub fn is_empty(&self) -> bool {
-        self.get_cells().is_empty()
+        self.cells.is_empty()
     }
 
-    pub fn assign_cell(&mut self, cell: StemCell) {
+    pub fn assign_cell(&mut self, cell: StemCellId) {
         self.cells.push(cell);
     }
 
-    pub fn random_cell(&mut self, rng: &mut impl Rng) -> anyhow::Result<StemCell> {
+    fn gen_rand_id(&self, rng: &mut impl Rng) -> StemCellId {
+        self.cells
+            .choose(rng)
+            .expect("found empty subclone")
+            .to_owned()
+    }
+
+    fn remove_cell_with_id(&mut self, id: &StemCellId) -> anyhow::Result<StemCellId> {
+        if let Some(index) = self.cells.iter().position(|cellid| cellid == id) {
+            return Ok(self.cells.swap_remove(index));
+        }
+        bail!(format!("cannot find cell with id {} in subclone", id))
+    }
+
+    pub fn random_cell(&mut self, rng: &mut impl Rng) -> anyhow::Result<StemCellId> {
+        //! Pick a random cell from the clone
         ensure!(!self.cells.is_empty());
-        Ok(self.cells.swap_remove(rng.gen_range(0..self.cells.len())))
+        let id = self.gen_rand_id(rng);
+        self.remove_cell_with_id(&id)
     }
 
     pub fn cell_count(&self) -> u64 {
@@ -57,7 +70,7 @@ mod tests {
     #[quickcheck]
     fn assign_cell_test(id: usize) -> bool {
         let mut neutral_clone = SubClone { cells: vec![], id };
-        let cell = StemCell::new();
+        let cell = StemCellId::new_v4();
         assert!(neutral_clone.cells.is_empty());
 
         neutral_clone.assign_cell(cell);

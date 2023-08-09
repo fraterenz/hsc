@@ -4,7 +4,7 @@ use criterion::criterion_main;
 use criterion::BenchmarkId;
 use criterion::Criterion;
 use hsc::process::NeutralMutationPoisson;
-use hsc::stemcell::{Sfs, StemCell};
+use hsc::stemcell::{StemCell, VariantCount};
 use rand::SeedableRng;
 use rand_chacha::ChaChaRng;
 use rand_distr::Poisson;
@@ -23,13 +23,7 @@ fn from_neutral_rate(c: &mut Criterion) {
             b.iter(|| {
                 let mut rng = ChaChaRng::seed_from_u64(26);
                 let distributions = NeutralMutationPoisson(Poisson::new(*rate).unwrap());
-                Sfs::from_cells(
-                    black_box(&cells),
-                    black_box(&distributions),
-                    verbosity,
-                    &mut rng,
-                )
-                .unwrap();
+                VariantCount::from_cells(black_box(&cells)).unwrap();
             })
         });
     }

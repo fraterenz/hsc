@@ -1,4 +1,4 @@
-use crate::stemcell::{Sfs, StemCell};
+use crate::stemcell::{StemCell, VariantCount};
 use crate::subclone::{CloneId, SubClone};
 use crate::{write2file, MAX_SUBCLONES};
 use anyhow::Context;
@@ -205,6 +205,7 @@ impl HSCProcess {
     fn proliferating_cells(&mut self, subclone_id: usize, rng: &mut impl Rng) -> Vec<StemCell> {
         //! Determine which cells will proliferate by randomly selecting a cell
         //! from the subclone with id `subclone_id`.
+        todo!("the stemcell population must carry cell proliferation and move all variants from private to shared");
         if self.verbosity > 2 {
             println!(
                 "a cell from clone {:#?} will divide",
@@ -266,7 +267,7 @@ impl HSCProcess {
     fn save_sfs(&self, path2file: &Path, stats: &StatisticsMutations) -> anyhow::Result<()> {
         let path2file = path2file.with_extension("json");
         // some simulations might have only cells in the wild-type clone
-        if let Ok(sfs) = &Sfs::from_stats(stats, self.verbosity) {
+        if let Ok(sfs) = &VariantCount::from_stats(stats, self.verbosity) {
             let sfs = serde_json::to_string(sfs).with_context(|| "cannot serialize the sfs")?;
             fs::write(path2file, sfs).with_context(|| "Cannot save the total SFS".to_string())?;
         }

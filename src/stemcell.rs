@@ -1,172 +1,399 @@
-use std::cell::RefCell;
+use anyhow::Context;
+use rustc_hash::FxHashMap;
 use std::collections::HashMap;
-use std::rc::Rc;
+use uuid::Uuid;
+
+pub type Variant = Uuid;
+pub type StemCellId = Uuid;
+
+#[derive(Clone, Debug)]
+pub struct StemCellPopulation(FxHashMap<StemCellId, StemCell>);
+
+impl StemCellPopulation {
+    pub fn new(cells: Vec<StemCell>) -> Self {
+        //! Create a population of cells, with all cells being unrelated, and
+        //! assign a random idx.
+        let mut population = FxHashMap::default();
+        population.shrink_to(cells.len());
+        for cell in cells.into_iter() {
+            population.insert(Uuid::new_v4(), cell);
+        }
+        Self(population)
+    }
+
+    pub fn get_mut_cell(&mut self, id: &StemCellId) -> &mut StemCell {
+        self.0.get_mut(id).unwrap()
+    }
+
+    pub fn retrieve_all_variants(mut self) -> Vec<Variant> {
+        let mut variants = Vec::new();
+        for cell in self.0.values_mut() {
+            variants.append(&mut cell.private_variants);
+            variants.append(&mut cell.shared_variants);
+        }
+        variants
+    }
+
+    pub fn duplicate_cell(&mut self, id: &StemCellId, id2remove: &StemCellId) -> Vec<StemCellId> {
+        //! Duplicate a stem cell and remove another stem cellfrom the
+        //! population (Moran process).
+        //!
+        //! ## Panics
+        //! Panics when `id` is equal to `id2remove`.
+        assert_ne!(id, id2remove, "cannot duplicate and remove the same cell");
+        self.remove_cell(id2remove).unwrap();
+        let new_cell = self.0[id].clone();
+        todo!();
+        // self.0[id].children
+    }
+
+    pub fn remove_cell(&mut self, id: &StemCellId) -> anyhow::Result<()> {
+        let cell = self
+            .0
+            .remove(id)
+            .with_context(|| format!("cannot find cell with id {} in the population", id))?;
+        for parent_id in cell.parents.iter() {
+            let parent = self.0.get_mut(parent_id).expect(&format!(
+                "cannot find parent with id {} in the population",
+                id,
+            ));
+            for variant in cell.shared_variants.iter() {
+                parent.shared_variants.push(*variant);
+            }
+            if let Some(index) = parent
+                .children
+                .iter_mut()
+                .position(|parent_id| parent_id == id)
+            {
+                parent.children.swap_remove(index);
+            }
+        }
+
+        for child_id in cell.children.iter() {
+            let child = self.0.get_mut(child_id).unwrap();
+            if let Some(index) = child
+                .parents
+                .iter_mut()
+                .position(|parent_id| parent_id == id)
+            {
+                child.parents.swap_remove(index);
+            }
+        }
+        Ok(())
+    }
+}
 
 #[derive(Clone, Debug, Default)]
 pub struct StemCell {
-    id: usize,
-    variants: Vec<u16>,
-    children: RefCell<Vec<Rc<StemCell>>>,
+    private_variants: Vec<Variant>,
+    shared_variants: Vec<Variant>,
+    children: Vec<StemCellId>,
+    parents: Vec<StemCellId>,
 }
 
 impl StemCell {
-    pub fn new() -> Self {
-        StemCell::default()
+    pub fn new(variants: Vec<Variant>) -> Self {
+        //! Construct a new stem cell with some neutral mutations
+        StemCell {
+            private_variants: variants,
+            shared_variants: Vec::with_capacity(5000),
+            children: Vec::with_capacity(200),
+            parents: Vec::with_capacity(200),
+        }
     }
 
     pub fn has_mutations(&self) -> bool {
         //! Returns true if a stem cell has **private** mutations
-        !self.variants.is_empty()
+        !self.private_variants.is_empty()
     }
 }
 
-pub struct Sfs;
+pub struct VariantCount;
 
-impl Sfs {
-    pub fn from_cells(cells: &[Rc<StemCell>]) -> HashMap<u16, u16> {
-        let mut sfs = HashMap::new();
-        for cell in cells.into_iter() {
+impl VariantCount {
+    pub fn from_cells(cells: &StemCellPopulation) -> HashMap<Variant, u16> {
+        let mut variant_count = HashMap::new();
+        for cell in cells.0.values() {
             // private mutations owned by the stem cell
-            for variant in cell.variants.iter() {
-                sfs.entry(*variant)
+            for variant in cell.private_variants.iter() {
+                variant_count
+                    .entry(*variant)
                     .and_modify(|counter| *counter += 1)
                     .or_insert(1);
             }
 
-            // shared mutations appearing in all children
-            for child in cell.children.borrow().iter() {
-                for variant in child.variants.iter() {
-                    sfs.entry(*variant)
-                        .and_modify(|counter| *counter += 1)
-                        .or_insert(1);
-                }
+            for variant in cell.shared_variants.iter() {
+                variant_count
+                    .entry(*variant)
+                    .and_modify(|counter| *counter += 1)
+                    .or_insert(1);
             }
         }
-        sfs
+        variant_count
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use arbitrary::{Arbitrary, Result, Unstructured};
+    use std::collections::HashSet;
 
-    struct PopulationTest {}
+    #[derive(arbitrary::Arbitrary, Clone)]
+    pub struct FourCellIdx {
+        pub cell0: Uuid,
+        pub cell1: Uuid,
+        pub cell2: Uuid,
+        pub cell3: Uuid,
+    }
+
+    #[derive(arbitrary::Arbitrary, Clone)]
+    pub struct FiveMutationIdx {
+        // shared mut between cell 0 and cell 1
+        pub shared0: Uuid,
+        // shared mut between cell 0, cell 1 and cell2
+        pub shared1: Uuid,
+        // private mutation of cell 0
+        pub private0: Uuid,
+        // private mutation of cell 2
+        pub private2: Uuid,
+        //Fiveate mutation of cell 3
+        pub private3: Uuid,
+    }
+
+    #[derive(Clone)]
+    struct PopulationTest {
+        mutations_idx: FiveMutationIdx,
+        cells_idx: FourCellIdx,
+        cells: StemCellPopulation,
+    }
 
     impl PopulationTest {
-        fn construct_population_three_cells() -> [Rc<StemCell>; 3] {
-            // cell1: [3, *cell2], cell2: [4], cell3: [1]
-            let cell3 = Rc::new(StemCell {
-                id: 3,
-                variants: vec![1],
-                children: RefCell::new(vec![]),
-            });
-
-            let cell2 = Rc::new(StemCell {
-                id: 2,
-                variants: vec![4],
-                children: RefCell::new(vec![]),
-            });
-
-            let cell1 = Rc::new(StemCell {
-                id: 1,
-                variants: vec![3],
-                children: RefCell::new(vec![Rc::clone(&cell2)]),
-            });
-
-            [cell1, cell2, cell3]
+        fn get_unique_mut_idx(&self) -> HashSet<Uuid> {
+            HashSet::from([
+                self.mutations_idx.private0,
+                self.mutations_idx.private2,
+                self.mutations_idx.private3,
+                self.mutations_idx.shared0,
+                self.mutations_idx.shared1,
+            ])
         }
 
-        fn get_sorted_unique_mut_idx() -> [u16; 3] {
-            [1, 3, 4]
-        }
-
-        fn get_sorted_cell_counts() -> [u16; 3] {
-            [1, 1, 2]
+        fn get_cell_counts() -> Vec<u16> {
+            vec![1, 1, 1, 2, 3]
         }
     }
 
-    #[test]
-    fn sfs_from_cells_test() {
-        let cells = PopulationTest::construct_population_three_cells().to_vec();
-        let sfs = Sfs::from_cells(&cells);
-        let expected_mut_idx = PopulationTest::get_sorted_unique_mut_idx();
-        let expected_cell_counts = PopulationTest::get_sorted_cell_counts();
+    impl<'a> arbitrary::Arbitrary<'a> for PopulationTest {
+        fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
+            let mutations_idx = FiveMutationIdx::arbitrary(u).unwrap();
+            let cells_idx = FourCellIdx::arbitrary(u).unwrap();
 
-        let mut unique_mut_idx = sfs.clone().into_keys().collect::<Vec<u16>>();
-        unique_mut_idx.sort_unstable();
-        let mut cell_counts = sfs.into_values().collect::<Vec<u16>>();
-        cell_counts.sort_unstable();
+            let cell3 = StemCell::new(vec![mutations_idx.private3]);
 
-        assert_eq!(unique_mut_idx, expected_mut_idx);
-        assert_eq!(cell_counts, expected_cell_counts);
+            let mut cell2 = StemCell::new(vec![mutations_idx.private2]);
+            cell2.shared_variants = vec![mutations_idx.shared1];
+            cell2.parents = vec![cells_idx.cell0, cells_idx.cell1];
+
+            let mut cell1 = StemCell::new(vec![]);
+            cell1.shared_variants = vec![mutations_idx.shared0, mutations_idx.shared1];
+            cell1.parents = vec![cells_idx.cell0];
+            cell1.children = vec![cells_idx.cell2];
+
+            let mut cell0 = StemCell::new(vec![mutations_idx.private0]);
+            cell0.shared_variants = vec![mutations_idx.shared0, mutations_idx.shared1];
+            cell0.children = vec![cells_idx.cell1, cells_idx.cell2];
+
+            let mut population = FxHashMap::default();
+            population.insert(cells_idx.cell0, cell0);
+            population.insert(cells_idx.cell1, cell1);
+            population.insert(cells_idx.cell2, cell2);
+            population.insert(cells_idx.cell3, cell3);
+
+            Ok(PopulationTest {
+                mutations_idx,
+                cells_idx,
+                cells: StemCellPopulation(population),
+            })
+        }
     }
 
     #[test]
-    fn sfs_from_cells_without_cell1_test() {
-        // removing variant 3 and 4 from cell1
-        let mut cells = PopulationTest::construct_population_three_cells().to_vec();
-        // rm cell1
-        cells.swap_remove(0);
-        let sfs = Sfs::from_cells(&cells);
-        let mut expected_mut_idx = PopulationTest::get_sorted_unique_mut_idx().to_vec();
-        // remove id 3
-        expected_mut_idx.swap_remove(1);
-        let mut expected_cell_counts = PopulationTest::get_sorted_cell_counts().to_vec();
-        // remove count 2
-        expected_cell_counts.swap_remove(2);
+    fn remove_cell0_test() {
+        let raw_data: [u8; 200] = core::array::from_fn(|i| (i + 1) as u8);
+        let mut u = Unstructured::new(&raw_data);
+        let mut population = PopulationTest::arbitrary(&mut u).unwrap();
 
-        let mut unique_mut_idx = sfs.clone().into_keys().collect::<Vec<u16>>();
-        unique_mut_idx.sort_unstable();
-        let mut cell_counts = sfs.into_values().collect::<Vec<u16>>();
-        cell_counts.sort_unstable();
+        let id2remove = population.cells_idx.cell0;
+        population.cells.remove_cell(&id2remove).unwrap();
 
-        assert_eq!(unique_mut_idx, expected_mut_idx);
-        assert_eq!(cell_counts, expected_cell_counts);
+        // check that cell is not in the population anymore
+        assert!(population
+            .cells
+            .0
+            .keys()
+            .all(|cell_id| cell_id != &id2remove));
+        // check that cell is not in any child
+        assert!(population
+            .cells
+            .0
+            .values()
+            .all(|cell| cell.children.iter().all(|c| c != &id2remove)));
+        // check that cell is not in any parent
+        assert!(population
+            .cells
+            .0
+            .values()
+            .all(|cell| cell.parents.iter().all(|p| p != &id2remove)));
+        // check that the mutations of cell 0 are not there anymore
+        let mutations_cell0 = population.mutations_idx.private0;
+        dbg!(&population.cells);
+        assert!(population
+            .cells
+            .retrieve_all_variants()
+            .into_iter()
+            .all(|variant| variant != mutations_cell0));
     }
 
     #[test]
-    fn sfs_from_cells_without_cell2_test() {
-        // removing variant 4 from cell2
-        let mut cells = PopulationTest::construct_population_three_cells().to_vec();
-        // rm cell2
-        cells.swap_remove(1);
-        cells[0].children.replace(vec![]);
+    fn remove_cell1_test() {
+        let raw_data: [u8; 200] = core::array::from_fn(|i| (i + 1) as u8);
+        let mut u = Unstructured::new(&raw_data);
+        let mut population = PopulationTest::arbitrary(&mut u).unwrap();
+        let mut variants = HashSet::with_capacity(5);
+        for variant in population.clone().cells.retrieve_all_variants().into_iter() {
+            variants.insert(variant);
+        }
 
-        let sfs = Sfs::from_cells(&cells);
-        let mut expected_mut_idx = PopulationTest::get_sorted_unique_mut_idx().to_vec();
-        // remove id 4
-        expected_mut_idx.swap_remove(2);
-        let mut expected_cell_counts = PopulationTest::get_sorted_cell_counts().to_vec();
-        // remove count 2
-        expected_cell_counts.swap_remove(2);
+        let id2remove = population.cells_idx.cell1;
+        population.cells.remove_cell(&id2remove).unwrap();
 
-        let mut unique_mut_idx = sfs.clone().into_keys().collect::<Vec<u16>>();
-        unique_mut_idx.sort_unstable();
-        let mut cell_counts = sfs.into_values().collect::<Vec<u16>>();
-        cell_counts.sort_unstable();
+        // check that cell is not in the population anymore
+        assert!(population
+            .cells
+            .0
+            .keys()
+            .all(|cell_id| cell_id != &id2remove));
+        // check that cell is not in any child
+        assert!(population
+            .cells
+            .0
+            .values()
+            .all(|cell| cell.children.iter().all(|c| c != &id2remove)));
+        // check that cell is not in any parent
+        assert!(population
+            .cells
+            .0
+            .values()
+            .all(|cell| cell.parents.iter().all(|p| p != &id2remove)));
 
-        assert_eq!(unique_mut_idx, expected_mut_idx);
-        assert_eq!(cell_counts, expected_cell_counts);
+        // check that the parent aka cell 0 has the mutations from cell 1 (
+        // which has just been removed)
+        let mut expected_muts = HashSet::with_capacity(2);
+        expected_muts.insert(&population.mutations_idx.shared0);
+        expected_muts.insert(&population.mutations_idx.shared1);
+
+        let mut got_muts = HashSet::with_capacity(3);
+        for var in population.cells.0[&population.cells_idx.cell0]
+            .shared_variants
+            .iter()
+        {
+            got_muts.insert(var);
+        }
+        assert_eq!(expected_muts, got_muts);
+
+        // check that the mutations have not changed
+        let mut got_variants = HashSet::with_capacity(5);
+        for variant in population.cells.retrieve_all_variants().into_iter() {
+            got_variants.insert(variant);
+        }
+        assert_eq!(got_variants, variants);
     }
 
     #[test]
-    fn sfs_from_cells_without_cell3_test() {
-        // removing variant 1 from cell3
-        let mut cells = PopulationTest::construct_population_three_cells().to_vec();
-        // rm cell3
-        cells.swap_remove(2);
+    fn remove_cell2_test() {
+        let raw_data: [u8; 200] = core::array::from_fn(|i| (i + 1) as u8);
+        let mut u = Unstructured::new(&raw_data);
+        let mut population = PopulationTest::arbitrary(&mut u).unwrap();
 
-        let sfs = Sfs::from_cells(&cells);
-        let mut expected_mut_idx = PopulationTest::get_sorted_unique_mut_idx().to_vec();
-        // remove id 1
-        expected_mut_idx.remove(0);
-        let mut expected_cell_counts = PopulationTest::get_sorted_cell_counts().to_vec();
-        // remove count 1
-        expected_cell_counts.swap_remove(1);
+        let id2remove = population.cells_idx.cell2;
+        population.cells.remove_cell(&id2remove).unwrap();
 
-        let mut unique_mut_idx = sfs.clone().into_keys().collect::<Vec<u16>>();
-        unique_mut_idx.sort_unstable();
-        let mut cell_counts = sfs.into_values().collect::<Vec<u16>>();
+        // check that cell is not in the population anymore
+        assert!(population
+            .cells
+            .0
+            .keys()
+            .all(|cell_id| cell_id != &id2remove));
+        // check that cell is not in any child
+        assert!(population
+            .cells
+            .0
+            .values()
+            .all(|cell| cell.children.iter().all(|c| c != &id2remove)));
+        // check that cell is not in any parent
+        assert!(population
+            .cells
+            .0
+            .values()
+            .all(|cell| cell.parents.iter().all(|p| p != &id2remove)));
+        // check that the mutations of cell 2 are not there anymore
+        let mutations_cell2 = population.mutations_idx.private2;
+        dbg!(&population.cells);
+        assert!(population
+            .cells
+            .retrieve_all_variants()
+            .into_iter()
+            .all(|variant| variant != mutations_cell2));
+    }
+
+    #[test]
+    fn remove_cell3_test() {
+        let raw_data: [u8; 200] = core::array::from_fn(|i| (i + 1) as u8);
+        let mut u = Unstructured::new(&raw_data);
+        let mut population = PopulationTest::arbitrary(&mut u).unwrap();
+
+        let id2remove = population.cells_idx.cell3;
+        population.cells.remove_cell(&id2remove).unwrap();
+
+        // check that cell is not in the population anymore
+        assert!(population
+            .cells
+            .0
+            .keys()
+            .all(|cell_id| cell_id != &id2remove));
+        // check that cell is not in any child
+        assert!(population
+            .cells
+            .0
+            .values()
+            .all(|cell| cell.children.iter().all(|c| c != &id2remove)));
+        // check that cell is not in any parent
+        assert!(population
+            .cells
+            .0
+            .values()
+            .all(|cell| cell.parents.iter().all(|p| p != &id2remove)));
+        // check that the mutations of cell 3 are not there anymore
+        let mutations_cell3 = population.mutations_idx.private3;
+        assert!(population
+            .cells
+            .retrieve_all_variants()
+            .into_iter()
+            .all(|variant| variant != mutations_cell3));
+    }
+
+    #[test]
+    fn variant_count_from_cells_test() {
+        let raw_data: [u8; 200] = core::array::from_fn(|i| (i + 1) as u8);
+        let population = PopulationTest::arbitrary(&mut Unstructured::new(&raw_data)).unwrap();
+        let expected_mut_idx = population.get_unique_mut_idx();
+        let expected_cell_counts = PopulationTest::get_cell_counts();
+
+        let cells = population.clone().cells;
+        let variant_count = VariantCount::from_cells(&cells);
+        let unique_mut_idx = variant_count.clone().into_keys().collect::<HashSet<Uuid>>();
+        let mut cell_counts = variant_count.into_values().collect::<Vec<u16>>();
         cell_counts.sort_unstable();
 
         assert_eq!(unique_mut_idx, expected_mut_idx);

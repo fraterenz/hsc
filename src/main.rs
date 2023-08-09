@@ -1,5 +1,8 @@
+fn main() {
+    println!("hello");
+}
+/*
 use std::path::PathBuf;
-
 use chrono::Utc;
 use clap_app::Parallel;
 use hsc::{
@@ -106,3 +109,4 @@ fn main() {
         0
     });
 }
+*/

@@ -25,7 +25,7 @@ use std::{
 use anyhow::Context;
 
 /// The events to simulate for this Markov process.
-pub mod process;
+// pub mod process;
 /// The agents whose state defines the system simulated by the process.
 pub mod stemcell;
 /// The classes defining the proliferative advantage.
@@ -76,13 +76,13 @@ pub fn write2file<T: std::fmt::Display>(
 
 #[cfg(test)]
 mod tests {
-    use quickcheck::{Arbitrary, Gen};
+    use quickcheck::Gen;
     use std::num::NonZeroU8;
 
     #[derive(Clone, Debug)]
     pub struct LambdaFromNonZeroU8(pub f32);
 
-    impl Arbitrary for LambdaFromNonZeroU8 {
+    impl quickcheck::Arbitrary for LambdaFromNonZeroU8 {
         fn arbitrary(g: &mut Gen) -> LambdaFromNonZeroU8 {
             let lambda: NonZeroU8 = NonZeroU8::arbitrary(g);
             LambdaFromNonZeroU8(lambda.get() as f32)
