@@ -91,7 +91,7 @@ impl Sfs {
                         .or_insert(1);
                     }
                 } else {
-                    stats.store_new_genotype_id(*id, poisson_dist, rng, true);
+                    stats.store_new_genotype_id(*id, poisson_dist, rng, false);
                     if stats.counts[id].poisson_mut_number > 0 {
                         sfs.insert(
                             unsafe {
