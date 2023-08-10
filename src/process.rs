@@ -73,7 +73,6 @@ pub struct HSCProcess {
     pub snapshot: VecDeque<f32>,
     pub path2dir: PathBuf,
     pub verbosity: u8,
-    stats: StatisticsMutations,
     distributions: Distributions,
 }
 
@@ -86,7 +85,7 @@ impl Default for HSCProcess {
         });
         HSCProcess::new(
             CellDivisionProbabilities {
-                p_asymmetric: 0.5,
+                p_asymmetric: 0.,
                 lambda_poisson: 1.,
                 p: 0.1,
             },
@@ -138,7 +137,6 @@ impl HSCProcess {
             time,
             snapshot,
             verbosity,
-            stats: StatisticsMutations::default(),
         };
         if verbosity > 1 {
             println!("process created: {:#?}", hsc);
@@ -202,54 +200,55 @@ impl HSCProcess {
         }
     }
 
-    fn proliferating_cells(&mut self, subclone_id: usize, rng: &mut impl Rng) -> Vec<StemCell> {
+    fn proliferating_cell(&mut self, subclone_id: usize, rng: &mut impl Rng) -> StemCell {
         //! Determine which cells will proliferate by randomly selecting a cell
         //! from the subclone with id `subclone_id`.
+        self.counter_divisions += 1;
         if self.verbosity > 2 {
             println!(
                 "a cell from clone {:#?} will divide",
                 self.subclones[subclone_id]
             );
         }
-        let mut proliferating_cells = Vec::with_capacity(2);
-        if self.distributions.bern_asymmetric.sample(rng) {
-            proliferating_cells.push(
-                self.subclones[subclone_id]
-                    .random_cell(rng)
-                    .with_context(|| "found empty subclone")
-                    .unwrap(),
-            )
+        self.subclones[subclone_id]
+            .random_cell(rng)
+            .with_context(|| "found empty subclone")
+            .unwrap()
+    }
+
+    fn keep_const_population_upon_symmetric_division(
+        &mut self,
+        subclone_id: usize,
+        rng: &mut impl Rng,
+    ) {
+        //! If an symmetric division is performed, need to remove a random cell
+        //! from the population.
+        //!
+        //! We proceed as following:
+        //!     1. check if there is only one clone in the population, then
+        //!     remove a cell from this clone
+        //!     2. else, compute the variant counts (removing one cell to avoid
+        //!     sampling the cell that will proliferate)
+        //!     3. and sample from any clone based on the weights defined by
+        //!     the variant counts
+        // remove a cell from a random subclone based on the frequencies of
+        // the clones at the current state
+        let id2remove = if let Some(id) = self.the_only_one_subclone_present() {
+            id
         } else {
-            // remove a cell from a random subclone based on the frequencies of
-            // the clones at the current state
-            let id2remove = if let Some(id) = self.the_only_one_subclone_present() {
-                id
-            } else {
-                let mut variants = Variants::variant_counts(&self.subclones);
-                // do not sample the cell that will proliferate
-                variants[subclone_id] -= 1;
-                WeightedIndex::new(variants).unwrap().sample(rng)
-            };
-            // remove a cell from the random subclone
-            let _ = self.subclones[id2remove]
-                .random_cell(rng)
-                .with_context(|| "found empty subclone")
-                .unwrap();
-            if self.verbosity > 2 {
-                println!("removing one cell from clone {}", id2remove);
-            }
-            let cell1 = self.subclones[subclone_id]
-                .random_cell(rng)
-                .with_context(|| "found empty subclone")
-                .unwrap();
-            let cell2 = cell1.clone();
-            proliferating_cells.push(cell1);
-            proliferating_cells.push(cell2);
-        }
+            let mut variants = Variants::variant_counts(&self.subclones);
+            // do not sample the cell that will proliferate
+            variants[subclone_id] -= 1;
+            WeightedIndex::new(variants).unwrap().sample(rng)
+        };
+        // remove a cell from the random subclone
+        let _ = self.subclones[id2remove]
+            .random_cell(rng)
+            .with_context(|| "found empty subclone")
+            .unwrap();
         if self.verbosity > 2 {
-            println!("proliferating cells {:#?}", proliferating_cells)
+            println!("removing one cell from clone {}", id2remove);
         }
-        proliferating_cells
     }
 
     fn save_variant_fraction(&self, path2file: &Path) -> anyhow::Result<()> {
@@ -267,7 +266,7 @@ impl HSCProcess {
         let path2file = path2file.with_extension("json");
         // some simulations might have only cells in the wild-type clone
         if let Ok(sfs) = &Sfs::from_stats(stats, self.verbosity) {
-            let sfs = serde_json::to_string(sfs).with_context(|| "cannot serialize the sfs")?;
+            let sfs = serde_json::to_string(&sfs.0).with_context(|| "cannot serialize the sfs")?;
             fs::write(path2file, sfs).with_context(|| "Cannot save the total SFS".to_string())?;
         }
 
@@ -313,8 +312,7 @@ impl HSCProcess {
                 println!("cells: {:#?}", cells);
             }
         }
-        StatisticsMutations::update_from_cells(
-            &mut self.stats,
+        let stats = StatisticsMutations::from_cells(
             &cells,
             &self.distributions.poisson,
             rng,
@@ -322,9 +320,9 @@ impl HSCProcess {
         )
         .with_context(|| "cannot construct the stats for the sfs")?;
         if self.verbosity > 1 {
-            println!("stats for SFS: {:#?}", self.stats);
+            println!("stats for SFS: {:#?}", stats);
         }
-        self.save_sfs(&paths[&Stats2Save::SfsNeutral], &self.stats)?;
+        self.save_sfs(&paths[&Stats2Save::SfsNeutral], &stats)?;
 
         if self.verbosity > 0 {
             println!(
@@ -343,8 +341,8 @@ impl AdvanceStep<MAX_SUBCLONES> for HSCProcess {
 
     fn advance_step(&mut self, reaction: NextReaction<Self::Reaction>, rng: &mut impl Rng) {
         //! Update the process by simulating the next proliferative event
-        //! according to the next `reaction` determined by the Gillespie
-        //! algorithm.
+        //! according to the next `reaction` determined by the [Gillespie
+        //! algorithm](`sosa`).
         //!
         //! The proliferation step is implemented as following:
         //!
@@ -352,12 +350,12 @@ impl AdvanceStep<MAX_SUBCLONES> for HSCProcess {
         //! with id `reaction` determined by the Gillespie algorithm
         //!
         //! 2. if the next proliferation is performed symmetricaly, clone the
-        //! proliferating cell, else continue to step 3
+        //! proliferating cell and assign it to the subclone, else continue to
+        //! step 3
         //!
-        //! 3. for all proliferating cells (1 cell in case of a asymmetric
-        //! division, 2 cells in the case of a symmetric division):
+        //! 3. for the proliferating cell only (not the clone from 2):
         //!     * mutate genome by storing the division id, see
-        //!     [`crate::stemcell::Sfs`]
+        //!     [`crate::stemcell::StatisticsMutations`]
         //!
         //!     * assign to new subclone with a probability determined by the
         //!     rate of mutations conferring a proliferative advantage
@@ -365,26 +363,32 @@ impl AdvanceStep<MAX_SUBCLONES> for HSCProcess {
         // that is the clone with id `reaction.event`.
         // Pick random proliferating cells from this clone. **Note that this
         // removes the cells from the clone with id `reaction.event`.**
-        let stem_cells = self.proliferating_cells(reaction.event, rng);
+        let mut stem_cell = self.proliferating_cell(reaction.event, rng);
+
+        if self.distributions.can_only_be_symmetric()
+            || !self.distributions.bern_asymmetric.sample(rng)
+        {
+            if self.verbosity > 2 {
+                println!("keeping the cell population constant");
+            }
+            // remove a cell from the population
+            self.keep_const_population_upon_symmetric_division(reaction.event, rng);
+            self.subclones[reaction.event].assign_cell(stem_cell.clone());
+        }
 
         if self.verbosity > 2 {
-            println!("{:#?} cells are dividing", stem_cells);
+            println!("assigning mutations to cell {:#?}", stem_cell)
         }
+        stem_cell.record_division(self.counter_divisions);
 
-        for mut stem_cell in stem_cells.into_iter() {
-            // perform division
-            self.counter_divisions += 1;
-            // mutate cell
-            stem_cell.record_proliferation_event(self.counter_divisions);
-            // assign cell to clone. This can have two outcomes based on a
-            // Bernouilli trial see `assign` and `self.assign`:
-            // 1. the stem cell is re-assigned to the old clone with id
-            // `reaction.event` (remember that `self.proliferating_cells` has
-            // removed the cells from the clone)
-            // 2. the stem cell is assigned to a new clone with id different
-            // from `reaction.event`.
-            self.assign(reaction.event, stem_cell, rng);
-        }
+        // assign cell to clone. This can have two outcomes based on a
+        // Bernouilli trial see `assign` and `self.assign`:
+        // 1. the stem cell is re-assigned to the old clone with id
+        // `reaction.event` (remember that `self.proliferating_cells` has
+        // removed the cells from the clone)
+        // 2. the stem cell is assigned to a new clone with id different
+        // from `reaction.event`.
+        self.assign(reaction.event, stem_cell, rng);
 
         // take snapshot
         self.time += reaction.time;
@@ -443,6 +447,7 @@ pub struct Distributions {
     poisson: NeutralMutationPoisson,
     bern: Bernoulli,
     bern_asymmetric: Bernoulli,
+    no_asymmetric_division: bool,
 }
 
 impl Distributions {
@@ -450,17 +455,23 @@ impl Distributions {
         if verbosity > 1 {
             println!("creating distributions with parameters asymmetric: {}, neutral_lambda: {}, p_fitness: {}", p_asymmetric, lambda_poisson, p_fitness);
         }
+        let no_asymmetric_division = (p_asymmetric - 0.).abs() < f64::EPSILON;
         Self {
             poisson: NeutralMutationPoisson(
                 Poisson::new(lambda_poisson).expect("Invalid lambda found: lambda <= 0 or nan"),
             ),
             bern: Bernoulli::new(p_fitness).expect("Invalid p: p<0 or p>1"),
             bern_asymmetric: Bernoulli::new(p_asymmetric).expect("Invalid p: p<0 or p>1"),
+            no_asymmetric_division,
         }
     }
 
     pub fn acquire_p_mutation(&self, rng: &mut impl Rng) -> bool {
         self.bern.sample(rng)
+    }
+
+    pub fn can_only_be_symmetric(&self) -> bool {
+        self.no_asymmetric_division
     }
 }
 
@@ -563,25 +574,22 @@ mod tests {
     }
 
     #[quickcheck]
-    fn proliferating_cells_test(seed: u64, mut subclone_id: u8) -> bool {
+    fn proliferating_cell_test(seed: u64, mut subclone_id: u8) -> bool {
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
         let mut hsc = HSCProcess::default();
         if subclone_id >= hsc.subclones.len() as u8 {
             subclone_id = rng.sample(Uniform::new(0, hsc.subclones.len())) as u8;
         }
+        let number_of_cells = hsc.subclones[subclone_id as usize].get_cells().len();
         let tot_cells = hsc.compute_tot_cells();
 
-        let proliferating_cells = hsc.proliferating_cells(subclone_id as usize, &mut rng);
+        let _ = hsc.proliferating_cell(subclone_id as usize, &mut rng);
 
-        let mut subclone_id_has_lost_cell = true;
-        if proliferating_cells.len() == 2 {
-            subclone_id_has_lost_cell = hsc.subclones[subclone_id as usize].cell_count() == 0;
-        }
-        let subclone_has_lost_cell =
+        let subclones_have_lost_cell =
             Variants::variant_counts(&hsc.subclones).iter().sum::<u64>() < tot_cells;
-        subclone_has_lost_cell
-            && proliferating_cells.iter().all(|cell| !cell.has_mutations())
-            && subclone_id_has_lost_cell
+        let subclone_has_lost_cell =
+            hsc.subclones[subclone_id as usize].get_cells().len() == number_of_cells - 1;
+        subclones_have_lost_cell && subclone_has_lost_cell
     }
 
     #[quickcheck]

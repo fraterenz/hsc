@@ -8,6 +8,7 @@ TODO: solve the problem of the sfs computation with timepoints.
 ### BugFix
 - fix the neutral rate
 - fix the computation of the SFS
+- fix the acquisition of neutral mutations: we first cloned the proliferating cell and then mutated both cells. Now we just mutate one of the two cells, not both of them.
 
 ## 0.10.0
 Start simulations at year 0 instead of 1.
