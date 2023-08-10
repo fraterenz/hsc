@@ -1,10 +1,15 @@
-use std::path::PathBuf;
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
+use anyhow::Context;
 use chrono::Utc;
 use clap_app::Parallel;
 use hsc::{
+    genotype::{Sfs, StatisticsMutations},
     process::{CellDivisionProbabilities, HSCProcess},
-    stemcell::StemCell,
+    stemcell::{load_cells, StemCell},
     subclone::SubClone,
     MAX_SUBCLONES,
 };
@@ -30,6 +35,23 @@ pub struct SimulationOptions {
     path: PathBuf,
     snapshots: Vec<f32>,
     options: Options,
+}
+
+fn find_timepoints(path: &Path) -> Vec<u8> {
+    let dir2read = path.join("variant_fraction");
+    let mut timepoints: Vec<u8> = fs::read_dir(dir2read)
+        .unwrap()
+        .map(|f| {
+            f.unwrap()
+                .file_name()
+                .into_string()
+                .unwrap()
+                .parse()
+                .unwrap()
+        })
+        .collect();
+    timepoints.sort_unstable();
+    timepoints
 }
 
 fn main() {
@@ -91,6 +113,73 @@ fn main() {
         );
         if app.options.verbosity > 1 {
             println!("simulation {} stopped because {:#?}", idx, stop);
+        }
+
+        if process.verbosity > 1 {
+            println!("saving the SFS for all timepoints");
+        }
+        let timepoints = find_timepoints(&app.path);
+        // last timepoint first to create the stats
+        let last_t = timepoints
+            .first()
+            .expect("found empty timepoints")
+            .to_owned() as usize;
+        let path2last_t = process
+            .make_path(hsc::process::Stats2Save::Genotypes, last_t)
+            .unwrap()
+            .with_extension("json");
+        let path2sfs_last_t = process
+            .make_path(hsc::process::Stats2Save::Sfs, last_t)
+            .unwrap()
+            .with_extension("json");
+        let cells = load_cells(&path2last_t).expect("cannot load cells");
+        if process.verbosity > 0 {
+            println!(
+                "computing the sfs for the last timepoint {} with {} cells",
+                last_t,
+                cells.len()
+            );
+            if process.verbosity > 1 {
+                println!("cells: {:#?}", cells);
+            }
+        }
+        // these stats are the most complete and will be used later on for the
+        // other timepoints as well
+        let mut stats = StatisticsMutations::from_cells(
+            &cells,
+            &process.distributions.poisson,
+            &mut rng,
+            process.verbosity,
+        )
+        .with_context(|| "cannot construct the stats for the sfs")
+        .unwrap();
+        Sfs::from_stats(&stats, process.verbosity)
+            .expect("cannot create SFS from stats")
+            .save(&path2sfs_last_t)
+            .unwrap();
+
+        for t in timepoints.into_iter().skip(1) {
+            let path2t = process
+                .make_path(hsc::process::Stats2Save::Genotypes, t as usize)
+                .unwrap()
+                .with_extension("json");
+            let path2sfs_t = process
+                .make_path(hsc::process::Stats2Save::Sfs, t as usize)
+                .unwrap()
+                .with_extension("json");
+            let cells = load_cells(&path2t).expect("cannot load cells");
+            // save the SFS for the timepoint loading its cells but using the
+            // stats from the oldest timepoint
+            Sfs::from_cells(
+                &cells,
+                &mut stats,
+                &process.distributions.poisson,
+                &mut rng,
+                process.verbosity,
+            )
+            .expect("cannot create SFS from stats")
+            .save(&path2sfs_t)
+            .unwrap();
         }
     };
 

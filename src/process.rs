@@ -1,5 +1,6 @@
-use crate::stemcell::{NbPoissonMutations, Sfs, StatisticsMutations, StemCell};
-use crate::subclone::{CloneId, SubClone};
+use crate::genotype::NbPoissonMutations;
+use crate::stemcell::{save_cells, StemCell};
+use crate::subclone::{assign, CloneId, SubClone};
 use crate::{write2file, MAX_SUBCLONES};
 use anyhow::Context;
 use rand::Rng;
@@ -10,10 +11,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 #[derive(Hash, PartialEq, Eq)]
-enum Stats2Save {
+pub enum Stats2Save {
     VariantFraction,
-    SfsNeutral,
     Sfs,
+    Genotypes,
 }
 
 /// Number of cells in subclones.
@@ -73,7 +74,7 @@ pub struct HSCProcess {
     pub snapshot: VecDeque<f32>,
     pub path2dir: PathBuf,
     pub verbosity: u8,
-    distributions: Distributions,
+    pub distributions: Distributions,
 }
 
 impl Default for HSCProcess {
@@ -262,67 +263,40 @@ impl HSCProcess {
         Ok(())
     }
 
-    fn save_sfs(&self, path2file: &Path, stats: &StatisticsMutations) -> anyhow::Result<()> {
-        let path2file = path2file.with_extension("json");
-        // some simulations might have only cells in the wild-type clone
-        if let Ok(sfs) = &Sfs::from_stats(stats, self.verbosity) {
-            let sfs = serde_json::to_string(&sfs.0).with_context(|| "cannot serialize the sfs")?;
-            fs::write(path2file, sfs).with_context(|| "Cannot save the total SFS".to_string())?;
-        }
-
-        Ok(())
+    pub fn make_path(&self, tosave: Stats2Save, timepoint: usize) -> anyhow::Result<PathBuf> {
+        let path2file = match tosave {
+            Stats2Save::VariantFraction => self.path2dir.join("variant_fraction"),
+            Stats2Save::Genotypes => self.path2dir.join("genotypes"),
+            Stats2Save::Sfs => self.path2dir.join("sfs"),
+        };
+        let path2file = path2file.join(timepoint.to_string());
+        fs::create_dir_all(&path2file).with_context(|| "Cannot create dir")?;
+        Ok(path2file.join(self.id.to_string()))
     }
 
-    pub fn save(&mut self, timepoint: usize, rng: &mut impl Rng) -> anyhow::Result<()> {
-        //! Save the SFS and SFS neutral.
-        let make_path = |tosave: Stats2Save| -> anyhow::Result<PathBuf> {
-            let path2file = match tosave {
-                Stats2Save::VariantFraction => self
-                    .path2dir
-                    .join("variant_fraction")
-                    .join(timepoint.to_string()),
-                Stats2Save::Sfs => self.path2dir.join("sfs").join(timepoint.to_string()),
-                Stats2Save::SfsNeutral => self
-                    .path2dir
-                    .join("sfs_neutral")
-                    .join(timepoint.to_string()),
-            };
-            fs::create_dir_all(&path2file).with_context(|| "Cannot create dir")?;
-            Ok(path2file.join(self.id.to_string()))
-        };
+    pub fn save(&mut self, timepoint: usize) -> anyhow::Result<()> {
+        //! Save the cells with their genotypes. Save also the variant fraction
+        //! that is the fraction of subclones present in the population.
         let mut paths = HashMap::with_capacity(3);
         paths.insert(
             Stats2Save::VariantFraction,
-            make_path(Stats2Save::VariantFraction)?,
+            self.make_path(Stats2Save::VariantFraction, timepoint)?,
         );
-        paths.insert(Stats2Save::Sfs, make_path(Stats2Save::Sfs)?);
-        paths.insert(Stats2Save::SfsNeutral, make_path(Stats2Save::SfsNeutral)?);
-
         self.save_variant_fraction(&paths[&Stats2Save::VariantFraction])?;
 
-        // SFS
+        paths.insert(
+            Stats2Save::Genotypes,
+            self.make_path(Stats2Save::Genotypes, timepoint)?,
+        );
         let cells: Vec<StemCell> = self
             .subclones
             .iter()
             .flat_map(|subclone| subclone.get_cells().to_vec())
             .collect();
-        if self.verbosity > 0 {
-            println!("computing the sfs for {} cells", cells.len());
-            if self.verbosity > 1 {
-                println!("cells: {:#?}", cells);
-            }
-        }
-        let stats = StatisticsMutations::from_cells(
+        save_cells(
             &cells,
-            &self.distributions.poisson,
-            rng,
-            self.verbosity,
-        )
-        .with_context(|| "cannot construct the stats for the sfs")?;
-        if self.verbosity > 1 {
-            println!("stats for SFS: {:#?}", stats);
-        }
-        self.save_sfs(&paths[&Stats2Save::SfsNeutral], &stats)?;
+            &paths[&Stats2Save::Genotypes].with_extension("json"),
+        )?;
 
         if self.verbosity > 0 {
             println!(
@@ -355,7 +329,7 @@ impl AdvanceStep<MAX_SUBCLONES> for HSCProcess {
         //!
         //! 3. for the proliferating cell only (not the clone from 2):
         //!     * mutate genome by storing the division id, see
-        //!     [`crate::stemcell::StatisticsMutations`]
+        //!     [`crate::genotype::StatisticsMutations`]
         //!
         //!     * assign to new subclone with a probability determined by the
         //!     rate of mutations conferring a proliferative advantage
@@ -409,7 +383,7 @@ impl AdvanceStep<MAX_SUBCLONES> for HSCProcess {
                         time, self.time
                     );
                 }
-                self.save(self.snapshot.len(), rng)
+                self.save(self.snapshot.len())
                     .expect("cannot save snapshot");
                 self.snapshot.pop_front();
             }
@@ -444,7 +418,7 @@ impl NeutralMutationPoisson {
 /// conferring-fitness mutations upon cell division.
 #[derive(Debug, Clone)]
 pub struct Distributions {
-    poisson: NeutralMutationPoisson,
+    pub poisson: NeutralMutationPoisson,
     bern: Bernoulli,
     bern_asymmetric: Bernoulli,
     no_asymmetric_division: bool,
@@ -473,26 +447,6 @@ impl Distributions {
     pub fn can_only_be_symmetric(&self) -> bool {
         self.no_asymmetric_division
     }
-}
-
-fn assign(
-    subclone: &mut SubClone,
-    cell: StemCell,
-    distr: &Distributions,
-    rng: &mut impl Rng,
-) -> Option<StemCell> {
-    //! Check if `cell` will be assigned to `subclone`, according to a
-    //! Bernouilli trial with probability `p` (see [`Distributions::new`]).
-    //! Assign cell to `subclone` if no fit variant has been generated.
-    //!
-    //! ## Returns
-    //! If the cell gets one fitness advantage mutation, then the function
-    //! returns the cell, otherwise it returns None.
-    if distr.acquire_p_mutation(rng) {
-        return Some(cell);
-    }
-    subclone.assign_cell(cell);
-    None
 }
 
 #[cfg(test)]
