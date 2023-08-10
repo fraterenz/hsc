@@ -3,7 +3,7 @@ The output of the simulations are saved in the directory given by the user.
 If the directory path given by the user is `/path/to/save/`, then the output of the simulations will look like this:
 ```tree /path/to/save/
 /path/to/save/
-├── sfs
+├── genotype
 │   ├── 1 # <- timepoint 1, the oldest
 │   │   └── 0.json # <- run 0
 │   │   └── 1.json # <- run 1
@@ -13,7 +13,7 @@ If the directory path given by the user is `/path/to/save/`, then the output of 
 │   │   └── 1.json
 │   │   └── ...
 │   ├── ...
-├── sfs_neutral
+├── sfs
 │   ├── 1
 │   │   └── 0.json
 │   │   └── 1.json
@@ -38,7 +38,7 @@ that is 3 measurements are saved at the end of the simulations, for each timepoi
 Note that the order of the timepoints is reversed, hence timepoint 1 is the one saved at last.
 
 ### Measurements
+- **genotype:** each entry represents a cell with its proliferative events (cell divisions)
 - **sfs**: a json file with keys being the jcells (sfs x-axis) and values being the mutations present in jcells (sfs y-axis)
-- **sfs_neutral**: a json file with keys being the jcells (sfs x-axis) and values being the mutations present in jcells (sfs y-axis) for the wild-type cells only, i.e. the cells being in the subclone with id 0, that is with no fitness advantage
 - **variant_fraction**: the proportion of cells in all subclones
 
