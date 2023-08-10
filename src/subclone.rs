@@ -1,4 +1,4 @@
-use crate::stemcell::StemCell;
+use crate::{process::Distributions, stemcell::StemCell};
 use anyhow::ensure;
 use rand::Rng;
 
@@ -47,6 +47,26 @@ impl SubClone {
     pub fn cell_count(&self) -> u64 {
         self.cells.len() as u64
     }
+}
+
+pub fn assign(
+    subclone: &mut SubClone,
+    cell: StemCell,
+    distr: &Distributions,
+    rng: &mut impl Rng,
+) -> Option<StemCell> {
+    //! Check if `cell` will be assigned to `subclone`, according to a
+    //! Bernouilli trial with probability `p` (see [`Distributions::new`]).
+    //! Assign cell to `subclone` if no fit variant has been generated.
+    //!
+    //! ## Returns
+    //! If the cell gets one fitness advantage mutation, then the function
+    //! returns the cell, otherwise it returns None.
+    if distr.acquire_p_mutation(rng) {
+        return Some(cell);
+    }
+    subclone.assign_cell(cell);
+    None
 }
 
 #[cfg(test)]
