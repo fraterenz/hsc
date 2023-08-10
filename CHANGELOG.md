@@ -1,13 +1,11 @@
 # Changelog
 
 ## 0.11.0
-TODO: solve the problem of the sfs computation with timepoints.
-
 - remove the neutral sfs
 
 ### BugFix
 - fix the neutral rate
-- fix the computation of the SFS
+- fix the computation of the SFS for timepoints
 - fix the acquisition of neutral mutations: we first cloned the proliferating cell and then mutated both cells. Now we just mutate one of the two cells, not both of them.
 
 ## 0.10.0

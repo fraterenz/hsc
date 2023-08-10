@@ -46,7 +46,7 @@ fn find_timepoints(path: &Path) -> Vec<u8> {
                 .file_name()
                 .into_string()
                 .unwrap()
-                .parse()
+                .parse::<u8>()
                 .unwrap()
         })
         .collect();
