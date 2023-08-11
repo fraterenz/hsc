@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.2
+### BugFix
+- Fix the computation of the SFS
+
 ## 0.11.1
 - do not raise an error when the genotype for the run cannot be found
 - type changes: `nb_variants` is now `u64` and not `u8`; neutral mutations upon cell division are now `u16` not `u8`
