@@ -95,16 +95,8 @@ impl Cli {
         let snapshots = Cli::build_snapshots_from_time(cli.snapshots as usize, cli.years as f32);
 
         // convert into rates per cell division
-        let mut u = (mu0 / (b0 * max_cells as f32)) as f64;
-        let mut m = cli.neutral_rate / (b0 * max_cells as f32);
-
-        if (cli.p_asymmetric - 0.).abs() <= f64::EPSILON {
-            // in the symmetric case we need to divide by 2 because 1 division
-            // corresponds to two cells, hence two draws (i.e. two mutational
-            // events) per division
-            u /= 2.;
-            m /= 2.;
-        };
+        let u = (mu0 / (b0 * max_cells as f32)) as f64;
+        let m = cli.neutral_rate / b0;
 
         let probabilities = CellDivisionProbabilities {
             p_asymmetric: cli.p_asymmetric,

@@ -1,13 +1,13 @@
+use anyhow::{ensure, Context};
+use rand::Rng;
+use rustc_hash::FxHashMap;
+use serde::Serialize;
 use std::{
     collections::hash_map::Entry,
     fs,
     num::{NonZeroU16, NonZeroU64},
     path::Path,
 };
-
-use anyhow::{ensure, Context};
-use rand::Rng;
-use rustc_hash::FxHashMap;
 
 use crate::{process::NeutralMutationPoisson, stemcell::StemCell};
 
@@ -22,7 +22,7 @@ pub type GenotypeId = usize;
 /// The number of mutations that are produced by a division event.
 /// We assume that a maximal number of 255 neutral mutations can be generated
 /// upon one proliferative event.
-pub type NbPoissonMutations = u8;
+pub type NbPoissonMutations = u16;
 
 /// Site frequency spectrum ([SFS](https://en.wikipedia.org/wiki/Allele_frequency_spectrum))
 /// is the distribution of the allele frequencies of a given set of loci in a
@@ -45,7 +45,7 @@ impl Sfs {
         // let mut sfs = HashMap::with_capacity(stats.nb_variants);
         ensure!(!stats.counts.is_empty(), "found empty stats");
         let mut sfs: FxHashMap<NonZeroU16, u64> = FxHashMap::default();
-        sfs.shrink_to(stats.nb_variants);
+        sfs.shrink_to(stats.nb_variants as usize);
         for stats_mut_id in stats.counts.values() {
             if stats_mut_id.poisson_mut_number > 0 {
                 sfs.entry(unsafe {
@@ -79,7 +79,7 @@ impl Sfs {
         // let mut sfs = HashMap::with_capacity(stats.nb_variants);
         ensure!(!stats.counts.is_empty(), "found empty stats");
         let mut sfs: FxHashMap<NonZeroU16, u64> = FxHashMap::default();
-        sfs.shrink_to(stats.nb_variants);
+        sfs.shrink_to(stats.nb_variants as usize);
         for cell in cells.iter() {
             for id in cell.proliferation_events_id.iter() {
                 if let Some(counts) = stats.counts.get(id) {
@@ -121,7 +121,7 @@ impl Sfs {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 struct CountsMutations {
     // the number of cells carrying a mutation id
     cell_count: NonZeroU64,
@@ -131,10 +131,10 @@ struct CountsMutations {
 
 /// Mapping between [`GenotypeId`] and the number of mutations and the number
 /// of cells.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize)]
 pub struct StatisticsMutations {
     counts: FxHashMap<GenotypeId, CountsMutations>,
-    nb_variants: usize,
+    nb_variants: u64,
 }
 
 impl StatisticsMutations {
@@ -189,7 +189,7 @@ impl StatisticsMutations {
                     println!("vacant entry");
                 }
                 let poisson_nb = poisson_dist.nb_neutral_mutations(rng);
-                self.nb_variants += poisson_nb as usize;
+                self.nb_variants += poisson_nb as u64;
                 poisson_nb as u64
             }
 
@@ -213,6 +213,17 @@ impl StatisticsMutations {
                 cell_count: unsafe { NonZeroU64::new_unchecked(1) },
                 poisson_mut_number: mut_number,
             });
+    }
+
+    pub fn save(&self, path2dir: &Path, id: usize) -> anyhow::Result<()> {
+        let path2file = path2dir.join("stats");
+        fs::create_dir_all(&path2file).with_context(|| "Cannot create dir")?;
+        let path2file = path2file.join(id.to_string()).with_extension("json");
+
+        let stats = serde_json::to_string(&self).with_context(|| "cannot serialize stats")?;
+        fs::write(path2file, stats)
+            .with_context(|| format!("Cannot save stats to {:#?}", path2dir))?;
+        Ok(())
     }
 }
 
@@ -256,7 +267,7 @@ mod tests {
                 }
             }
 
-            DistinctMutationsId(mut1.get(), mut2.get(), mut3.get())
+            DistinctMutationsId(mut1.get() as u16, mut2.get() as u16, mut3.get() as u16)
         }
     }
 
@@ -371,7 +382,7 @@ mod tests {
         );
         let stats = StatisticsMutations {
             counts,
-            nb_variants: random_nbs[2] as usize,
+            nb_variants: random_nbs[2],
         };
         let sfs = Sfs::from_stats(&stats, 0).unwrap();
         let mut keys = sfs.0.clone().into_keys().collect::<Vec<NonZeroU16>>();
@@ -411,7 +422,7 @@ mod tests {
         );
         let stats = StatisticsMutations {
             counts,
-            nb_variants: (random_nbs[2] + random_nbs[2]) as usize,
+            nb_variants: random_nbs[2] + random_nbs[2],
         };
         let sfs = Sfs::from_stats(&stats, 0).unwrap();
         let mut keys = sfs.0.clone().into_keys().collect::<Vec<NonZeroU16>>();
@@ -429,9 +440,8 @@ mod tests {
 
     #[quickcheck]
     fn test_sfs_two_proliferation_events_nothing_in_common(idx: DistinctMutationsId) -> bool {
-        let random_nbs: [NonZeroU16; 6] = std::array::from_fn(|i| unsafe {
-            NonZeroU16::new_unchecked(idx.0 as u16 + i as u16 + 1)
-        });
+        let random_nbs: [NonZeroU16; 6] =
+            std::array::from_fn(|i| unsafe { NonZeroU16::new_unchecked(idx.0 + i as u16 + 1) });
         let mut counts: FxHashMap<GenotypeId, CountsMutations> = FxHashMap::default();
         counts.insert(
             random_nbs[0].get() as usize,
@@ -449,7 +459,7 @@ mod tests {
         );
         let stats = StatisticsMutations {
             counts,
-            nb_variants: (random_nbs[2].get() + random_nbs[5].get()) as usize,
+            nb_variants: (random_nbs[2].get() + random_nbs[5].get()) as u64,
         };
         let sfs = Sfs::from_stats(&stats, 0).unwrap();
         let mut keys = sfs.0.clone().into_keys().collect::<Vec<NonZeroU16>>();

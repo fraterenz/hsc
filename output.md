@@ -4,7 +4,7 @@ If the directory path given by the user is `/path/to/save/`, then the output of 
 ```tree /path/to/save/
 /path/to/save/
 ├── genotype
-│   ├── 1 # <- timepoint 1, the oldest
+│   ├── 1 # <- timepoint 1, the most recent
 │   │   └── 0.json # <- run 0
 │   │   └── 1.json # <- run 1
 │   │   └── ...

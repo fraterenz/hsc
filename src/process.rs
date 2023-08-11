@@ -379,8 +379,10 @@ impl AdvanceStep<MAX_SUBCLONES> for HSCProcess {
             if self.time >= time {
                 if self.verbosity > 0 {
                     println!(
-                        "saving variant fraction for {:#?} at time {}",
-                        time, self.time
+                        "saving variant fraction for {:#?} at time {} for timepoint {}",
+                        time,
+                        self.time,
+                        self.snapshot.len()
                     );
                 }
                 self.save(self.snapshot.len())
@@ -410,7 +412,7 @@ impl NeutralMutationPoisson {
         while mutations >= u8::MAX as f32 || mutations.is_sign_negative() || mutations.is_nan() {
             mutations = self.0.sample(rng);
         }
-        mutations as u8
+        mutations as u16
     }
 }
 

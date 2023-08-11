@@ -124,6 +124,9 @@ fn main() {
             .first()
             .expect("found empty timepoints")
             .to_owned() as usize;
+        if process.verbosity > 1 {
+            println!("found the most recent timepoint {}", last_t);
+        }
         let path2last_t = process
             .make_path(hsc::process::Stats2Save::Genotypes, last_t)
             .unwrap()
@@ -132,7 +135,8 @@ fn main() {
             .make_path(hsc::process::Stats2Save::Sfs, last_t)
             .unwrap()
             .with_extension("json");
-        let cells = load_cells(&path2last_t).expect("cannot load cells");
+        let cells = load_cells(&path2last_t)
+            .unwrap_or_else(|_| panic!("cannot load cells from {:#?}", path2sfs_last_t));
         if process.verbosity > 0 {
             println!(
                 "computing the sfs for the last timepoint {} with {} cells",
@@ -163,24 +167,29 @@ fn main() {
                 .make_path(hsc::process::Stats2Save::Genotypes, t as usize)
                 .unwrap()
                 .with_extension("json");
-            let path2sfs_t = process
-                .make_path(hsc::process::Stats2Save::Sfs, t as usize)
-                .unwrap()
-                .with_extension("json");
-            let cells = load_cells(&path2t).expect("cannot load cells");
-            // save the SFS for the timepoint loading its cells but using the
-            // stats from the oldest timepoint
-            Sfs::from_cells(
-                &cells,
-                &mut stats,
-                &process.distributions.poisson,
-                &mut rng,
-                process.verbosity,
-            )
-            .expect("cannot create SFS from stats")
-            .save(&path2sfs_t)
-            .unwrap();
+            if let Ok(cells) = load_cells(&path2t) {
+                let path2sfs_t = process
+                    .make_path(hsc::process::Stats2Save::Sfs, t as usize)
+                    .unwrap()
+                    .with_extension("json");
+                // save the SFS for the timepoint loading its cells but using the
+                // stats from the oldest timepoint
+                Sfs::from_cells(
+                    &cells,
+                    &mut stats,
+                    &process.distributions.poisson,
+                    &mut rng,
+                    process.verbosity,
+                )
+                .expect("cannot create SFS from stats")
+                .save(&path2sfs_t)
+                .unwrap();
+            }
         }
+
+        stats
+            .save(&process.path2dir, idx)
+            .expect("cannot save the stats")
     };
 
     std::process::exit({

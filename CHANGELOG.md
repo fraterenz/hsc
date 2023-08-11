@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.1
+- do not raise an error when the genotype for the run cannot be found
+- type changes: `nb_variants` is now `u64` and not `u8`; neutral mutations upon cell division are now `u16` not `u8`
+- save `StatisticsMutations` into json
+
+### BugFix
+- fix the mutation rates by **not** dividing by 2 in the symmetric case. With v0.11.0 the proliferation scheme has changed, now in the symmetric case only one cell divides
+- fix the neutral mutation rate by **not** dividing by the number of cells
+
 ## 0.11.0
 - remove the neutral sfs
 
