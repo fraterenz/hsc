@@ -267,7 +267,7 @@ impl HSCProcess {
         let path2file = match tosave {
             Stats2Save::VariantFraction => self.path2dir.join("variant_fraction"),
             Stats2Save::Genotypes => self.path2dir.join("genotypes"),
-            Stats2Save::Sfs => self.path2dir.join("sfs"),
+            Stats2Save::Sfs => self.path2dir.join("burden"),
         };
         let path2file = path2file.join(timepoint.to_string());
         fs::create_dir_all(&path2file).with_context(|| "Cannot create dir")?;

@@ -7,7 +7,7 @@ use anyhow::Context;
 use chrono::Utc;
 use clap_app::Parallel;
 use hsc::{
-    genotype::{Sfs, StatisticsMutations},
+    genotype::{MutationalBurden, StatisticsMutations},
     process::{CellDivisionProbabilities, HSCProcess},
     stemcell::{load_cells, StemCell},
     subclone::SubClone,
@@ -131,15 +131,15 @@ fn main() {
             .make_path(hsc::process::Stats2Save::Genotypes, last_t)
             .unwrap()
             .with_extension("json");
-        let path2sfs_last_t = process
+        let path2burden_last_t = process
             .make_path(hsc::process::Stats2Save::Sfs, last_t)
             .unwrap()
             .with_extension("json");
         let cells = load_cells(&path2last_t)
-            .unwrap_or_else(|_| panic!("cannot load cells from {:#?}", path2sfs_last_t));
+            .unwrap_or_else(|_| panic!("cannot load cells from {:#?}", path2burden_last_t));
         if process.verbosity > 0 {
             println!(
-                "computing the sfs for the last timepoint {} with {} cells",
+                "computing the burden for the last timepoint {} with {} cells",
                 last_t,
                 cells.len()
             );
@@ -155,11 +155,11 @@ fn main() {
             &mut rng,
             process.verbosity,
         )
-        .with_context(|| "cannot construct the stats for the sfs")
+        .with_context(|| "cannot construct the stats for the burden")
         .unwrap();
-        Sfs::from_stats(&stats, process.verbosity)
+        MutationalBurden::from_stats(&stats, process.verbosity)
             .expect("cannot create SFS from stats")
-            .save(&path2sfs_last_t)
+            .save(&path2burden_last_t)
             .unwrap();
 
         for t in timepoints.into_iter().skip(1) {
@@ -168,13 +168,13 @@ fn main() {
                 .unwrap()
                 .with_extension("json");
             if let Ok(cells) = load_cells(&path2t) {
-                let path2sfs_t = process
+                let path2burden_t = process
                     .make_path(hsc::process::Stats2Save::Sfs, t as usize)
                     .unwrap()
                     .with_extension("json");
                 // save the SFS for the timepoint loading its cells but using the
                 // stats from the oldest timepoint
-                Sfs::from_cells(
+                MutationalBurden::from_cells(
                     &cells,
                     &mut stats,
                     &process.distributions.poisson,
@@ -182,7 +182,7 @@ fn main() {
                     process.verbosity,
                 )
                 .expect("cannot create SFS from stats")
-                .save(&path2sfs_t)
+                .save(&path2burden_t)
                 .unwrap();
             }
         }

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.0
+### BugFix
+- The SFS is actually the single cell mutational burden, so rename and refactor everything accordingly
+
 ## 0.11.2
 ### BugFix
 - Fix the computation of the SFS

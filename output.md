@@ -13,7 +13,7 @@ If the directory path given by the user is `/path/to/save/`, then the output of 
 │   │   └── 1.json
 │   │   └── ...
 │   ├── ...
-├── sfs
+├── burden
 │   ├── 1
 │   │   └── 0.json
 │   │   └── 1.json
@@ -39,6 +39,6 @@ Note that the order of the timepoints is reversed, hence timepoint 1 is the one 
 
 ### Measurements
 - **genotype:** each entry represents a cell with its proliferative events (cell divisions)
-- **sfs**: a json file with keys being the jcells (sfs x-axis) and values being the mutations present in jcells (sfs y-axis)
+- **burden**: a json file with keys being the cells (single-cell mutational burden x-axis) and values being the mutations present in jcells (single-cell mutational burden y-axis)
 - **variant_fraction**: the proportion of cells in all subclones
 
