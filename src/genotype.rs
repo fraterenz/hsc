@@ -9,7 +9,7 @@ use std::{
     path::Path,
 };
 
-use crate::{process::NeutralMutationPoisson, stemcell::StemCell};
+use crate::{process::NeutralMutationPoisson, stemcell::StemCell, write2file};
 
 /// The mutations are not implemented individually, but a set of mutations
 /// [`GenotypeId`] is instead assigned to each cell upon division.
@@ -23,6 +23,54 @@ pub type GenotypeId = usize;
 /// We assume that a maximal number of 255 neutral mutations can be generated
 /// upon one proliferative event.
 pub type NbPoissonMutations = u16;
+
+/// [Site frequency spectrum](https://en.wikipedia.org/wiki/Allele_frequency_spectrum)
+/// implemented as a vector of variants where each entry is the number of stem
+/// cells carrying that variant.
+pub struct Sfs(Vec<NonZeroU64>);
+
+impl Sfs {
+    pub fn from_cells(
+        cells: &[StemCell],
+        stats: &StatisticsMutations,
+        verbosity: u8,
+    ) -> anyhow::Result<Self> {
+        //! Compute the SFS from the stem cell population.
+        //! The SFS is implemented as a vector of variants where each entry is
+        //! the number of stem cells carrying that variant.
+        //! This vector is returned sorted in ascending way.
+        //!
+        //! Note that for now we compute the sfs for the genotypes id, that is
+        //! we have an underestimation of the number of variants equal to the
+        //! neutral mutation rate. Might change in the future.
+        ensure!(!stats.counts.is_empty(), "found empty stats");
+        let mut sfs_genotypes: FxHashMap<usize, NonZeroU64> = FxHashMap::default();
+        sfs_genotypes.shrink_to(stats.nb_variants as usize);
+        for cell in cells.iter() {
+            for id in cell.proliferation_events_id.iter() {
+                sfs_genotypes
+                    .entry(*id)
+                    .and_modify(|cell_count| {
+                        *cell_count = unsafe { NonZeroU64::new_unchecked(cell_count.get() + 1) };
+                    })
+                    .or_insert(unsafe { NonZeroU64::new_unchecked(1) });
+            }
+        }
+        if verbosity > 1 {
+            println!("sfs: {:#?}", sfs_genotypes);
+        }
+        let mut sfs = sfs_genotypes.into_values().collect::<Vec<NonZeroU64>>();
+        sfs.sort_unstable();
+        Ok(Sfs(sfs))
+    }
+
+    pub fn save(&self, path2file: &Path) -> anyhow::Result<()> {
+        let path2file = path2file.with_extension("csv");
+        write2file(&self.0, &path2file, None, false)?;
+
+        Ok(())
+    }
+}
 
 /// Single-cell mutational burden is a mapping of cells sharing a number of
 /// mutations.
@@ -65,6 +113,9 @@ impl MutationalBurden {
         //! Use this function when the cells used to construct the `stats` are
         //! not the same as the `cells` given here as the argument of the
         //! function.
+        //!
+        //! This updates also `stats` inserting new entries if `cells` carry
+        //! mutations not seen before (i.e. not stored in `stats`).
         // let mut burden = HashMap::with_capacity(stats.nb_variants);
         ensure!(!stats.counts.is_empty(), "found empty stats");
         let mut burden: FxHashMap<NonZeroU16, u64> = FxHashMap::default();
@@ -95,10 +146,10 @@ impl MutationalBurden {
 
     pub fn save(&self, path2file: &Path) -> anyhow::Result<()> {
         let path2file = path2file.with_extension("json");
-        // some simulations might have only cells in the wild-type clone
         let burden =
             serde_json::to_string(&self.0).with_context(|| "cannot serialize the burden")?;
-        fs::write(path2file, burden).with_context(|| "Cannot save the total SFS".to_string())?;
+        fs::write(path2file, burden)
+            .with_context(|| "Cannot save the total single cel burden".to_string())?;
 
         Ok(())
     }
@@ -598,5 +649,122 @@ mod tests {
         expected_jmuts.sort_unstable();
 
         keys == expected_jmuts && values == expected_jcells && stats != stats_copy
+    }
+
+    #[quickcheck]
+    fn test_sfs_two_proliferation_events_two_cells_some_in_common_subclonal(
+        idx: DistinctMutationsId,
+        verbosity: u8,
+    ) -> bool {
+        let random_nbs: [NonZeroU16; 4] =
+            std::array::from_fn(|i| unsafe { NonZeroU16::new_unchecked(idx.0 + i as u16 + 1) });
+        let genotype1 = random_nbs[0].get() as usize;
+        let genotype2 = random_nbs[2].get() as usize;
+        let mut counts: FxHashMap<GenotypeId, CountsMutations> = FxHashMap::default();
+        counts.insert(
+            genotype1,
+            CountsMutations {
+                cell_count: unsafe { NonZeroU64::new_unchecked(2) },
+                poisson_mut_number: random_nbs[1].get(),
+            },
+        );
+        counts.insert(
+            genotype2,
+            CountsMutations {
+                cell_count: unsafe { NonZeroU64::new_unchecked(2) },
+                poisson_mut_number: random_nbs[3].get(),
+            },
+        );
+        let stats = StatisticsMutations {
+            counts,
+            nb_variants: (random_nbs[1].get() + random_nbs[3].get()) as u64,
+        };
+        let cells = [
+            StemCell::with_set_of_mutations(vec![genotype1, genotype2]),
+            StemCell::with_set_of_mutations(vec![genotype1]),
+        ];
+
+        let sfs = Sfs::from_cells(&cells, &stats, verbosity).unwrap();
+        let expect_sfs = [NonZeroU64::new(1).unwrap(), NonZeroU64::new(2).unwrap()];
+
+        sfs.0 == expect_sfs
+    }
+
+    #[quickcheck]
+    fn test_sfs_two_proliferation_events_two_cells_all_in_common_clonal(
+        idx: DistinctMutationsId,
+        verbosity: u8,
+    ) -> bool {
+        let random_nbs: [NonZeroU16; 4] =
+            std::array::from_fn(|i| unsafe { NonZeroU16::new_unchecked(idx.0 + i as u16 + 1) });
+        let genotype1 = random_nbs[0].get() as usize;
+        let genotype2 = random_nbs[2].get() as usize;
+        let mut counts: FxHashMap<GenotypeId, CountsMutations> = FxHashMap::default();
+        counts.insert(
+            genotype1,
+            CountsMutations {
+                cell_count: unsafe { NonZeroU64::new_unchecked(2) },
+                poisson_mut_number: random_nbs[1].get(),
+            },
+        );
+        counts.insert(
+            genotype2,
+            CountsMutations {
+                cell_count: unsafe { NonZeroU64::new_unchecked(2) },
+                poisson_mut_number: random_nbs[3].get(),
+            },
+        );
+        let stats = StatisticsMutations {
+            counts,
+            nb_variants: (random_nbs[1].get() + random_nbs[3].get()) as u64,
+        };
+        let cells = [
+            StemCell::with_set_of_mutations(vec![genotype1, genotype2]),
+            StemCell::with_set_of_mutations(vec![genotype1, genotype2]),
+        ];
+
+        let sfs = Sfs::from_cells(&cells, &stats, verbosity).unwrap();
+        let expect_sfs = [NonZeroU64::new(2).unwrap(), NonZeroU64::new(2).unwrap()];
+
+        sfs.0 == expect_sfs
+    }
+
+    #[quickcheck]
+    fn test_sfs_two_proliferation_events_two_cells_nothing_in_common(
+        idx: DistinctMutationsId,
+        verbosity: u8,
+    ) -> bool {
+        let random_nbs: [NonZeroU16; 4] =
+            std::array::from_fn(|i| unsafe { NonZeroU16::new_unchecked(idx.0 + i as u16 + 1) });
+        let genotype1 = random_nbs[0].get() as usize;
+        let genotype2 = random_nbs[2].get() as usize;
+        let mut counts: FxHashMap<GenotypeId, CountsMutations> = FxHashMap::default();
+        counts.insert(
+            genotype1,
+            CountsMutations {
+                cell_count: unsafe { NonZeroU64::new_unchecked(1) },
+                poisson_mut_number: random_nbs[1].get(),
+            },
+        );
+        counts.insert(
+            genotype2,
+            CountsMutations {
+                cell_count: unsafe { NonZeroU64::new_unchecked(1) },
+                poisson_mut_number: random_nbs[3].get(),
+            },
+        );
+        let stats = StatisticsMutations {
+            counts,
+            nb_variants: (random_nbs[1].get() + random_nbs[3].get()) as u64,
+        };
+        let cells = [
+            StemCell::with_set_of_mutations(vec![genotype1]),
+            StemCell::with_set_of_mutations(vec![genotype2]),
+        ];
+
+        let sfs = Sfs::from_cells(&cells, &stats, verbosity).unwrap();
+        let expect_sfs = [NonZeroU64::new(1).unwrap(), NonZeroU64::new(1).unwrap()];
+
+        sfs.0 == expect_sfs
     }
 }

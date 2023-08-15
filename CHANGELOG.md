@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.12.1
+- Add the SFS for the proliferative events (not the variants).
+
 ## 0.12.0
 ### BugFix
 - The SFS is actually the single cell mutational burden, so rename and refactor everything accordingly

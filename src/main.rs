@@ -7,7 +7,7 @@ use anyhow::Context;
 use chrono::Utc;
 use clap_app::Parallel;
 use hsc::{
-    genotype::{MutationalBurden, StatisticsMutations},
+    genotype::{MutationalBurden, Sfs, StatisticsMutations},
     process::{CellDivisionProbabilities, HSCProcess},
     stemcell::{load_cells, StemCell},
     subclone::SubClone,
@@ -132,6 +132,10 @@ fn main() {
             .unwrap()
             .with_extension("json");
         let path2burden_last_t = process
+            .make_path(hsc::process::Stats2Save::Burden, last_t)
+            .unwrap()
+            .with_extension("json");
+        let path2sfs_last_t = process
             .make_path(hsc::process::Stats2Save::Sfs, last_t)
             .unwrap()
             .with_extension("json");
@@ -158,8 +162,12 @@ fn main() {
         .with_context(|| "cannot construct the stats for the burden")
         .unwrap();
         MutationalBurden::from_stats(&stats, process.verbosity)
-            .expect("cannot create SFS from stats")
+            .expect("cannot create burden from stats")
             .save(&path2burden_last_t)
+            .unwrap();
+        Sfs::from_cells(&cells, &stats, process.verbosity)
+            .expect("cannot create SFS from stats")
+            .save(&path2sfs_last_t)
             .unwrap();
 
         for t in timepoints.into_iter().skip(1) {
@@ -169,11 +177,11 @@ fn main() {
                 .with_extension("json");
             if let Ok(cells) = load_cells(&path2t) {
                 let path2burden_t = process
-                    .make_path(hsc::process::Stats2Save::Sfs, t as usize)
+                    .make_path(hsc::process::Stats2Save::Burden, t as usize)
                     .unwrap()
                     .with_extension("json");
-                // save the SFS for the timepoint loading its cells but using the
-                // stats from the oldest timepoint
+                // save the burden for the timepoint loading its cells but
+                // using the stats from the oldest timepoint
                 MutationalBurden::from_cells(
                     &cells,
                     &mut stats,
@@ -184,6 +192,14 @@ fn main() {
                 .expect("cannot create SFS from stats")
                 .save(&path2burden_t)
                 .unwrap();
+                // save the sfs now that the stats have been updated
+                let path2sfs_t = process
+                    .make_path(hsc::process::Stats2Save::Sfs, t as usize)
+                    .unwrap();
+                Sfs::from_cells(&cells, &stats, process.verbosity)
+                    .expect("cannot create SFS from stats")
+                    .save(&path2sfs_t)
+                    .unwrap();
             }
         }
 

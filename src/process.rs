@@ -12,6 +12,7 @@ use std::path::{Path, PathBuf};
 
 #[derive(Hash, PartialEq, Eq)]
 pub enum Stats2Save {
+    Burden,
     VariantFraction,
     Sfs,
     Genotypes,
@@ -267,7 +268,8 @@ impl HSCProcess {
         let path2file = match tosave {
             Stats2Save::VariantFraction => self.path2dir.join("variant_fraction"),
             Stats2Save::Genotypes => self.path2dir.join("genotypes"),
-            Stats2Save::Sfs => self.path2dir.join("burden"),
+            Stats2Save::Burden => self.path2dir.join("burden"),
+            Stats2Save::Sfs => self.path2dir.join("sfs"),
         };
         let path2file = path2file.join(timepoint.to_string());
         fs::create_dir_all(&path2file).with_context(|| "Cannot create dir")?;
