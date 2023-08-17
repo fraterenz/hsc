@@ -54,15 +54,12 @@ fn find_timepoints(path: &Path, cells: usize) -> Vec<u8> {
 
 fn save_measurements(process: &HSCProcess, idx: usize, rng: &mut ChaCha8Rng) -> anyhow::Result<()> {
     let mut cells2save = vec![process.cells];
-    dbg!(&cells2save);
     if let Some(subsampling) = process.cells2subsample {
         cells2save.push(subsampling);
     };
 
     for cell2save in cells2save {
-        println!("XD");
         let timepoints = find_timepoints(&process.path2dir, cell2save);
-        dbg!(&timepoints);
         // last timepoint first to create the stats
         let last_t = timepoints
             .first()

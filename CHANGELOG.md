@@ -1,4 +1,7 @@
 # Changelog
+## 0.13.1
+- remove dbg print
+
 ## 0.13.0
 - subsamples and change the dir for output
 
