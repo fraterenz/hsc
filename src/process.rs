@@ -26,6 +26,7 @@ pub enum Stats2Save {
     Sfs,
     SfsEntropy,
     Genotypes,
+    Stats,
 }
 
 /// Number of cells in subclones.
@@ -297,6 +298,7 @@ impl HSCProcess {
             Stats2Save::Burden => path2dir.join("burden"),
             Stats2Save::Sfs => path2dir.join("sfs"),
             Stats2Save::SfsEntropy => path2dir.join("sfs_entropy"),
+            Stats2Save::Stats => path2dir.join("stats"),
         };
         let path2file = path2file.join(timepoint.to_string());
         fs::create_dir_all(&path2file).with_context(|| "Cannot create dir")?;

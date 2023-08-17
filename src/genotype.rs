@@ -253,14 +253,13 @@ impl StatisticsMutations {
             });
     }
 
-    pub fn save(&self, path2dir: &Path, id: usize) -> anyhow::Result<()> {
-        let path2file = path2dir.join("stats");
-        fs::create_dir_all(&path2file).with_context(|| "Cannot create dir")?;
-        let path2file = path2file.join(id.to_string()).with_extension("json");
+    pub fn save(&self, path2file: &Path) -> anyhow::Result<()> {
+        fs::create_dir_all(path2file.parent().unwrap()).with_context(|| "Cannot create dir")?;
+        let path2file = path2file.with_extension("csv");
 
         let stats = serde_json::to_string(&self).with_context(|| "cannot serialize stats")?;
-        fs::write(path2file, stats)
-            .with_context(|| format!("Cannot save stats to {:#?}", path2dir))?;
+        fs::write(path2file.clone(), stats)
+            .with_context(|| format!("Cannot save stats to {:#?}", path2file))?;
         Ok(())
     }
 }

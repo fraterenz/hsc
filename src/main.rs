@@ -5,7 +5,7 @@ use chrono::Utc;
 use clap_app::Parallel;
 use hsc::{
     genotype::{MutationalBurden, Sfs, StatisticsMutations},
-    process::{HSCProcess, ProcessOptions},
+    process::{HSCProcess, ProcessOptions, Stats2Save},
     stemcell::{load_cells, StemCell},
     subclone::SubClone,
     MAX_SUBCLONES,
@@ -52,7 +52,7 @@ fn find_timepoints(path: &Path, cells: usize) -> Vec<u8> {
     timepoints
 }
 
-fn save_measurements(process: &HSCProcess, idx: usize, rng: &mut ChaCha8Rng) -> anyhow::Result<()> {
+fn save_measurements(process: &HSCProcess, rng: &mut ChaCha8Rng) -> anyhow::Result<()> {
     let mut cells2save = vec![process.cells];
     if let Some(subsampling) = process.cells2subsample {
         cells2save.push(subsampling);
@@ -69,15 +69,14 @@ fn save_measurements(process: &HSCProcess, idx: usize, rng: &mut ChaCha8Rng) -> 
             println!("found the most recent timepoint {}", last_t);
         }
         let path2last_t = process
-            .make_path(hsc::process::Stats2Save::Genotypes, cell2save, last_t)?
+            .make_path(Stats2Save::Genotypes, cell2save, last_t)?
             .with_extension("json");
         let path2burden_last_t = process
-            .make_path(hsc::process::Stats2Save::Burden, cell2save, last_t)?
+            .make_path(Stats2Save::Burden, cell2save, last_t)?
             .with_extension("json");
-        let path2sfs_last_t =
-            process.make_path(hsc::process::Stats2Save::Sfs, cell2save, last_t)?;
+        let path2sfs_last_t = process.make_path(Stats2Save::Sfs, cell2save, last_t)?;
         let path2sfs_entropy_last_t =
-            process.make_path(hsc::process::Stats2Save::SfsEntropy, cell2save, last_t)?;
+            process.make_path(Stats2Save::SfsEntropy, cell2save, last_t)?;
         let cells = load_cells(&path2last_t)
             .unwrap_or_else(|_| panic!("cannot load cells from {:#?}", path2burden_last_t));
         if process.verbosity > 0 {
@@ -124,11 +123,11 @@ fn save_measurements(process: &HSCProcess, idx: usize, rng: &mut ChaCha8Rng) -> 
 
         for t in timepoints.into_iter().skip(1) {
             let path2t = process
-                .make_path(hsc::process::Stats2Save::Genotypes, cell2save, t as usize)?
+                .make_path(Stats2Save::Genotypes, cell2save, t as usize)?
                 .with_extension("json");
             if let Ok(cells) = load_cells(&path2t) {
                 let path2burden_t = process
-                    .make_path(hsc::process::Stats2Save::Burden, cell2save, t as usize)?
+                    .make_path(Stats2Save::Burden, cell2save, t as usize)?
                     .with_extension("json");
                 // save the burden for the timepoint loading its cells but
                 // using the stats from the oldest timepoint
@@ -142,13 +141,9 @@ fn save_measurements(process: &HSCProcess, idx: usize, rng: &mut ChaCha8Rng) -> 
                 .expect("cannot create SFS from stats")
                 .save(&path2burden_t)?;
                 // save the sfs now that the stats have been updated
-                let path2sfs_t =
-                    process.make_path(hsc::process::Stats2Save::Sfs, cell2save, t as usize)?;
-                let path2sfs_entropy_t = process.make_path(
-                    hsc::process::Stats2Save::SfsEntropy,
-                    cell2save,
-                    t as usize,
-                )?;
+                let path2sfs_t = process.make_path(Stats2Save::Sfs, cell2save, t as usize)?;
+                let path2sfs_entropy_t =
+                    process.make_path(Stats2Save::SfsEntropy, cell2save, t as usize)?;
                 Sfs::from_cells(&cells, &stats, process.verbosity)
                     .expect("cannot create SFS from stats")
                     .save(&path2sfs_t)?;
@@ -157,7 +152,7 @@ fn save_measurements(process: &HSCProcess, idx: usize, rng: &mut ChaCha8Rng) -> 
                     .save(&path2sfs_entropy_t)?;
             }
         }
-        stats.save(&process.path2dir, idx)?;
+        stats.save(&process.make_path(Stats2Save::Stats, cell2save, last_t)?)?;
     }
     Ok(())
 }
@@ -225,7 +220,7 @@ fn main() {
         if process.verbosity > 1 {
             println!("saving the SFS for all timepoints");
         }
-        save_measurements(&process, idx, &mut rng).expect("cannot save");
+        save_measurements(&process, &mut rng).expect("cannot save");
     };
 
     std::process::exit({
