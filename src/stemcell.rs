@@ -67,7 +67,7 @@ pub fn load_cells(path2file: &Path) -> anyhow::Result<Vec<StemCell>> {
     Ok(serde_json::from_slice(&fs::read(path2file)?)?)
 }
 
-pub fn save_cells(cells: &[StemCell], path2file: &Path) -> anyhow::Result<()> {
+pub fn save_cells(cells: &[&StemCell], path2file: &Path) -> anyhow::Result<()> {
     let cells_sr = serde_json::to_string(cells).with_context(|| "cannot serialize cells")?;
     fs::write(path2file, cells_sr)
         .with_context(|| format!("Cannot save cells to {:#?}", path2file))?;

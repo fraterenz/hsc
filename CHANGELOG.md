@@ -1,4 +1,7 @@
 # Changelog
+## 0.13.0
+- subsamples and change the dir for output
+
 ## 0.12.3
 - SFS entropy by considering all cells at the timepoint of interest but counting only the variants that were present at a certain time in the past
 

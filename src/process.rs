@@ -3,6 +3,7 @@ use crate::stemcell::{save_cells, StemCell};
 use crate::subclone::{assign, CloneId, SubClone};
 use crate::{write2file, MAX_SUBCLONES};
 use anyhow::Context;
+use rand::seq::IteratorRandom;
 use rand::Rng;
 use rand_distr::{Bernoulli, Distribution, Poisson, WeightedIndex};
 use sosa::{AdvanceStep, CurrentState, NextReaction};
@@ -15,6 +16,7 @@ pub struct ProcessOptions {
     pub probabilities: CellDivisionProbabilities,
     pub snapshot_entropy: f32,
     pub path: PathBuf,
+    pub cells2subsample: Option<usize>,
 }
 
 #[derive(Hash, PartialEq, Eq)]
@@ -74,6 +76,7 @@ impl Variants {
 /// see [`HSCProcess::advance_step`].
 #[derive(Debug, Clone)]
 pub struct HSCProcess {
+    pub cells: usize,
     /// A collection of clones having a proliferative advantage.
     pub subclones: [SubClone; MAX_SUBCLONES],
     /// The counter for the number of proliferative events.
@@ -87,6 +90,7 @@ pub struct HSCProcess {
     pub path2dir: PathBuf,
     pub verbosity: u8,
     pub distributions: Distributions,
+    pub cells2subsample: Option<usize>,
 }
 
 impl Default for HSCProcess {
@@ -104,6 +108,7 @@ impl Default for HSCProcess {
             },
             snapshot_entropy: 0.1,
             path: PathBuf::from("./output"),
+            cells2subsample: None,
         };
 
         HSCProcess::new(process_options, subclones, vec![0.01, 0.1], 1, 0., 1)
@@ -139,7 +144,7 @@ impl HSCProcess {
         snapshot.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let snapshot = VecDeque::from(snapshot);
         let hsc = HSCProcess {
-            subclones: initial_subclones,
+            subclones: initial_subclones.clone(),
             distributions,
             counter_divisions: 0,
             id,
@@ -148,6 +153,11 @@ impl HSCProcess {
             snapshot,
             snapshot_entropy: process_options.snapshot_entropy,
             proliferation_event_entropy: None,
+            cells2subsample: process_options.cells2subsample,
+            cells: initial_subclones
+                .iter()
+                .map(|subclone| subclone.cell_count() as usize)
+                .sum(),
             verbosity,
         };
         if verbosity > 1 {
@@ -274,33 +284,58 @@ impl HSCProcess {
         Ok(())
     }
 
-    pub fn make_path(&self, tosave: Stats2Save, timepoint: usize) -> anyhow::Result<PathBuf> {
+    pub fn make_path(
+        &self,
+        tosave: Stats2Save,
+        cells: usize,
+        timepoint: usize,
+    ) -> anyhow::Result<PathBuf> {
+        let path2dir = self.path2dir.join(format!("{}cells", cells));
         let path2file = match tosave {
-            Stats2Save::VariantFraction => self.path2dir.join("variant_fraction"),
-            Stats2Save::Genotypes => self.path2dir.join("genotypes"),
-            Stats2Save::Burden => self.path2dir.join("burden"),
-            Stats2Save::Sfs => self.path2dir.join("sfs"),
-            Stats2Save::SfsEntropy => self.path2dir.join("sfs_entropy"),
+            Stats2Save::VariantFraction => path2dir.join("variant_fraction"),
+            Stats2Save::Genotypes => path2dir.join("genotypes"),
+            Stats2Save::Burden => path2dir.join("burden"),
+            Stats2Save::Sfs => path2dir.join("sfs"),
+            Stats2Save::SfsEntropy => path2dir.join("sfs_entropy"),
         };
         let path2file = path2file.join(timepoint.to_string());
         fs::create_dir_all(&path2file).with_context(|| "Cannot create dir")?;
+        if self.verbosity > 0 {
+            println!("creating dirs {:#?}", path2file);
+        }
         Ok(path2file.join(self.id.to_string()))
     }
 
-    pub fn save(&mut self, timepoint: usize) -> anyhow::Result<()> {
+    pub fn save(
+        &mut self,
+        timepoint: usize,
+        cells2subsample: usize,
+        rng: &mut impl Rng,
+    ) -> anyhow::Result<()> {
         //! Save the cells with their genotypes. Save also the variant fraction
         //! that is the fraction of subclones present in the population.
-        self.save_variant_fraction(&self.make_path(Stats2Save::VariantFraction, timepoint)?)?;
+        self.save_variant_fraction(&self.make_path(
+            Stats2Save::VariantFraction,
+            cells2subsample,
+            timepoint,
+        )?)?;
 
-        let cells: Vec<StemCell> = self
-            .subclones
-            .iter()
-            .flat_map(|subclone| subclone.get_cells().to_vec())
-            .collect();
+        let cells = if cells2subsample == self.cells {
+            self.subclones
+                .iter()
+                .flat_map(|subclone| subclone.get_cells())
+                .collect()
+        } else {
+            self.subclones
+                .iter()
+                .flat_map(|subclone| subclone.get_cells())
+                .choose_multiple(rng, self.cells2subsample.unwrap())
+        };
+
         save_cells(
             &cells,
             &self
-                .make_path(Stats2Save::Genotypes, timepoint)?
+                .make_path(Stats2Save::Genotypes, cells2subsample, timepoint)?
                 .with_extension("json"),
         )?;
 
@@ -394,8 +429,14 @@ impl AdvanceStep<MAX_SUBCLONES> for HSCProcess {
                         self.snapshot.len()
                     );
                 }
-                self.save(self.snapshot.len())
-                    .expect("cannot save snapshot");
+                let mut cells2save = vec![self.cells];
+                if let Some(subsampling) = self.cells2subsample {
+                    cells2save.push(subsampling);
+                }
+                for cells in cells2save {
+                    self.save(self.snapshot.len(), cells, rng)
+                        .expect("cannot save snapshot");
+                }
                 self.snapshot.pop_front();
             }
         }

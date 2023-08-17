@@ -19,6 +19,14 @@ pub struct SubClone {
     pub id: CloneId,
 }
 
+impl Iterator for SubClone {
+    type Item = StemCell;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.cells.pop()
+    }
+}
+
 impl SubClone {
     pub fn new(id: CloneId, cell_capacity: usize) -> SubClone {
         SubClone {
