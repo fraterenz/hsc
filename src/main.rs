@@ -137,8 +137,7 @@ fn main() {
             .with_extension("json");
         let path2sfs_last_t = process
             .make_path(hsc::process::Stats2Save::Sfs, last_t)
-            .unwrap()
-            .with_extension("json");
+            .unwrap();
         let cells = load_cells(&path2last_t)
             .unwrap_or_else(|_| panic!("cannot load cells from {:#?}", path2burden_last_t));
         if process.verbosity > 0 {
@@ -161,10 +160,16 @@ fn main() {
         )
         .with_context(|| "cannot construct the stats for the burden")
         .unwrap();
-        MutationalBurden::from_stats(&stats, process.verbosity)
-            .expect("cannot create burden from stats")
-            .save(&path2burden_last_t)
-            .unwrap();
+        MutationalBurden::from_cells(
+            &cells,
+            &mut stats,
+            &process.distributions.poisson,
+            &mut rng,
+            process.verbosity,
+        )
+        .expect("cannot create burden from stats")
+        .save(&path2burden_last_t)
+        .unwrap();
         Sfs::from_cells(&cells, &stats, process.verbosity)
             .expect("cannot create SFS from stats")
             .save(&path2sfs_last_t)

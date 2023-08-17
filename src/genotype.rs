@@ -39,10 +39,6 @@ impl Sfs {
         //! The SFS is implemented as a vector of variants where each entry is
         //! the number of stem cells carrying that variant.
         //! This vector is returned sorted in ascending way.
-        //!
-        //! Note that for now we compute the sfs for the genotypes id, that is
-        //! we have an underestimation of the number of variants equal to the
-        //! neutral mutation rate. Might change in the future.
         ensure!(!stats.counts.is_empty(), "found empty stats");
         let mut sfs_genotypes: FxHashMap<usize, NonZeroU64> = FxHashMap::default();
         sfs_genotypes.shrink_to(stats.nb_variants as usize);
@@ -59,7 +55,14 @@ impl Sfs {
         if verbosity > 1 {
             println!("sfs: {:#?}", sfs_genotypes);
         }
-        let mut sfs = sfs_genotypes.into_values().collect::<Vec<NonZeroU64>>();
+        let mut sfs = Vec::new();
+        for (id, nb_cells) in sfs_genotypes.into_iter() {
+            if let Some(counts) = stats.counts.get(&id) {
+                for _ in 0..counts.poisson_mut_number {
+                    sfs.push(nb_cells);
+                }
+            }
+        }
         sfs.sort_unstable();
         Ok(Sfs(sfs))
     }
@@ -80,27 +83,6 @@ impl Sfs {
 pub struct MutationalBurden(pub FxHashMap<NonZeroU16, u64>);
 
 impl MutationalBurden {
-    pub fn from_stats(stats: &StatisticsMutations, verbosity: u8) -> anyhow::Result<Self> {
-        //! Compute the single-cell mutational burden from the stem cell
-        //! population.
-        // let mut burden = HashMap::with_capacity(stats.nb_variants);
-        ensure!(!stats.counts.is_empty(), "found empty stats");
-        let mut burden: FxHashMap<NonZeroU16, u64> = FxHashMap::default();
-        burden.shrink_to(stats.nb_variants as usize);
-        for stats_mut_id in stats.counts.values() {
-            if stats_mut_id.poisson_mut_number > 0 {
-                burden
-                    .entry(unsafe { NonZeroU16::new_unchecked(stats_mut_id.poisson_mut_number) })
-                    .and_modify(|jcells| *jcells += stats_mut_id.cell_count.get())
-                    .or_insert(stats_mut_id.cell_count.get());
-            }
-        }
-        if verbosity > 1 {
-            println!("burden: {:#?}", burden);
-        }
-        Ok(MutationalBurden(burden))
-    }
-
     pub fn from_cells(
         cells: &[StemCell],
         stats: &mut StatisticsMutations,
@@ -378,11 +360,18 @@ mod tests {
     #[should_panic]
     fn test_burden_neutral_no_cells() {
         let verbosity = 1;
-        let stats = StatisticsMutations {
+        let mut stats = StatisticsMutations {
             counts: FxHashMap::default(),
             nb_variants: 0,
         };
-        MutationalBurden::from_stats(&stats, verbosity).unwrap();
+        MutationalBurden::from_cells(
+            &[],
+            &mut stats,
+            &NeutralMutationPoisson(Poisson::new(1.).unwrap()),
+            &mut ChaCha8Rng::seed_from_u64(64),
+            verbosity,
+        )
+        .unwrap();
     }
 
     #[quickcheck]
@@ -396,14 +385,20 @@ mod tests {
                 poisson_mut_number: 0,
             },
         );
-        let stats = StatisticsMutations {
+        let mut stats = StatisticsMutations {
             counts,
             nb_variants: 0,
         };
-        MutationalBurden::from_stats(&stats, verbosity)
-            .unwrap()
-            .0
-            .is_empty()
+        MutationalBurden::from_cells(
+            &[StemCell::default()],
+            &mut stats,
+            &NeutralMutationPoisson(Poisson::new(1.).unwrap()),
+            &mut ChaCha8Rng::seed_from_u64(64),
+            verbosity,
+        )
+        .unwrap()
+        .0
+        .is_empty()
     }
 
     #[quickcheck]
@@ -417,11 +412,24 @@ mod tests {
                 poisson_mut_number: random_nbs[2] as u16,
             },
         );
-        let stats = StatisticsMutations {
+        let mut stats = StatisticsMutations {
             counts,
             nb_variants: random_nbs[2],
         };
-        let burden = MutationalBurden::from_stats(&stats, 0).unwrap();
+        let mut cells = Vec::new();
+        for _ in 0..random_nbs[1] {
+            cells.push(StemCell::with_set_of_mutations(vec![
+                random_nbs[0] as usize,
+            ]));
+        }
+        let burden = MutationalBurden::from_cells(
+            &cells,
+            &mut stats,
+            &NeutralMutationPoisson(Poisson::new(1.).unwrap()),
+            &mut ChaCha8Rng::seed_from_u64(64),
+            1,
+        )
+        .unwrap();
         let mut keys = burden.0.clone().into_keys().collect::<Vec<NonZeroU16>>();
         let mut values = burden.0.into_values().collect::<Vec<u64>>();
         keys.sort_unstable();
@@ -457,11 +465,29 @@ mod tests {
                 poisson_mut_number: random_nbs[2] as u16,
             },
         );
-        let stats = StatisticsMutations {
+        let mut stats = StatisticsMutations {
             counts,
             nb_variants: random_nbs[2] + random_nbs[2],
         };
-        let burden = MutationalBurden::from_stats(&stats, 0).unwrap();
+        let mut cells = Vec::new();
+        for _ in 0..random_nbs[1] {
+            cells.push(StemCell::with_set_of_mutations(vec![
+                random_nbs[0] as usize,
+            ]));
+        }
+        for _ in 0..random_nbs[4] {
+            cells.push(StemCell::with_set_of_mutations(vec![
+                random_nbs[3] as usize,
+            ]));
+        }
+        let burden = MutationalBurden::from_cells(
+            &cells,
+            &mut stats,
+            &NeutralMutationPoisson(Poisson::new(1.).unwrap()),
+            &mut ChaCha8Rng::seed_from_u64(64),
+            1,
+        )
+        .unwrap();
         let mut keys = burden.0.clone().into_keys().collect::<Vec<NonZeroU16>>();
         let mut values = burden.0.into_values().collect::<Vec<u64>>();
         keys.sort_unstable();
@@ -494,11 +520,29 @@ mod tests {
                 poisson_mut_number: random_nbs[5].get(),
             },
         );
-        let stats = StatisticsMutations {
+        let mut stats = StatisticsMutations {
             counts,
             nb_variants: (random_nbs[2].get() + random_nbs[5].get()) as u64,
         };
-        let burden = MutationalBurden::from_stats(&stats, 0).unwrap();
+        let mut cells = Vec::new();
+        for _ in 0..random_nbs[1].get() {
+            cells.push(StemCell::with_set_of_mutations(vec![
+                random_nbs[0].get() as usize
+            ]));
+        }
+        for _ in 0..random_nbs[4].get() {
+            cells.push(StemCell::with_set_of_mutations(vec![
+                random_nbs[3].get() as usize
+            ]));
+        }
+        let burden = MutationalBurden::from_cells(
+            &cells,
+            &mut stats,
+            &NeutralMutationPoisson(Poisson::new(1.).unwrap()),
+            &mut ChaCha8Rng::seed_from_u64(64),
+            1,
+        )
+        .unwrap();
         let mut keys = burden.0.clone().into_keys().collect::<Vec<NonZeroU16>>();
         let mut values = burden.0.into_values().collect::<Vec<u64>>();
         keys.sort_unstable();
@@ -540,7 +584,25 @@ mod tests {
             nb_variants: (random_nbs[2].get() + random_nbs[5].get()) as u64,
         };
         let stats_copy = stats.clone();
-        let burden = MutationalBurden::from_stats(&stats, 0).unwrap();
+        let mut cells = Vec::new();
+        for _ in 0..random_nbs[1].get() {
+            cells.push(StemCell::with_set_of_mutations(vec![
+                random_nbs[0].get() as usize
+            ]));
+        }
+        for _ in 0..random_nbs[4].get() {
+            cells.push(StemCell::with_set_of_mutations(vec![
+                random_nbs[3].get() as usize
+            ]));
+        }
+        let burden = MutationalBurden::from_cells(
+            &cells,
+            &mut stats,
+            &NeutralMutationPoisson(Poisson::new(1.).unwrap()),
+            &mut ChaCha8Rng::seed_from_u64(64),
+            1,
+        )
+        .unwrap();
         let mut keys = burden.0.clone().into_keys().collect::<Vec<NonZeroU16>>();
         let mut values = burden.0.into_values().collect::<Vec<u64>>();
         keys.sort_unstable();
@@ -610,11 +672,6 @@ mod tests {
             nb_variants: (random_nbs[2].get() + random_nbs[5].get()) as u64,
         };
         let stats_copy = stats.clone();
-        let burden = MutationalBurden::from_stats(&stats, 0).unwrap();
-        let mut keys = burden.0.clone().into_keys().collect::<Vec<NonZeroU16>>();
-        let mut values = burden.0.into_values().collect::<Vec<u64>>();
-        keys.sort_unstable();
-        values.sort_unstable();
         // again, but this time a cell gains a new mutation id
         let mut cells = vec![];
         for _ in 0..random_nbs[1].get() {
@@ -648,7 +705,7 @@ mod tests {
         expected_jcells.sort_unstable();
         expected_jmuts.sort_unstable();
 
-        keys == expected_jmuts && values == expected_jcells && stats != stats_copy
+        keys_again != expected_jmuts && values_again != expected_jcells && stats != stats_copy
     }
 
     #[quickcheck]
@@ -685,7 +742,14 @@ mod tests {
         ];
 
         let sfs = Sfs::from_cells(&cells, &stats, verbosity).unwrap();
-        let expect_sfs = [NonZeroU64::new(1).unwrap(), NonZeroU64::new(2).unwrap()];
+        let mut expect_sfs = vec![];
+        for _ in 0..random_nbs[1].get() {
+            expect_sfs.push(NonZeroU64::new(2).unwrap());
+        }
+        for _ in 0..random_nbs[3].get() {
+            expect_sfs.push(NonZeroU64::new(1).unwrap());
+        }
+        expect_sfs.sort_unstable();
 
         sfs.0 == expect_sfs
     }
@@ -724,7 +788,14 @@ mod tests {
         ];
 
         let sfs = Sfs::from_cells(&cells, &stats, verbosity).unwrap();
-        let expect_sfs = [NonZeroU64::new(2).unwrap(), NonZeroU64::new(2).unwrap()];
+        let mut expect_sfs = vec![];
+        for _ in 0..random_nbs[1].get() {
+            expect_sfs.push(NonZeroU64::new(2).unwrap());
+        }
+        for _ in 0..random_nbs[3].get() {
+            expect_sfs.push(NonZeroU64::new(2).unwrap());
+        }
+        expect_sfs.sort_unstable();
 
         sfs.0 == expect_sfs
     }
@@ -763,7 +834,14 @@ mod tests {
         ];
 
         let sfs = Sfs::from_cells(&cells, &stats, verbosity).unwrap();
-        let expect_sfs = [NonZeroU64::new(1).unwrap(), NonZeroU64::new(1).unwrap()];
+        let mut expect_sfs = vec![];
+        for _ in 0..random_nbs[1].get() {
+            expect_sfs.push(NonZeroU64::new(1).unwrap());
+        }
+        for _ in 0..random_nbs[3].get() {
+            expect_sfs.push(NonZeroU64::new(1).unwrap());
+        }
+        expect_sfs.sort_unstable();
 
         sfs.0 == expect_sfs
     }

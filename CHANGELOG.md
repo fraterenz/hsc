@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.12.2
+- Replace the SFS for the proliferation events with the one with the variants
+### BugFix
+- Fix the single-cell mutational burden for the last timepoint by computing it `from_cells` and not `from_stats`
+
 ## 0.12.1
 - Add the SFS for the proliferative events (not the variants).
 

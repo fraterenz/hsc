@@ -53,9 +53,9 @@ There is also a dir `stats` storing all the number of neutral mutations at the e
 Note that the order of the timepoints is reversed, hence timepoint 1 is the one saved at last.
 
 ### Measurements
-- **burden**: a json file with keys being the number of cells (single-cell mutational burden x-axis) and values being the mutations present in jcells (single-cell mutational burden y-axis)
+- **burden**: a json file with keys being the number of mutations (single-cell mutational burden x-axis) and values being the cells with those mutations (single-cell mutational burden y-axis)
 - **genotype:** each entry represents a cell with its proliferative events (cell divisions)
-- **sfs:** a vec where each entry represents a proliferative event (i.e. a group of variants) and the value stored indicates the number of cells with that proliferative event. This is not the SFS of the variants (as usual) but the SFS of the proliferarive events, but it might change in the future. Hence, the number of entries is "underestiameted" because each proliferative event should correspond to an average number of variants equal to the neutral mutation rate
+- **sfs:** a vec where each entry represents a variant and the value stored indicates the number of cells with carrying that variant.
 - **stats:** a serialised struct storing the mapping between the proliferative events and the number of neutral mutations in the total population at the end of the simulation. Note that the entry `cell_count` is not correct, use this struct only with `poisson_mut_number`
 - **variant_fraction**: the abbundance of all subclones
 
