@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use clap::{ArgAction, Parser};
-use hsc::process::CellDivisionProbabilities;
+use hsc::process::{CellDivisionProbabilities, ProcessOptions};
 use sosa::{IterTime, NbIndividuals, Options};
 
 use crate::SimulationOptions;
@@ -59,6 +59,10 @@ pub struct Cli {
     /// Number of snapshots to take to save the simulation. Those timepoints
     /// will be linespaced, starting from 1 to `years`.
     snapshots: u8,
+    /// Time until which the variants will be considered to compute the entropy,
+    /// defaults to the second snapshot
+    #[arg(long)]
+    snapshot_entropy: Option<f32>,
 }
 
 impl Cli {
@@ -113,6 +117,16 @@ impl Cli {
             init_iter: 0,
             verbosity,
         };
+        let snapshot_entropy = if let Some(snapshot_entropy) = cli.snapshot_entropy {
+            snapshot_entropy
+        } else {
+            snapshots[1]
+        };
+        let process_options = ProcessOptions {
+            probabilities,
+            snapshot_entropy,
+            path: cli.path,
+        };
 
         SimulationOptions {
             parallel,
@@ -121,8 +135,7 @@ impl Cli {
             b0,
             seed: cli.seed,
             snapshots,
-            probabilities,
-            path: cli.path,
+            process_options,
             options,
         }
     }

@@ -1,14 +1,11 @@
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
+use std::{fs, path::Path};
 
 use anyhow::Context;
 use chrono::Utc;
 use clap_app::Parallel;
 use hsc::{
     genotype::{MutationalBurden, Sfs, StatisticsMutations},
-    process::{CellDivisionProbabilities, HSCProcess},
+    process::{HSCProcess, ProcessOptions},
     stemcell::{load_cells, StemCell},
     subclone::SubClone,
     MAX_SUBCLONES,
@@ -31,10 +28,9 @@ pub struct SimulationOptions {
     b0: f32,
     seed: u64,
     parallel: Parallel,
-    probabilities: CellDivisionProbabilities,
-    path: PathBuf,
-    snapshots: Vec<f32>,
     options: Options,
+    process_options: ProcessOptions,
+    pub snapshots: Vec<f32>,
 }
 
 fn find_timepoints(path: &Path) -> Vec<u8> {
@@ -70,7 +66,7 @@ fn main() {
     if app.options.verbosity > 1 {
         println!(
             "rate of fit variants per cell division {}",
-            app.probabilities.p
+            app.process_options.probabilities.p
         );
     }
     // initial state
@@ -95,10 +91,9 @@ fn main() {
         rng.set_stream(idx as u64);
 
         let mut process = HSCProcess::new(
-            app.probabilities.clone(),
+            app.process_options.clone(),
             subclones.clone(),
             app.snapshots.clone(),
-            app.path.clone(),
             idx,
             0.,
             app.options.verbosity,
@@ -118,7 +113,7 @@ fn main() {
         if process.verbosity > 1 {
             println!("saving the SFS for all timepoints");
         }
-        let timepoints = find_timepoints(&app.path);
+        let timepoints = find_timepoints(&app.process_options.path);
         // last timepoint first to create the stats
         let last_t = timepoints
             .first()
@@ -137,6 +132,9 @@ fn main() {
             .with_extension("json");
         let path2sfs_last_t = process
             .make_path(hsc::process::Stats2Save::Sfs, last_t)
+            .unwrap();
+        let path2sfs_entropy_last_t = process
+            .make_path(hsc::process::Stats2Save::SfsEntropy, last_t)
             .unwrap();
         let cells = load_cells(&path2last_t)
             .unwrap_or_else(|_| panic!("cannot load cells from {:#?}", path2burden_last_t));
@@ -174,6 +172,17 @@ fn main() {
             .expect("cannot create SFS from stats")
             .save(&path2sfs_last_t)
             .unwrap();
+        // remove all entries that do not satisfy the condition, i.e.
+        // proliferation events that occurred after `process.snapshot_entropy`
+        let stats4entropy = stats.clone().from_stats_removing_recent_entries(
+            process
+                .proliferation_event_entropy
+                .expect("No proliferation_event_entropy found"),
+        );
+        Sfs::from_cells(&cells, &stats4entropy, process.verbosity)
+            .expect("cannot create SFS entropy from stats")
+            .save(&path2sfs_entropy_last_t)
+            .unwrap();
 
         for t in timepoints.into_iter().skip(1) {
             let path2t = process
@@ -201,9 +210,16 @@ fn main() {
                 let path2sfs_t = process
                     .make_path(hsc::process::Stats2Save::Sfs, t as usize)
                     .unwrap();
+                let path2sfs_entropy_t = process
+                    .make_path(hsc::process::Stats2Save::SfsEntropy, t as usize)
+                    .unwrap();
                 Sfs::from_cells(&cells, &stats, process.verbosity)
                     .expect("cannot create SFS from stats")
                     .save(&path2sfs_t)
+                    .unwrap();
+                Sfs::from_cells(&cells, &stats4entropy, process.verbosity)
+                    .expect("cannot create SFS entropy from stats")
+                    .save(&path2sfs_entropy_t)
                     .unwrap();
             }
         }

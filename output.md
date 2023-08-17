@@ -33,6 +33,16 @@ If the directory path given by the user is `/path/to/save/`, then the output of 
 │   │   └── 1.csv
 │   │   └── ...
 │   ├── ...
+├── sfs_entropy # site frequency spectrum vector for the entropy
+│   ├── 1
+│   │   └── 0.csv
+│   │   └── 1.csv
+│   │   └── ...
+│   ├── 2
+│   │   └── 0.csv
+│   │   └── 1.csv
+│   │   └── ...
+│   ├── ...
 ├── stats # the mapping between the proliferative events and nb of neutral mutations
 │   ├── 0.json
 │   ├── 1.json
@@ -56,6 +66,7 @@ Note that the order of the timepoints is reversed, hence timepoint 1 is the one 
 - **burden**: a json file with keys being the number of mutations (single-cell mutational burden x-axis) and values being the cells with those mutations (single-cell mutational burden y-axis)
 - **genotype:** each entry represents a cell with its proliferative events (cell divisions)
 - **sfs:** a vec where each entry represents a variant and the value stored indicates the number of cells with carrying that variant.
+- **sfs_entropy:** same as sfs but the SFS is computed considering all cells at the timepoint of interest but counting only the variants that were present at a certain time in the past
 - **stats:** a serialised struct storing the mapping between the proliferative events and the number of neutral mutations in the total population at the end of the simulation. Note that the entry `cell_count` is not correct, use this struct only with `poisson_mut_number`
 - **variant_fraction**: the abbundance of all subclones
 

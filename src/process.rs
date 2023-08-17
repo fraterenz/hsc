@@ -1,4 +1,4 @@
-use crate::genotype::NbPoissonMutations;
+use crate::genotype::{GenotypeId, NbPoissonMutations};
 use crate::stemcell::{save_cells, StemCell};
 use crate::subclone::{assign, CloneId, SubClone};
 use crate::{write2file, MAX_SUBCLONES};
@@ -6,15 +6,23 @@ use anyhow::Context;
 use rand::Rng;
 use rand_distr::{Bernoulli, Distribution, Poisson, WeightedIndex};
 use sosa::{AdvanceStep, CurrentState, NextReaction};
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::fs;
 use std::path::{Path, PathBuf};
+
+#[derive(Debug, Clone)]
+pub struct ProcessOptions {
+    pub probabilities: CellDivisionProbabilities,
+    pub snapshot_entropy: f32,
+    pub path: PathBuf,
+}
 
 #[derive(Hash, PartialEq, Eq)]
 pub enum Stats2Save {
     Burden,
     VariantFraction,
     Sfs,
+    SfsEntropy,
     Genotypes,
 }
 
@@ -69,9 +77,12 @@ pub struct HSCProcess {
     /// A collection of clones having a proliferative advantage.
     pub subclones: [SubClone; MAX_SUBCLONES],
     /// The counter for the number of proliferative events.
-    counter_divisions: usize,
+    pub counter_divisions: usize,
     id: usize,
     time: f32,
+    /// The division event corresponding to the `snapshot_entropy`
+    pub proliferation_event_entropy: Option<GenotypeId>,
+    pub snapshot_entropy: f32,
     pub snapshot: VecDeque<f32>,
     pub path2dir: PathBuf,
     pub verbosity: u8,
@@ -85,19 +96,17 @@ impl Default for HSCProcess {
             subclone.assign_cell(StemCell::new());
             subclone
         });
-        HSCProcess::new(
-            CellDivisionProbabilities {
+        let process_options = ProcessOptions {
+            probabilities: CellDivisionProbabilities {
                 p_asymmetric: 0.,
                 lambda_poisson: 1.,
                 p: 0.1,
             },
-            subclones,
-            vec![0.01, 0.1],
-            PathBuf::from("./output"),
-            0,
-            0.,
-            1,
-        )
+            snapshot_entropy: 0.1,
+            path: PathBuf::from("./output"),
+        };
+
+        HSCProcess::new(process_options, subclones, vec![0.01, 0.1], 1, 0., 1)
     }
 }
 
@@ -114,18 +123,17 @@ impl HSCProcess {
     /// A Moran process with wild-type subclone with neutral fitness, to which
     /// all cells will be assigned.
     pub fn new(
-        probabilities: CellDivisionProbabilities,
+        process_options: ProcessOptions,
         initial_subclones: [SubClone; MAX_SUBCLONES],
         mut snapshot: Vec<f32>,
-        path2dir: PathBuf,
         id: usize,
         time: f32,
         verbosity: u8,
     ) -> HSCProcess {
         let distributions = Distributions::new(
-            probabilities.p_asymmetric,
-            probabilities.lambda_poisson,
-            probabilities.p,
+            process_options.probabilities.p_asymmetric,
+            process_options.probabilities.lambda_poisson,
+            process_options.probabilities.p,
             verbosity,
         );
         snapshot.sort_by(|a, b| a.partial_cmp(b).unwrap());
@@ -135,9 +143,11 @@ impl HSCProcess {
             distributions,
             counter_divisions: 0,
             id,
-            path2dir,
+            path2dir: process_options.path,
             time,
             snapshot,
+            snapshot_entropy: process_options.snapshot_entropy,
+            proliferation_event_entropy: None,
             verbosity,
         };
         if verbosity > 1 {
@@ -270,6 +280,7 @@ impl HSCProcess {
             Stats2Save::Genotypes => self.path2dir.join("genotypes"),
             Stats2Save::Burden => self.path2dir.join("burden"),
             Stats2Save::Sfs => self.path2dir.join("sfs"),
+            Stats2Save::SfsEntropy => self.path2dir.join("sfs_entropy"),
         };
         let path2file = path2file.join(timepoint.to_string());
         fs::create_dir_all(&path2file).with_context(|| "Cannot create dir")?;
@@ -279,17 +290,8 @@ impl HSCProcess {
     pub fn save(&mut self, timepoint: usize) -> anyhow::Result<()> {
         //! Save the cells with their genotypes. Save also the variant fraction
         //! that is the fraction of subclones present in the population.
-        let mut paths = HashMap::with_capacity(3);
-        paths.insert(
-            Stats2Save::VariantFraction,
-            self.make_path(Stats2Save::VariantFraction, timepoint)?,
-        );
-        self.save_variant_fraction(&paths[&Stats2Save::VariantFraction])?;
+        self.save_variant_fraction(&self.make_path(Stats2Save::VariantFraction, timepoint)?)?;
 
-        paths.insert(
-            Stats2Save::Genotypes,
-            self.make_path(Stats2Save::Genotypes, timepoint)?,
-        );
         let cells: Vec<StemCell> = self
             .subclones
             .iter()
@@ -297,7 +299,9 @@ impl HSCProcess {
             .collect();
         save_cells(
             &cells,
-            &paths[&Stats2Save::Genotypes].with_extension("json"),
+            &self
+                .make_path(Stats2Save::Genotypes, timepoint)?
+                .with_extension("json"),
         )?;
 
         if self.verbosity > 0 {
@@ -376,6 +380,9 @@ impl AdvanceStep<MAX_SUBCLONES> for HSCProcess {
                 "{:#?} timepoints to save, time now is {}",
                 self.snapshot, self.time
             );
+        }
+        if self.proliferation_event_entropy.is_none() && self.time >= self.snapshot_entropy {
+            self.proliferation_event_entropy = Some(self.counter_divisions);
         }
         if let Some(&time) = self.snapshot.front() {
             if self.time >= time {

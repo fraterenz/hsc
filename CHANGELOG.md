@@ -1,4 +1,6 @@
 # Changelog
+## 0.12.3
+- SFS entropy by considering all cells at the timepoint of interest but counting only the variants that were present at a certain time in the past
 
 ## 0.12.2
 - Replace the SFS for the proliferation events with the one with the variants
