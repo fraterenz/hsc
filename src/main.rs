@@ -8,7 +8,7 @@ use hsc::{
     process::{HSCProcess, ProcessOptions, Stats2Save},
     stemcell::{load_cells, StemCell},
     subclone::SubClone,
-    MAX_SUBCLONES,
+    write2file, MAX_SUBCLONES,
 };
 use indicatif::ParallelProgressIterator;
 use rand::SeedableRng;
@@ -159,16 +159,6 @@ fn save_measurements(process: &HSCProcess, rng: &mut ChaCha8Rng) -> anyhow::Resu
 
 fn main() {
     let app = Cli::build();
-    let rates = ReactionRates(core::array::from_fn(|i| {
-        if i == 0 {
-            app.b0
-        } else {
-            app.b0 * (1. + app.s)
-        }
-    }));
-    if app.options.verbosity > 1 {
-        println!("rates: {:#?}", rates);
-    }
 
     if app.options.verbosity > 1 {
         println!(
@@ -194,6 +184,13 @@ fn main() {
     );
     println!("{} starting simulation", Utc::now(),);
     let run_simulations = |idx| {
+        let rates = ReactionRates(core::array::from_fn(|i| {
+            if i == 0 {
+                app.b0
+            } else {
+                app.b0 * (1. + app.s)
+            }
+        }));
         let mut rng = ChaCha8Rng::seed_from_u64(app.seed);
         rng.set_stream(idx as u64);
 
@@ -221,6 +218,13 @@ fn main() {
             println!("saving the SFS for all timepoints");
         }
         save_measurements(&process, &mut rng).expect("cannot save");
+        write2file(
+            &rates.0,
+            &process.path2dir.join("rates").join(format!("{}.csv", idx)),
+            None,
+            false,
+        )
+        .expect("cannot save the fitness of the subclones");
     };
 
     std::process::exit({
