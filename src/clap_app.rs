@@ -66,8 +66,8 @@ pub struct Cli {
     /// Number of cells to subsample before saving the measurements.
     /// If not specified, do not subsample. If subsampling is performed, the
     /// measurements of the whole population will also be saved.
-    #[arg(long)]
-    cells2subsample: Option<usize>,
+    #[arg(long, num_args = 0..)]
+    subsample: Option<Vec<usize>>,
 }
 
 impl Cli {
@@ -131,7 +131,7 @@ impl Cli {
             probabilities,
             snapshot_entropy,
             path: cli.path,
-            cells2subsample: cli.cells2subsample,
+            cells2subsample: cli.subsample,
         };
 
         SimulationOptions {

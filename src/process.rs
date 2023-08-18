@@ -16,7 +16,7 @@ pub struct ProcessOptions {
     pub probabilities: CellDivisionProbabilities,
     pub snapshot_entropy: f32,
     pub path: PathBuf,
-    pub cells2subsample: Option<usize>,
+    pub cells2subsample: Option<Vec<usize>>,
 }
 
 #[derive(Hash, PartialEq, Eq)]
@@ -91,7 +91,7 @@ pub struct HSCProcess {
     pub path2dir: PathBuf,
     pub verbosity: u8,
     pub distributions: Distributions,
-    pub cells2subsample: Option<usize>,
+    pub cells2subsample: Option<Vec<usize>>,
 }
 
 impl Default for HSCProcess {
@@ -331,7 +331,7 @@ impl HSCProcess {
             self.subclones
                 .iter()
                 .flat_map(|subclone| subclone.get_cells())
-                .choose_multiple(rng, self.cells2subsample.unwrap())
+                .choose_multiple(rng, cells2subsample)
         };
 
         save_cells(
@@ -432,8 +432,10 @@ impl AdvanceStep<MAX_SUBCLONES> for HSCProcess {
                     );
                 }
                 let mut cells2save = vec![self.cells];
-                if let Some(subsampling) = self.cells2subsample {
-                    cells2save.push(subsampling);
+                if let Some(subsampling) = self.cells2subsample.as_ref() {
+                    for cell in subsampling {
+                        cells2save.push(*cell);
+                    }
                 }
                 for cells in cells2save {
                     self.save(self.snapshot.len(), cells, rng)

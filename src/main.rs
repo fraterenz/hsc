@@ -54,8 +54,10 @@ fn find_timepoints(path: &Path, cells: usize) -> Vec<u8> {
 
 fn save_measurements(process: &HSCProcess, rng: &mut ChaCha8Rng) -> anyhow::Result<()> {
     let mut cells2save = vec![process.cells];
-    if let Some(subsampling) = process.cells2subsample {
-        cells2save.push(subsampling);
+    if let Some(subsampling) = process.cells2subsample.as_ref() {
+        for cell in subsampling {
+            cells2save.push(*cell);
+        }
     };
 
     for cell2save in cells2save {

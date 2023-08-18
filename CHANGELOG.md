@@ -1,4 +1,7 @@
 # Changelog
+## 0.14.0
+- rename clap app arg `cells2subsample` to `subsample` and allow for more than one entry for this arg
+
 ## 0.13.1
 - remove dbg print
 
