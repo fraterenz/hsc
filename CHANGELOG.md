@@ -1,6 +1,8 @@
 # Changelog
 ## 0.14.0
 - rename clap app arg `cells2subsample` to `subsample` and allow for more than one entry for this arg
+- move stats folder to the timepoint
+- save the birth-rates of the subclones
 
 ## 0.13.1
 - remove dbg print
