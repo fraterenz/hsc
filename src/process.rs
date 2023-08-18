@@ -22,11 +22,12 @@ pub struct ProcessOptions {
 #[derive(Hash, PartialEq, Eq)]
 pub enum Stats2Save {
     Burden,
-    VariantFraction,
+    BurdenEntropy,
+    Genotypes,
     Sfs,
     SfsEntropy,
-    Genotypes,
     Stats,
+    VariantFraction,
 }
 
 /// Number of cells in subclones.
@@ -296,6 +297,7 @@ impl HSCProcess {
             Stats2Save::VariantFraction => path2dir.join("variant_fraction"),
             Stats2Save::Genotypes => path2dir.join("genotypes"),
             Stats2Save::Burden => path2dir.join("burden"),
+            Stats2Save::BurdenEntropy => path2dir.join("burden_entropy"),
             Stats2Save::Sfs => path2dir.join("sfs"),
             Stats2Save::SfsEntropy => path2dir.join("sfs_entropy"),
             Stats2Save::Stats => path2dir.join("stats"),
@@ -333,6 +335,10 @@ impl HSCProcess {
                 .flat_map(|subclone| subclone.get_cells())
                 .choose_multiple(rng, cells2subsample)
         };
+
+        if self.verbosity > 1 {
+            println!("saving {} cells", cells2subsample);
+        }
 
         save_cells(
             &cells,
@@ -409,10 +415,7 @@ impl AdvanceStep<MAX_SUBCLONES> for HSCProcess {
 
         // take snapshot
         self.time += reaction.time;
-        if self.verbosity > 1 {
-            println!("time: {}", self.time);
-        }
-        if self.verbosity > 1 {
+        if self.verbosity > 2 {
             println!(
                 "{:#?} timepoints to save, time now is {}",
                 self.snapshot, self.time
@@ -420,6 +423,12 @@ impl AdvanceStep<MAX_SUBCLONES> for HSCProcess {
         }
         if self.proliferation_event_entropy.is_none() && self.time >= self.snapshot_entropy {
             self.proliferation_event_entropy = Some(self.counter_divisions);
+            if self.verbosity > 1 {
+                println!(
+                    "saving the proliferation id for the entropy {:#?} at time {} since {}>={}",
+                    self.proliferation_event_entropy, self.time, self.time, self.snapshot_entropy
+                );
+            }
         }
         if let Some(&time) = self.snapshot.front() {
             if self.time >= time {

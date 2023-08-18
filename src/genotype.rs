@@ -39,6 +39,10 @@ impl Sfs {
         //! The SFS is implemented as a vector of variants where each entry is
         //! the number of stem cells carrying that variant.
         //! This vector is returned sorted in ascending way.
+        //!
+        //! The SFS will be computed using the mutations in cells only if those
+        //! genotypes id are present in stats, otherwise they will be filtered
+        //! out.
         ensure!(!stats.counts.is_empty(), "found empty stats");
         let mut sfs_genotypes: FxHashMap<usize, NonZeroU64> = FxHashMap::default();
         sfs_genotypes.shrink_to(stats.nb_variants as usize);
@@ -53,7 +57,10 @@ impl Sfs {
             }
         }
         if verbosity > 1 {
-            println!("sfs: {:#?}", sfs_genotypes);
+            println!(
+                "sfs considering all cells all variants: {:#?}",
+                sfs_genotypes
+            );
         }
         let mut sfs = Vec::new();
         for (id, nb_cells) in sfs_genotypes.into_iter() {
@@ -64,6 +71,9 @@ impl Sfs {
             }
         }
         sfs.sort_unstable();
+        if verbosity > 1 {
+            println!("sfs considering only variants in stats: {:#?}", sfs);
+        }
         Ok(Sfs(sfs))
     }
 
@@ -188,7 +198,11 @@ impl StatisticsMutations {
         Ok(stats)
     }
 
-    pub fn from_stats_removing_recent_entries(self, t_considered: GenotypeId) -> Self {
+    pub fn from_stats_removing_recent_entries(
+        self,
+        t_considered: GenotypeId,
+        verbosity: u8,
+    ) -> Self {
         //! Return a copy of the stats with entries that are smaller or equal
         //! to `t_considered`.
         //!
@@ -197,11 +211,22 @@ impl StatisticsMutations {
         assert!(!self.counts.is_empty());
         let mut nb_variants = 0;
         let mut counts = FxHashMap::default();
+        let total = self.counts.len();
         for (id, count) in self.counts.into_iter() {
             if id <= t_considered {
                 nb_variants += count.poisson_mut_number as u64;
                 counts.insert(id, count);
             }
+        }
+        if verbosity > 1 {
+            println!(
+                "remove {} entries from a total of {} entries with t_considered {}",
+                total - counts.len(),
+                total,
+                t_considered
+            );
+
+            println!("nb of variants: {} and coutns: {:#?}", nb_variants, counts);
         }
         counts.shrink_to_fit();
         StatisticsMutations {
@@ -834,7 +859,7 @@ mod tests {
             counts: counts.clone(),
             nb_variants: (random_nbs[1].get() + random_nbs[3].get()) as u64,
         };
-        let stats = stats.from_stats_removing_recent_entries(t_considered);
+        let stats = stats.from_stats_removing_recent_entries(t_considered, 1);
         if use_genotype1_as_t {
             stats.counts.get(&genotype2).is_none()
                 && stats.nb_variants == random_nbs[1].get() as u64
