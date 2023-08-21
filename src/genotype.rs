@@ -95,6 +95,41 @@ pub struct MutationalBurden(pub FxHashMap<NonZeroU16, u64>);
 impl MutationalBurden {
     pub fn from_cells(
         cells: &[StemCell],
+        stats: &StatisticsMutations,
+        verbosity: u8,
+    ) -> anyhow::Result<Self> {
+        //! Compute the single-cell mutational burden from the stem cell
+        //! population.
+        //! Use this function when the cells used to construct the `stats` are
+        //! not the same as the `cells` given here as the argument of the
+        //! function.
+        // let mut burden = HashMap::with_capacity(stats.nb_variants);
+        ensure!(!stats.counts.is_empty(), "found empty stats");
+        let mut burden: FxHashMap<NonZeroU16, u64> = FxHashMap::default();
+        burden.shrink_to(stats.nb_variants as usize);
+        for cell in cells.iter() {
+            let mut cell_burden = 0;
+            for id in cell.proliferation_events_id.iter() {
+                if let Some(counts) = stats.counts.get(id) {
+                    cell_burden += counts.poisson_mut_number;
+                }
+            }
+
+            if cell_burden > 0 {
+                burden
+                    .entry(unsafe { NonZeroU16::new_unchecked(cell_burden) })
+                    .and_modify(|jcells| *jcells += 1)
+                    .or_insert(1);
+            }
+        }
+        if verbosity > 1 {
+            println!("burden: {:#?}", burden);
+        }
+        Ok(MutationalBurden(burden))
+    }
+
+    pub fn from_cells_update_stats(
+        cells: &[StemCell],
         stats: &mut StatisticsMutations,
         poisson_dist: &NeutralMutationPoisson,
         rng: &mut impl Rng,
@@ -410,7 +445,7 @@ mod tests {
             counts: FxHashMap::default(),
             nb_variants: 0,
         };
-        MutationalBurden::from_cells(
+        MutationalBurden::from_cells_update_stats(
             &[],
             &mut stats,
             &NeutralMutationPoisson(Poisson::new(1.).unwrap()),
@@ -435,7 +470,7 @@ mod tests {
             counts,
             nb_variants: 0,
         };
-        MutationalBurden::from_cells(
+        MutationalBurden::from_cells_update_stats(
             &[StemCell::default()],
             &mut stats,
             &NeutralMutationPoisson(Poisson::new(1.).unwrap()),
@@ -468,7 +503,7 @@ mod tests {
                 random_nbs[0] as usize,
             ]));
         }
-        let burden = MutationalBurden::from_cells(
+        let burden = MutationalBurden::from_cells_update_stats(
             &cells,
             &mut stats,
             &NeutralMutationPoisson(Poisson::new(1.).unwrap()),
@@ -526,7 +561,7 @@ mod tests {
                 random_nbs[3] as usize,
             ]));
         }
-        let burden = MutationalBurden::from_cells(
+        let burden = MutationalBurden::from_cells_update_stats(
             &cells,
             &mut stats,
             &NeutralMutationPoisson(Poisson::new(1.).unwrap()),
@@ -581,7 +616,7 @@ mod tests {
                 random_nbs[3].get() as usize
             ]));
         }
-        let burden = MutationalBurden::from_cells(
+        let burden = MutationalBurden::from_cells_update_stats(
             &cells,
             &mut stats,
             &NeutralMutationPoisson(Poisson::new(1.).unwrap()),
@@ -641,7 +676,7 @@ mod tests {
                 random_nbs[3].get() as usize
             ]));
         }
-        let burden = MutationalBurden::from_cells(
+        let burden = MutationalBurden::from_cells_update_stats(
             &cells,
             &mut stats,
             &NeutralMutationPoisson(Poisson::new(1.).unwrap()),
@@ -665,7 +700,7 @@ mod tests {
                 random_nbs[3].get() as usize
             ]));
         }
-        let burden = MutationalBurden::from_cells(
+        let burden = MutationalBurden::from_cells_update_stats(
             &cells,
             &mut stats,
             &NeutralMutationPoisson(Poisson::new(lambda.get() as f32).unwrap()),

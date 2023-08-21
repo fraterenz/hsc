@@ -106,12 +106,12 @@ fn save_measurements(process: &HSCProcess, rng: &mut ChaCha8Rng) -> anyhow::Resu
         if process.verbosity > 1 {
             println!("found the most recent timepoint {}", last_t);
         }
-        let paths_last_t = Paths2Stats::make_paths(process, cell2save, last_t)?;
-        let cells = load_cells(&paths_last_t.genotypes)
-            .unwrap_or_else(|_| panic!("cannot load cells from {:#?}", paths_last_t.genotypes));
+        let paths_last_t_genotypes = Paths2Stats::make_paths(process, cell2save, last_t)?.genotypes;
+        let cells = load_cells(&paths_last_t_genotypes)
+            .unwrap_or_else(|_| panic!("cannot load cells from {:#?}", paths_last_t_genotypes));
         if process.verbosity > 0 {
             println!(
-                "computing the burden for the last timepoint {} with {} cells",
+                "computing the stats for the last timepoint {} with {} cells",
                 last_t,
                 cells.len()
             );
@@ -128,73 +128,58 @@ fn save_measurements(process: &HSCProcess, rng: &mut ChaCha8Rng) -> anyhow::Resu
             process.verbosity,
         )
         .with_context(|| "cannot construct the stats for the burden")?;
-        MutationalBurden::from_cells(
-            &cells,
-            &mut stats,
-            &process.distributions.poisson,
-            rng,
-            process.verbosity,
-        )
-        .expect("cannot create burden from stats")
-        .save(&paths_last_t.burden)?;
-        if process.verbosity > 1 {
-            println!("saving the sfs");
-        }
-        Sfs::from_cells(&cells, &stats, process.verbosity)
-            .expect("cannot create SFS from stats")
-            .save(&paths_last_t.sfs)?;
 
-        // remove all entries that do not satisfy the condition, i.e.
-        // proliferation events that occurred after `process.snapshot_entropy`
-        let mut stats4entropy = stats.clone().from_stats_removing_recent_entries(
-            process
-                .proliferation_event_entropy
-                .expect("No proliferation_event_entropy found"),
-            process.verbosity,
-        );
-        MutationalBurden::from_cells(
-            &cells,
-            &mut stats4entropy,
-            &process.distributions.poisson,
-            rng,
-            process.verbosity,
-        )
-        .expect("cannot create burden from stats")
-        .save(&paths_last_t.burden_entropy)?;
-        if process.verbosity > 1 {
-            println!("saving the sfs entropy");
-        }
-        Sfs::from_cells(&cells, &stats4entropy, process.verbosity)
-            .expect("cannot create SFS entropy from stats")
-            .save(&paths_last_t.sfs_entropy)?;
-
-        for t in timepoints.into_iter().skip(1) {
-            let paths_t = Paths2Stats::make_paths(process, cell2save, last_t)?;
+        for t in timepoints.iter() {
+            let paths_t = Paths2Stats::make_paths(process, cell2save, *t as usize)?;
             if let Ok(cells) = load_cells(&paths_t.genotypes) {
-                let path2burden_t = process
-                    .make_path(Stats2Save::Burden, cell2save, t as usize)?
-                    .with_extension("json");
                 // save the burden for the timepoint loading its cells but
                 // using the stats from the oldest timepoint
-                MutationalBurden::from_cells(
+                MutationalBurden::from_cells_update_stats(
                     &cells,
                     &mut stats,
                     &process.distributions.poisson,
                     rng,
                     process.verbosity,
                 )
-                .expect("cannot create SFS from stats")
-                .save(&path2burden_t)?;
+                .unwrap_or_else(|_| panic!("cannot create burden from stats for timepoint {}", t))
+                .save(&paths_t.burden)?;
                 // save the sfs now that the stats have been updated
                 Sfs::from_cells(&cells, &stats, process.verbosity)
-                    .expect("cannot create SFS from stats")
+                    .unwrap_or_else(|_| panic!("cannot create SFS from stats for timepoint {}", t))
                     .save(&paths_t.sfs)?;
+            }
+        }
+        stats.save(&process.make_path(
+            Stats2Save::Stats,
+            cell2save,
+            *timepoints.first().unwrap() as usize,
+        )?)?;
+
+        // DEAL WITH ENTROPY
+        // remove all entries that do not satisfy the condition, i.e.
+        // proliferation events that occurred after `process.snapshot_entropy`
+        let stats4entropy = stats.from_stats_removing_recent_entries(
+            process
+                .proliferation_event_entropy
+                .expect("No proliferation_event_entropy found"),
+            process.verbosity,
+        );
+        for t in timepoints.into_iter() {
+            let paths_t = Paths2Stats::make_paths(process, cell2save, t as usize)?;
+            if let Ok(cells) = load_cells(&paths_t.genotypes) {
+                // dont use `from_cells_update_stats` since we want to keep only the
+                // mutations that were present at early ages for the entropy
+                MutationalBurden::from_cells(&cells, &stats4entropy, process.verbosity)
+                    .expect("cannot create burden from stats for the entropy")
+                    .save(&paths_t.burden_entropy)?;
+                if process.verbosity > 1 {
+                    println!("saving the sfs entropy");
+                }
                 Sfs::from_cells(&cells, &stats4entropy, process.verbosity)
                     .expect("cannot create SFS entropy from stats")
                     .save(&paths_t.sfs_entropy)?;
             }
         }
-        stats.save(&process.make_path(Stats2Save::Stats, cell2save, last_t)?)?;
     }
     Ok(())
 }
