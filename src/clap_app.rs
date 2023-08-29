@@ -16,7 +16,8 @@ pub enum Parallel {
 #[command(name = "hsc")]
 #[command(version, about = "TODO")]
 pub struct Cli {
-    /// Number of years to simulate
+    /// The years simulated will be `years + 1`, that is simulations start at
+    /// year zero and the end at year `year + 1`
     #[arg(short, long, default_value_t = 1)]
     years: usize,
     /// Number of cells to simulate
@@ -73,7 +74,7 @@ pub struct Cli {
 impl Cli {
     fn build_snapshots_from_time(n_snapshots: usize, time: f32) -> Vec<f32> {
         let dx = time / ((n_snapshots - 1) as f32);
-        let mut x = vec![0.; n_snapshots];
+        let mut x = vec![1.; n_snapshots];
         for i in 1..n_snapshots - 1 {
             x[i] = x[i - 1] + dx;
         }
@@ -94,14 +95,15 @@ impl Cli {
             (Parallel::True, cli.runs)
         };
 
+        let years = cli.years + 1;
         let (max_cells, years, b0, mu0, verbosity) = if cli.debug {
             (11, 1, 1., 4., u8::MAX)
         } else {
-            (cli.cells + 1, cli.years, cli.b0, cli.mu0, cli.verbosity)
+            (cli.cells + 1, years, cli.b0, cli.mu0, cli.verbosity)
         };
 
         let max_iter = 2 * max_cells as usize * b0 as usize * years;
-        let snapshots = Cli::build_snapshots_from_time(cli.snapshots as usize, cli.years as f32);
+        let snapshots = Cli::build_snapshots_from_time(cli.snapshots as usize, years as f32);
 
         // convert into rates per cell division
         let u = (mu0 / (b0 * max_cells as f32)) as f64;

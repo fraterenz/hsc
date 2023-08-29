@@ -304,7 +304,7 @@ impl HSCProcess {
         };
         let path2file = path2file.join(timepoint.to_string());
         fs::create_dir_all(&path2file).with_context(|| "Cannot create dir")?;
-        if self.verbosity > 0 {
+        if self.verbosity > 1 {
             println!("creating dirs {:#?}", path2file);
         }
         Ok(path2file.join(self.id.to_string()))

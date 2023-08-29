@@ -1,4 +1,8 @@
 # Changelog
+## 0.14.1
+- simulations start at year zero and end at year `cli.years + 1`
+- the first timepoint is saved at year 1 not at year 0
+
 ## 0.14.0
 - rename clap app arg `cells2subsample` to `subsample` and allow for more than one entry for this arg
 - move stats folder to the timepoint
