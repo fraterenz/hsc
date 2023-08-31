@@ -1,4 +1,8 @@
 # Changelog
+
+## 0.15.0
+- sample the fitness coefficients from the gamma distribution
+
 ## 0.14.1
 - simulations start at year zero and end at year `cli.years + 1`
 - the first timepoint is saved at year 1 not at year 0

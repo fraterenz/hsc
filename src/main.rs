@@ -16,6 +16,7 @@ use hsc::{
 use indicatif::ParallelProgressIterator;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
+use rand_distr::{Distribution, Gamma};
 // use rand_distr::{Distribution, Exp};
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use sosa::{simulate, CurrentState, Options, ReactionRates};
@@ -57,8 +58,13 @@ impl Paths2Stats {
     }
 }
 
+pub enum Fitness {
+    Fixed(f32),
+    GammaSampled { shape: f32, scale: f32 },
+}
+
 pub struct SimulationOptions {
-    s: f32,
+    fitness: Fitness,
     runs: usize,
     /// division rate for the wild-type
     b0: f32,
@@ -211,15 +217,28 @@ fn main() {
     );
     println!("{} starting simulation", Utc::now(),);
     let run_simulations = |idx| {
-        let rates = ReactionRates(core::array::from_fn(|i| {
-            if i == 0 {
-                app.b0
-            } else {
-                app.b0 * (1. + app.s)
-            }
-        }));
         let mut rng = ChaCha8Rng::seed_from_u64(app.seed);
         rng.set_stream(idx as u64);
+
+        let rates = match app.fitness {
+            Fitness::Fixed(s) => ReactionRates(core::array::from_fn(|i| {
+                if i == 0 {
+                    app.b0
+                } else {
+                    app.b0 * (1. + s)
+                }
+            })),
+            Fitness::GammaSampled { shape, scale } => {
+                let gamma = Gamma::new(shape, scale).unwrap();
+                ReactionRates(core::array::from_fn(|i| {
+                    if i == 0 {
+                        app.b0
+                    } else {
+                        app.b0 * (1. + gamma.sample(&mut rng))
+                    }
+                }))
+            }
+        };
 
         let mut process = HSCProcess::new(
             app.process_options.clone(),

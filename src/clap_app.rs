@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 
-use clap::{ArgAction, Parser};
+use clap::{ArgAction, Args, Parser};
 use hsc::process::{CellDivisionProbabilities, ProcessOptions};
 use sosa::{IterTime, NbIndividuals, Options};
 
-use crate::SimulationOptions;
+use crate::{Fitness, SimulationOptions};
 
 pub enum Parallel {
     False,
@@ -12,9 +12,41 @@ pub enum Parallel {
     Debug,
 }
 
+// #[derive(Args, Debug, Clone)]
+// #[group(required = true, multiple = true)]
+// struct GammaFitness {
+//     /// The shape of the Gamma distribution used to sample the fitness
+//     /// coefficients representing the proliferative advantage conferred by fit
+//     /// mutations
+//     #[arg(long)]
+//     shape: f32,
+//     /// The scale of the Gamma distribution used to sample the fitness
+//     /// coefficients representing the proliferative advantage conferred by fit
+//     /// mutations
+//     #[arg(long)]
+//     scale: f32,
+// }
+
+#[derive(Args, Debug, Clone)]
+#[group(required = true, multiple = false)]
+struct FitnessArg {
+    /// proliferative advantage conferred by fit mutations assuming all clones
+    /// have the same advantange, units: mutation / cell
+    #[arg(long, short)]
+    s: Option<f32>,
+    // /// The Gamma distribution used to sample the fitness coefficients
+    // /// representing the proliferative advantage conferred by fit mutations
+    // #[command(flatten)]
+    // gamma: Option<GammaFitness>,
+    /// The mean and the standard deviation of the Gamma distribution used to
+    /// sample the fitness coefficients representing the proliferative
+    /// advantage conferred by fit mutations
+    #[arg(long, num_args = 2)]
+    mean_std: Option<Vec<f32>>,
+}
+
 #[derive(Debug, Parser)] // requires `derive` feature
-#[command(name = "hsc")]
-#[command(version, about = "TODO")]
+#[command(name = "hsc", version, about = "TODO")]
 pub struct Cli {
     /// The years simulated will be `years + 1`, that is simulations start at
     /// year zero and the end at year `year + 1`
@@ -35,10 +67,8 @@ pub struct Cli {
     /// Poisson distribution, units: mutation / (cell * year)
     #[arg(long, default_value_t = 1.)]
     neutral_rate: f32,
-    #[arg(short, default_value_t = 0.15)]
-    /// proliferative advantage conferred by fit mutations, for now we assume
-    /// all clones have the same advantange, units: mutation / cell
-    s: f32,
+    #[command(flatten)]
+    fitness: FitnessArg,
     /// probability of getting an asymmetric division per each proliferate event
     #[arg(long, default_value_t = 0.)]
     p_asymmetric: f64,
@@ -86,6 +116,16 @@ impl Cli {
 
     pub fn build() -> SimulationOptions {
         let cli = Cli::parse();
+
+        let fitness = if let Some(s) = cli.fitness.s {
+            Fitness::Fixed(s)
+        } else {
+            let mean_std = cli.fitness.mean_std.unwrap();
+            Fitness::GammaSampled {
+                shape: mean_std[0].powf(2.) / mean_std[1].powf(2.),
+                scale: mean_std[1].powf(2.) / mean_std[0],
+            }
+        };
 
         let (parallel, runs) = if cli.debug {
             (Parallel::Debug, 1)
@@ -138,7 +178,7 @@ impl Cli {
 
         SimulationOptions {
             parallel,
-            s: cli.s,
+            fitness,
             runs,
             b0,
             seed: cli.seed,
