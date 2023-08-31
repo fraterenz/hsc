@@ -40,7 +40,7 @@ impl StemCell {
         //! of genotypes that will be converted later on into mutations, see
         //! [`crate::genotype::StatisticsMutations`].
         let mut cell = StemCell::new();
-        let mutation_set = HashSet::from_iter(mutation_set.into_iter());
+        let mutation_set = HashSet::from_iter(mutation_set);
         cell.proliferation_events_id = mutation_set;
         cell
     }
