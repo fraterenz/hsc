@@ -12,24 +12,13 @@ pub enum Parallel {
     Debug,
 }
 
-// #[derive(Args, Debug, Clone)]
-// #[group(required = true, multiple = true)]
-// struct GammaFitness {
-//     /// The shape of the Gamma distribution used to sample the fitness
-//     /// coefficients representing the proliferative advantage conferred by fit
-//     /// mutations
-//     #[arg(long)]
-//     shape: f32,
-//     /// The scale of the Gamma distribution used to sample the fitness
-//     /// coefficients representing the proliferative advantage conferred by fit
-//     /// mutations
-//     #[arg(long)]
-//     scale: f32,
-// }
-
 #[derive(Args, Debug, Clone)]
 #[group(required = true, multiple = false)]
 struct FitnessArg {
+    /// Neutral scenario with all clones having the same fitness coefficient of
+    /// 0
+    #[arg(long, short, action = ArgAction::SetTrue)]
+    neutral: Option<bool>,
     /// proliferative advantage conferred by fit mutations assuming all clones
     /// have the same advantange, units: mutation / cell
     #[arg(long, short)]
@@ -119,12 +108,13 @@ impl Cli {
 
         let fitness = if let Some(s) = cli.fitness.s {
             Fitness::Fixed(s)
-        } else {
-            let mean_std = cli.fitness.mean_std.unwrap();
+        } else if let Some(mean_std) = cli.fitness.mean_std {
             Fitness::GammaSampled {
                 shape: mean_std[0].powf(2.) / mean_std[1].powf(2.),
                 scale: mean_std[1].powf(2.) / mean_std[0],
             }
+        } else {
+            Fitness::Neutal
         };
 
         let (parallel, runs) = if cli.debug {

@@ -59,6 +59,7 @@ impl Paths2Stats {
 }
 
 pub enum Fitness {
+    Neutal,
     Fixed(f32),
     GammaSampled { shape: f32, scale: f32 },
 }
@@ -238,6 +239,7 @@ fn main() {
                     }
                 }))
             }
+            Fitness::Neutal => ReactionRates(core::array::from_fn(|_| app.b0)),
         };
 
         let mut process = HSCProcess::new(
