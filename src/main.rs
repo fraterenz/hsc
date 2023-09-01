@@ -8,7 +8,7 @@ use chrono::Utc;
 use clap_app::Parallel;
 use hsc::{
     genotype::{MutationalBurden, Sfs, StatisticsMutations},
-    process::{HSCProcess, ProcessOptions, Stats2Save},
+    process::{Moran, ProcessOptions, Stats2Save},
     stemcell::{load_cells, StemCell},
     subclone::SubClone,
     write2file, MAX_SUBCLONES,
@@ -35,7 +35,7 @@ struct Paths2Stats {
 }
 
 impl Paths2Stats {
-    fn make_paths(process: &HSCProcess, cells: usize, timepoint: usize) -> anyhow::Result<Self> {
+    fn make_paths(process: &Moran, cells: usize, timepoint: usize) -> anyhow::Result<Self> {
         let genotypes = process
             .make_path(Stats2Save::Genotypes, cells, timepoint)?
             .with_extension("json");
@@ -58,12 +58,14 @@ impl Paths2Stats {
     }
 }
 
+#[derive(Debug)]
 pub enum Fitness {
     Neutal,
     Fixed(f32),
     GammaSampled { shape: f32, scale: f32 },
 }
 
+#[derive(Debug)]
 pub struct SimulationOptions {
     fitness: Fitness,
     runs: usize,
@@ -95,8 +97,8 @@ fn find_timepoints(path: &Path, cells: usize) -> Vec<u8> {
     timepoints
 }
 
-fn save_measurements(process: &HSCProcess, rng: &mut ChaCha8Rng) -> anyhow::Result<()> {
-    let mut cells2save = vec![process.cells];
+fn save_measurements(process: &Moran, rng: &mut ChaCha8Rng) -> anyhow::Result<()> {
+    let mut cells2save = vec![process.compute_tot_cells() as usize];
     if let Some(subsampling) = process.cells2subsample.as_ref() {
         for cell in subsampling {
             cells2save.push(*cell);
@@ -203,6 +205,14 @@ fn main() {
     // initial state
     let mut subclones: [SubClone; MAX_SUBCLONES] =
         std::array::from_fn(|i| SubClone::new(i, app.options.max_cells as usize));
+    // TODO
+    // if app.process_options.exponential {
+    //     subclones[0].assign_cell(StemCell::new());
+    // } else {
+    //     for _ in 0..app.options.max_cells - 1 {
+    //         subclones[0].assign_cell(StemCell::new());
+    //     }
+    // }
     for _ in 0..app.options.max_cells - 1 {
         subclones[0].assign_cell(StemCell::new());
     }
@@ -242,7 +252,7 @@ fn main() {
             Fitness::Neutal => ReactionRates(core::array::from_fn(|_| app.b0)),
         };
 
-        let mut process = HSCProcess::new(
+        let mut process = Moran::new(
             app.process_options.clone(),
             subclones.clone(),
             app.snapshots.clone(),
@@ -250,6 +260,9 @@ fn main() {
             0.,
             app.options.verbosity,
         );
+        if app.options.verbosity > 1 {
+            println!("{:#?}", app.options);
+        }
         let stop = simulate(
             &mut state.clone(),
             &rates,

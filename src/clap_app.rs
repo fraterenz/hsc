@@ -6,6 +6,7 @@ use sosa::{IterTime, NbIndividuals, Options};
 
 use crate::{Fitness, SimulationOptions};
 
+#[derive(Debug)]
 pub enum Parallel {
     False,
     True,
@@ -58,6 +59,9 @@ pub struct Cli {
     neutral_rate: f32,
     #[command(flatten)]
     fitness: FitnessArg,
+    /// Start simulations with an exponential growth phase
+    #[arg(long, action = ArgAction::SetTrue, default_value_t = false)]
+    exponential: bool,
     /// probability of getting an asymmetric division per each proliferate event
     #[arg(long, default_value_t = 0.)]
     p_asymmetric: f64,
@@ -160,6 +164,7 @@ impl Cli {
             snapshots[1]
         };
         let process_options = ProcessOptions {
+            final_pop_size: cli.cells,
             probabilities,
             snapshot_entropy,
             path: cli.path,

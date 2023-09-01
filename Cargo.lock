@@ -894,9 +894,9 @@ dependencies = [
 
 [[package]]
 name = "sosa"
-version = "3.0.1"
+version = "3.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16c56f8478e6059d1691477f0a3b585ceef8e231d4c73d1438cdb51d51a309aa"
+checksum = "1f5bb23626ea1ba131de4384afd22898887dc3914d26763c23c9eb196b7482cd"
 dependencies = [
  "anyhow",
  "rand",

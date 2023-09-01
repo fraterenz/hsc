@@ -2,7 +2,7 @@
 //! and differentiation according to a Moran process (fixed population size).
 //!
 //! At every cell division, a stem cell can undergo one of the following events
-//! (see [`process::HSCProcess`]):
+//! (see [`process::Moran`]):
 //!
 //! 1. a symmetric division,
 //! 2. an asymmetric division
