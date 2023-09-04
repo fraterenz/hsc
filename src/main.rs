@@ -8,18 +8,17 @@ use chrono::Utc;
 use clap_app::Parallel;
 use hsc::{
     genotype::{MutationalBurden, Sfs, StatisticsMutations},
-    process::{Moran, ProcessOptions, Stats2Save},
+    process::{Exponential, Moran, ProcessOptions, Stats2Save},
     stemcell::{load_cells, StemCell},
-    subclone::SubClone,
-    write2file, MAX_SUBCLONES,
+    subclone::{Fitness, SubClones, Variants},
+    write2file,
 };
 use indicatif::ParallelProgressIterator;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
-use rand_distr::{Distribution, Gamma};
 // use rand_distr::{Distribution, Exp};
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
-use sosa::{simulate, CurrentState, Options, ReactionRates};
+use sosa::{simulate, CurrentState, Options};
 
 use crate::clap_app::Cli;
 
@@ -58,14 +57,7 @@ impl Paths2Stats {
     }
 }
 
-#[derive(Debug)]
-pub enum Fitness {
-    Neutal,
-    Fixed(f32),
-    GammaSampled { shape: f32, scale: f32 },
-}
-
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct SimulationOptions {
     fitness: Fitness,
     runs: usize,
@@ -73,7 +65,8 @@ pub struct SimulationOptions {
     b0: f32,
     seed: u64,
     parallel: Parallel,
-    options: Options,
+    options_moran: Options,
+    options_exponential: Options,
     process_options: ProcessOptions,
     pub snapshots: Vec<f32>,
 }
@@ -98,7 +91,7 @@ fn find_timepoints(path: &Path, cells: usize) -> Vec<u8> {
 }
 
 fn save_measurements(process: &Moran, rng: &mut ChaCha8Rng) -> anyhow::Result<()> {
-    let mut cells2save = vec![process.compute_tot_cells() as usize];
+    let mut cells2save = vec![process.subclones.compute_tot_cells() as usize];
     if let Some(subsampling) = process.cells2subsample.as_ref() {
         for cell in subsampling {
             cells2save.push(*cell);
@@ -196,92 +189,96 @@ fn save_measurements(process: &Moran, rng: &mut ChaCha8Rng) -> anyhow::Result<()
 fn main() {
     let app = Cli::build();
 
-    if app.options.verbosity > 1 {
+    if app.options_moran.verbosity > 1 {
         println!(
             "rate of fit variants per cell division {}",
             app.process_options.probabilities.p
         );
+        println!("app: {:#?}", app);
     }
-    // initial state
-    let mut subclones: [SubClone; MAX_SUBCLONES] =
-        std::array::from_fn(|i| SubClone::new(i, app.options.max_cells as usize));
-    // TODO
-    // if app.process_options.exponential {
-    //     subclones[0].assign_cell(StemCell::new());
-    // } else {
-    //     for _ in 0..app.options.max_cells - 1 {
-    //         subclones[0].assign_cell(StemCell::new());
-    //     }
-    // }
-    for _ in 0..app.options.max_cells - 1 {
-        subclones[0].assign_cell(StemCell::new());
-    }
-    let init_population = core::array::from_fn(|i| subclones[i].cell_count());
-    let state = &mut CurrentState {
-        population: init_population,
-    };
-    let possible_reactions = core::array::from_fn(|i| i);
 
     println!(
         "saving variant fraction at timepoints: {:#?}",
         app.snapshots
     );
-    println!("{} starting simulation", Utc::now(),);
+
+    println!("{} starting simulation", Utc::now());
+
     let run_simulations = |idx| {
-        let mut rng = ChaCha8Rng::seed_from_u64(app.seed);
+        // initial state
+        let cells = if app.process_options.exponential {
+            vec![StemCell::new()]
+        } else {
+            vec![StemCell::new(); app.options_moran.max_cells as usize - 1]
+        };
+        let subclones = SubClones::new(cells, app.options_moran.max_cells as usize);
+        let state = &mut CurrentState {
+            population: Variants::variant_counts(&subclones),
+        };
+        let possible_reactions = subclones.gillespie_set_of_reactions();
+
+        let rng = &mut ChaCha8Rng::seed_from_u64(app.seed);
         rng.set_stream(idx as u64);
 
-        let rates = match app.fitness {
-            Fitness::Fixed(s) => ReactionRates(core::array::from_fn(|i| {
-                if i == 0 {
-                    app.b0
-                } else {
-                    app.b0 * (1. + s)
-                }
-            })),
-            Fitness::GammaSampled { shape, scale } => {
-                let gamma = Gamma::new(shape, scale).unwrap();
-                ReactionRates(core::array::from_fn(|i| {
-                    if i == 0 {
-                        app.b0
-                    } else {
-                        app.b0 * (1. + gamma.sample(&mut rng))
-                    }
-                }))
+        // let rates = subclones.gillespie_rates(app.fitness, app.b0);
+        let rates = subclones.gillespie_rates(&app.fitness, app.b0, rng);
+
+        let mut moran = if app.process_options.exponential {
+            let mut exp = Exponential::new(
+                app.process_options.clone(),
+                subclones,
+                idx,
+                app.options_exponential.verbosity,
+            );
+
+            let stop = simulate(
+                state,
+                &rates,
+                &possible_reactions,
+                &mut exp,
+                &app.options_exponential,
+                rng,
+            );
+            if app.options_exponential.verbosity > 1 {
+                println!(
+                    "exponential simulation {} stopped because {:#?}, nb cells {}",
+                    idx,
+                    stop,
+                    exp.subclones.compute_tot_cells()
+                );
             }
-            Fitness::Neutal => ReactionRates(core::array::from_fn(|_| app.b0)),
+
+            exp.switch_to_moran(app.process_options.clone(), app.snapshots.clone())
+        } else {
+            Moran::new(
+                app.process_options.clone(),
+                subclones,
+                app.snapshots.clone(),
+                idx,
+                0.,
+                app.options_moran.verbosity,
+            )
         };
 
-        let mut process = Moran::new(
-            app.process_options.clone(),
-            subclones.clone(),
-            app.snapshots.clone(),
-            idx,
-            0.,
-            app.options.verbosity,
-        );
-        if app.options.verbosity > 1 {
-            println!("{:#?}", app.options);
-        }
         let stop = simulate(
-            &mut state.clone(),
+            state,
             &rates,
             &possible_reactions,
-            &mut process,
-            &app.options,
-            &mut rng,
+            &mut moran,
+            &app.options_moran,
+            rng,
         );
-        if app.options.verbosity > 1 {
-            println!("simulation {} stopped because {:#?}", idx, stop);
+        if app.options_moran.verbosity > 1 {
+            println!("Moran simulation {} stopped because {:#?}", idx, stop);
         }
 
-        if process.verbosity > 1 {
+        if moran.verbosity > 1 {
             println!("saving the SFS for all timepoints");
         }
-        save_measurements(&process, &mut rng).expect("cannot save");
+        save_measurements(&moran, rng).expect("cannot save");
         write2file(
             &rates.0,
-            &process.path2dir.join("rates").join(format!("{}.csv", idx)),
+            &moran.path2dir.join("rates").join(format!("{}.csv", idx)),
             None,
             false,
         )

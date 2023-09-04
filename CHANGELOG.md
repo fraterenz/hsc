@@ -1,5 +1,9 @@
 # Changelog
 
+# 0.16.0
+- neutral scenario in clap app
+- initial exponential growing phase
+
 ## 0.15.0
 - sample the fitness coefficients from the gamma distribution
 

@@ -447,7 +447,7 @@ checksum = "fed44880c466736ef9a5c5b5facefb5ed0785676d0c02d612db14e54f0d84286"
 
 [[package]]
 name = "hsc"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -894,9 +894,9 @@ dependencies = [
 
 [[package]]
 name = "sosa"
-version = "3.0.2"
+version = "3.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f5bb23626ea1ba131de4384afd22898887dc3914d26763c23c9eb196b7482cd"
+checksum = "9703c29f4ff2a2a5d53ee1d6360b17e569a8315812d96b8b9271d7ac064a3ca1"
 dependencies = [
  "anyhow",
  "rand",

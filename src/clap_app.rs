@@ -6,7 +6,7 @@ use sosa::{IterTime, NbIndividuals, Options};
 
 use crate::{Fitness, SimulationOptions};
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Parallel {
     False,
     True,
@@ -111,14 +111,14 @@ impl Cli {
         let cli = Cli::parse();
 
         let fitness = if let Some(s) = cli.fitness.s {
-            Fitness::Fixed(s)
+            Fitness::Fixed { s }
         } else if let Some(mean_std) = cli.fitness.mean_std {
             Fitness::GammaSampled {
                 shape: mean_std[0].powf(2.) / mean_std[1].powf(2.),
                 scale: mean_std[1].powf(2.) / mean_std[0],
             }
         } else {
-            Fitness::Neutal
+            Fitness::Neutral
         };
 
         let (parallel, runs) = if cli.debug {
@@ -149,12 +149,21 @@ impl Cli {
             p: u,
         };
 
-        let options = Options {
+        let options_moran = Options {
             max_iter_time: IterTime {
                 iter: max_iter,
                 time: years as f32,
             },
             max_cells,
+            init_iter: 0,
+            verbosity,
+        };
+        let options_exponential = Options {
+            max_iter_time: IterTime {
+                iter: usize::MAX,
+                time: f32::INFINITY,
+            },
+            max_cells: max_cells - 1,
             init_iter: 0,
             verbosity,
         };
@@ -164,11 +173,11 @@ impl Cli {
             snapshots[1]
         };
         let process_options = ProcessOptions {
-            final_pop_size: cli.cells,
             probabilities,
             snapshot_entropy,
             path: cli.path,
             cells2subsample: cli.subsample,
+            exponential: cli.exponential,
         };
 
         SimulationOptions {
@@ -179,7 +188,8 @@ impl Cli {
             seed: cli.seed,
             snapshots,
             process_options,
-            options,
+            options_moran,
+            options_exponential,
         }
     }
 }

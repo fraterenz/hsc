@@ -1,9 +1,8 @@
 use crate::genotype::{GenotypeId, NbPoissonMutations};
-use crate::stemcell::{save_cells, StemCell};
-use crate::subclone::{assign, CloneId, SubClone};
+use crate::stemcell::save_cells;
+use crate::subclone::{assign, proliferating_cell, CloneId, SubClones, Variants};
 use crate::{write2file, MAX_SUBCLONES};
 use anyhow::Context;
-use rand::seq::IteratorRandom;
 use rand::Rng;
 use rand_distr::{Bernoulli, Distribution, Poisson, WeightedIndex};
 use sosa::{AdvanceStep, CurrentState, NextReaction};
@@ -13,11 +12,11 @@ use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
 pub struct ProcessOptions {
-    pub final_pop_size: u64,
     pub probabilities: CellDivisionProbabilities,
     pub snapshot_entropy: f32,
     pub path: PathBuf,
     pub cells2subsample: Option<Vec<usize>>,
+    pub exponential: bool,
 }
 
 #[derive(Hash, PartialEq, Eq)]
@@ -31,49 +30,6 @@ pub enum Stats2Save {
     VariantFraction,
 }
 
-/// Number of cells in subclones.
-pub struct Variants {}
-
-impl Variants {
-    pub fn variant_counts(subclones: &[SubClone; MAX_SUBCLONES]) -> Vec<u64> {
-        //! The total variant count is the number of cells in all subclones.
-        //! ```
-        //! use hsc::MAX_SUBCLONES;
-        //! # use hsc::{stemcell::StemCell, process::{HSCProcess, Variants}};
-        //! // create a process with one cell in each `MAX_SUBCLONES` subclones
-        //! let mut hsc = HSCProcess::default();
-        //!
-        //! assert_eq!(Variants::variant_counts(&hsc.subclones), [1; MAX_SUBCLONES]);
-        //! ```
-        let mut variant_counts = Vec::with_capacity(MAX_SUBCLONES);
-        // skip the neutral one
-        for subclone in subclones {
-            variant_counts.push(subclone.cell_count());
-        }
-        variant_counts
-    }
-
-    pub fn variant_fractions(subclones: &[SubClone; MAX_SUBCLONES], tot_cells: u64) -> Vec<f32> {
-        //! The proportion of cells in all subclones.
-        //!
-        //! ```
-        //! use hsc::MAX_SUBCLONES;
-        //! # use hsc::{stemcell::StemCell, process::{HSCProcess, Variants}};
-        //! // create a process with one cell in each `MAX_SUBCLONES` subclones
-        //! let mut hsc = HSCProcess::default();
-        //!
-        //! assert_eq!(
-        //!     Variants::variant_fractions(&hsc.subclones, hsc.compute_tot_cells()),
-        //!     [1. / MAX_SUBCLONES as f32; MAX_SUBCLONES]
-        //! );
-        //! ```
-        Variants::variant_counts(subclones)
-            .into_iter()
-            .map(|frac| (frac as f32 / tot_cells as f32))
-            .collect()
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct CellDivisionProbabilities {
     pub p_asymmetric: f64,
@@ -84,14 +40,118 @@ pub struct CellDivisionProbabilities {
 }
 
 /// Exponential growing process
+#[derive(Clone, Debug)]
 pub struct Exponential {
     /// A collection of clones having a proliferative advantage.
-    pub subclones: [SubClone; MAX_SUBCLONES],
+    pub subclones: SubClones,
     /// The counter for the number of proliferative events.
     pub counter_divisions: usize,
     id: usize,
     pub verbosity: u8,
     pub distributions: Distributions,
+}
+
+impl Exponential {
+    pub fn new(
+        process_options: ProcessOptions,
+        initial_subclones: SubClones,
+        id: usize,
+        verbosity: u8,
+    ) -> Exponential {
+        let distributions = Distributions::new(
+            process_options.probabilities.p_asymmetric,
+            process_options.probabilities.lambda_poisson,
+            process_options.probabilities.p,
+            verbosity,
+        );
+        let hsc = Exponential {
+            subclones: initial_subclones,
+            distributions,
+            counter_divisions: 0,
+            id,
+            verbosity,
+        };
+        if verbosity > 1 {
+            println!("process created: {:#?}", hsc);
+        }
+        hsc
+    }
+
+    pub fn switch_to_moran(self, process_options: ProcessOptions, mut snapshot: Vec<f32>) -> Moran {
+        snapshot.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let snapshot = VecDeque::from(snapshot);
+        Moran {
+            subclones: self.subclones,
+            counter_divisions: self.counter_divisions,
+            id: self.id,
+            time: 0.,
+            snapshot_entropy: process_options.snapshot_entropy,
+            proliferation_event_entropy: None,
+            cells2subsample: process_options.cells2subsample,
+            snapshot,
+            path2dir: process_options.path,
+            verbosity: self.verbosity,
+            distributions: self.distributions,
+        }
+    }
+}
+
+impl AdvanceStep<MAX_SUBCLONES> for Exponential {
+    /// The id of a subclone [`CloneId`].
+    type Reaction = CloneId;
+
+    fn advance_step(&mut self, reaction: NextReaction<Self::Reaction>, rng: &mut impl Rng) {
+        //! Update the process by simulating the next proliferative event
+        //! according to the next `reaction` determined by the [Gillespie
+        //! algorithm](`sosa`).
+        //!
+        //! The proliferation step is implemented as following:
+        //!
+        //! 1. select the cell that will proliferate next from the clone
+        //! with id `reaction` determined by the Gillespie algorithm
+        //!
+        //! 2. for the proliferating cell:
+        //!     * mutate genome by storing the division id, see
+        //!     [`crate::genotype::StatisticsMutations`]
+        //!
+        //!     * assign to new subclone with a probability determined by the
+        //!     rate of mutations conferring a proliferative advantage
+        // The Gillespie sampler samples the clone that will proliferate next,
+        // that is the clone with id `reaction.event`.
+        // Pick random proliferating cells from this clone. **Note that this
+        // removes the cells from the clone with id `reaction.event`.**
+        let mut stem_cell =
+            proliferating_cell(&mut self.subclones, reaction.event, self.verbosity, rng);
+        self.counter_divisions += 1;
+        self.subclones
+            .get_mut_clone_unchecked(reaction.event)
+            .assign_cell(stem_cell.clone());
+
+        if self.verbosity > 2 {
+            println!("assigning mutations to cell {:#?}", stem_cell)
+        }
+        stem_cell.record_division(self.counter_divisions);
+
+        // assign cell to clone. This can have two outcomes based on a
+        // Bernouilli trial see `assign` and `self.assign`:
+        // 1. the stem cell is re-assigned to the old clone with id
+        // `reaction.event` (remember that `self.proliferating_cells` has
+        // removed the cells from the clone)
+        // 2. the stem cell is assigned to a new clone with id different
+        // from `reaction.event`.
+        assign(
+            &mut self.subclones,
+            reaction.event,
+            stem_cell,
+            &self.distributions,
+            rng,
+            self.verbosity,
+        );
+    }
+
+    fn update_state(&self, state: &mut CurrentState<MAX_SUBCLONES>) {
+        state.population = Variants::variant_counts(&self.subclones);
+    }
 }
 
 /// The Moran process saves the state of the agents and simulates new
@@ -100,7 +160,7 @@ pub struct Exponential {
 #[derive(Debug, Clone)]
 pub struct Moran {
     /// A collection of clones having a proliferative advantage.
-    pub subclones: [SubClone; MAX_SUBCLONES],
+    pub subclones: SubClones,
     /// The counter for the number of proliferative events.
     pub counter_divisions: usize,
     id: usize,
@@ -117,11 +177,6 @@ pub struct Moran {
 
 impl Default for Moran {
     fn default() -> Self {
-        let subclones = std::array::from_fn(|i| {
-            let mut subclone = SubClone::new(i, 2);
-            subclone.assign_cell(StemCell::new());
-            subclone
-        });
         let process_options = ProcessOptions {
             probabilities: CellDivisionProbabilities {
                 p_asymmetric: 0.,
@@ -131,22 +186,26 @@ impl Default for Moran {
             snapshot_entropy: 0.1,
             path: PathBuf::from("./output"),
             cells2subsample: None,
-            final_pop_size: 10,
+            exponential: false,
         };
 
-        Moran::new(process_options, subclones, vec![0.01, 0.1], 1, 0., 1)
+        Moran::new(
+            process_options,
+            SubClones::default(),
+            vec![0.01, 0.1],
+            1,
+            0.,
+            1,
+        )
     }
 }
 
 impl Moran {
     /// A Moran process with wild-type subclone with neutral fitness, to which
     /// all cells will be assigned.
-    /// When `process_options.exponential` is `true`, the process will first
-    /// simulate an expoential growing phase until the number of cells reaches
-    /// the final population size, see [`crate::process::ProcessOptions`].
     pub fn new(
         process_options: ProcessOptions,
-        initial_subclones: [SubClone; MAX_SUBCLONES],
+        initial_subclones: SubClones,
         mut snapshot: Vec<f32>,
         id: usize,
         time: f32,
@@ -161,7 +220,7 @@ impl Moran {
         snapshot.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let snapshot = VecDeque::from(snapshot);
         let hsc = Moran {
-            subclones: initial_subclones.clone(),
+            subclones: initial_subclones,
             distributions,
             counter_divisions: 0,
             id,
@@ -177,78 +236,6 @@ impl Moran {
             println!("process created: {:#?}", hsc);
         }
         hsc
-    }
-
-    pub fn compute_tot_cells(&self) -> u64 {
-        self.subclones
-            .iter()
-            .map(|subclone| subclone.cell_count())
-            .sum()
-    }
-
-    pub fn the_only_one_subclone_present(&self) -> Option<usize> {
-        //! returns `None` if more than one subclone is present else the clone
-        //! id.
-        for subclone in self.subclones.iter() {
-            if subclone.cell_count() == self.compute_tot_cells() {
-                return Some(subclone.id);
-            }
-        }
-        None
-    }
-
-    fn assign(&mut self, subclone_id: usize, stem_cell: StemCell, rng: &mut impl Rng) {
-        //! Test whether `stem_cell` will be assigned to a new clone with id
-        //! `subclone_id` or not. If that's the case, perform assignment.
-        let cell = assign(
-            &mut self.subclones[subclone_id],
-            stem_cell,
-            &self.distributions,
-            rng,
-        );
-
-        // assign cell to a new random clone if `assign` returned some cell
-        if let Some(cell) = cell {
-            let mut rnd_clone_id = rng.gen_range(0..self.subclones.len());
-            let mut counter = 0;
-            // the new random clone cannot have `subclone_id` id and must be
-            // empty
-            while (rnd_clone_id == subclone_id || !self.subclones[rnd_clone_id].is_empty())
-                && counter <= self.subclones.len()
-            {
-                rnd_clone_id = rng.gen_range(0..self.subclones.len());
-                counter += 1;
-            }
-            assert!(
-                counter <= self.subclones.len(),
-                "max number of clones reached"
-            );
-            if self.verbosity > 2 {
-                println!(
-                    "assgin {:#?} to clone {:#?}",
-                    cell, self.subclones[rnd_clone_id]
-                );
-            }
-            self.subclones[rnd_clone_id].assign_cell(cell);
-        } else if cell.is_none() && self.verbosity > 2 {
-            println!("no new fit variants");
-        }
-    }
-
-    fn proliferating_cell(&mut self, subclone_id: usize, rng: &mut impl Rng) -> StemCell {
-        //! Determine which cells will proliferate by randomly selecting a cell
-        //! from the subclone with id `subclone_id`.
-        self.counter_divisions += 1;
-        if self.verbosity > 2 {
-            println!(
-                "a cell from clone {:#?} will divide",
-                self.subclones[subclone_id]
-            );
-        }
-        self.subclones[subclone_id]
-            .random_cell(rng)
-            .with_context(|| "found empty subclone")
-            .unwrap()
     }
 
     fn keep_const_population_upon_symmetric_division(
@@ -268,7 +255,7 @@ impl Moran {
         //!     the variant counts
         // remove a cell from a random subclone based on the frequencies of
         // the clones at the current state
-        let id2remove = if let Some(id) = self.the_only_one_subclone_present() {
+        let id2remove = if let Some(id) = self.subclones.the_only_one_subclone_present() {
             id
         } else {
             let mut variants = Variants::variant_counts(&self.subclones);
@@ -277,7 +264,9 @@ impl Moran {
             WeightedIndex::new(variants).unwrap().sample(rng)
         };
         // remove a cell from the random subclone
-        let _ = self.subclones[id2remove]
+        let _ = self
+            .subclones
+            .get_mut_clone_unchecked(id2remove)
             .random_cell(rng)
             .with_context(|| "found empty subclone")
             .unwrap();
@@ -289,7 +278,7 @@ impl Moran {
     fn save_variant_fraction(&self, path2file: &Path) -> anyhow::Result<()> {
         let path2file = path2file.with_extension("csv");
         let total_variant_frac =
-            Variants::variant_fractions(&self.subclones, self.compute_tot_cells());
+            Variants::variant_fractions(&self.subclones, self.subclones.compute_tot_cells());
         if self.verbosity > 1 {
             println!("total variant fraction in {:#?}", path2file)
         }
@@ -322,29 +311,24 @@ impl Moran {
     }
 
     pub fn save(
-        &mut self,
+        &self,
         timepoint: usize,
-        cells2subsample: usize,
+        nb_cells: usize,
         rng: &mut impl Rng,
     ) -> anyhow::Result<()> {
-        //! Save the cells with their genotypes. Save also the variant fraction
-        //! that is the fraction of subclones present in the population.
+        //! Save `nb_cells` cells from the population. Save also the variant
+        //! fraction that is the fraction of subclones present in the
+        //! population.
         self.save_variant_fraction(&self.make_path(
             Stats2Save::VariantFraction,
-            cells2subsample,
+            nb_cells,
             timepoint,
         )?)?;
 
-        let cells = if cells2subsample == self.compute_tot_cells() as usize {
-            self.subclones
-                .iter()
-                .flat_map(|subclone| subclone.get_cells())
-                .collect()
+        let cells = if nb_cells == self.subclones.compute_tot_cells() as usize {
+            self.subclones.get_cells()
         } else {
-            self.subclones
-                .iter()
-                .flat_map(|subclone| subclone.get_cells())
-                .choose_multiple(rng, cells2subsample)
+            self.subclones.get_cells_subsampled(nb_cells, rng)
         };
 
         if self.verbosity > 1 {
@@ -354,7 +338,7 @@ impl Moran {
         save_cells(
             &cells,
             &self
-                .make_path(Stats2Save::Genotypes, cells2subsample, timepoint)?
+                .make_path(Stats2Save::Genotypes, nb_cells, timepoint)?
                 .with_extension("json"),
         )?;
 
@@ -386,8 +370,7 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
         //! 2. if the next proliferation is performed asymmetricaly, continue
         //! to step 3. Else, clone the proliferating cell and assign it to the
         //! subclone with id `reaction` (from step 1); next randomly select
-        //! another cell from another clone to keep to population constant if
-        //! the process is not in the exponentially growing phase
+        //! another cell from another clone to keep to population constant
         //!
         //! 3. for the proliferating cell only (not the clone from 2):
         //!     * mutate genome by storing the division id, see
@@ -399,7 +382,9 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
         // that is the clone with id `reaction.event`.
         // Pick random proliferating cells from this clone. **Note that this
         // removes the cells from the clone with id `reaction.event`.**
-        let mut stem_cell = self.proliferating_cell(reaction.event, rng);
+        let mut stem_cell =
+            proliferating_cell(&mut self.subclones, reaction.event, self.verbosity, rng);
+        self.counter_divisions += 1;
 
         if self.distributions.can_only_be_symmetric()
             || !self.distributions.bern_asymmetric.sample(rng)
@@ -409,7 +394,9 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
                 println!("keeping the cell population constant");
             }
             self.keep_const_population_upon_symmetric_division(reaction.event, rng);
-            self.subclones[reaction.event].assign_cell(stem_cell.clone());
+            self.subclones
+                .get_mut_clone_unchecked(reaction.event)
+                .assign_cell(stem_cell.clone());
         }
 
         if self.verbosity > 2 {
@@ -424,7 +411,14 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
         // removed the cells from the clone)
         // 2. the stem cell is assigned to a new clone with id different
         // from `reaction.event`.
-        self.assign(reaction.event, stem_cell, rng);
+        assign(
+            &mut self.subclones,
+            reaction.event,
+            stem_cell,
+            &self.distributions,
+            rng,
+            self.verbosity,
+        );
 
         self.time += reaction.time;
         // take snapshot
@@ -453,7 +447,7 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
                         self.snapshot.len()
                     );
                 }
-                let mut cells2save = vec![self.compute_tot_cells() as usize];
+                let mut cells2save = vec![self.subclones.compute_tot_cells() as usize];
                 if let Some(subsampling) = self.cells2subsample.as_ref() {
                     for cell in subsampling {
                         cells2save.push(*cell);
@@ -469,9 +463,7 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
     }
 
     fn update_state(&self, state: &mut CurrentState<MAX_SUBCLONES>) {
-        for i in 0..state.population.len() {
-            state.population[i] = self.subclones[i].cell_count();
-        }
+        state.population = Variants::variant_counts(&self.subclones);
     }
 }
 
@@ -535,7 +527,6 @@ mod tests {
     use quickcheck_macros::quickcheck;
     use rand::SeedableRng;
     use rand_chacha::ChaCha8Rng;
-    use rand_distr::Uniform;
 
     #[should_panic]
     #[test]
@@ -575,69 +566,9 @@ mod tests {
     }
 
     #[quickcheck]
-    fn division_no_new_clone(lambda: LambdaFromNonZeroU8, seed: u64) -> bool {
-        let mut rng = ChaCha8Rng::seed_from_u64(seed);
-        let distr = Distributions::new(1., lambda.0, 0f64, 0);
-
-        let mut neutral_clone = SubClone::new(1, 2);
-        let cell = StemCell::new();
-
-        assign(&mut neutral_clone, cell, &distr, &mut rng).is_none()
-    }
-
-    #[quickcheck]
-    fn division_new_clone(lambda: LambdaFromNonZeroU8, seed: u64) -> bool {
-        let mut rng = ChaCha8Rng::seed_from_u64(seed);
-        let distr = Distributions::new(1., lambda.0, 1f64, 0);
-
-        let mut neutral_clone = SubClone::new(1, 2);
-        let cell = StemCell::new();
-
-        assign(&mut neutral_clone, cell, &distr, &mut rng).is_some()
-    }
-
-    #[test]
-    fn variant_fraction() {
-        let hsc = Moran::default();
-        assert_eq!(
-            Variants::variant_fractions(&hsc.subclones, hsc.compute_tot_cells()),
-            [1. / MAX_SUBCLONES as f32; MAX_SUBCLONES]
-        );
-    }
-
-    #[quickcheck]
-    fn proliferating_cell_test(seed: u64, mut subclone_id: u8) -> bool {
-        let mut rng = ChaCha8Rng::seed_from_u64(seed);
-        let mut hsc = Moran::default();
-        if subclone_id >= hsc.subclones.len() as u8 {
-            subclone_id = rng.sample(Uniform::new(0, hsc.subclones.len())) as u8;
-        }
-        let number_of_cells = hsc.subclones[subclone_id as usize].get_cells().len();
-        let tot_cells = hsc.compute_tot_cells();
-
-        let _ = hsc.proliferating_cell(subclone_id as usize, &mut rng);
-
-        let subclones_have_lost_cell =
-            Variants::variant_counts(&hsc.subclones).iter().sum::<u64>() < tot_cells;
-        let subclone_has_lost_cell =
-            hsc.subclones[subclone_id as usize].get_cells().len() == number_of_cells - 1;
-        subclones_have_lost_cell && subclone_has_lost_cell
-    }
-
-    #[quickcheck]
     fn poisson_neutral_mutations(seed: u64) -> bool {
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
         let poisson = Poisson::new(0.0001).unwrap();
         NeutralMutationPoisson(poisson).nb_neutral_mutations(&mut rng) < 2
-    }
-
-    #[test]
-    #[should_panic]
-    fn assign_all_clones_occupied() {
-        let mut process = Moran::default();
-        process.distributions.bern = Bernoulli::new(1.).unwrap();
-        let cell = StemCell::new();
-        let mut rng = ChaCha8Rng::seed_from_u64(26);
-        process.assign(0, cell, &mut rng);
     }
 }
