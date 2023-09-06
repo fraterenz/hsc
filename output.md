@@ -45,7 +45,7 @@ test/
 │   │   │   ├── 1.csv
 │   │   │   └── ...
 │   │   └── ...
-│   ├── stats # site frequency spectrum vector for the entropy
+│   ├── stats # mapping between proliferative events and nb of neutral muts
 │   │   │   ├── 0.csv
 │   │   │   ├── 1.csv
 │   │   │   └── ...
@@ -80,5 +80,5 @@ Note that the order of the timepoints is reversed, hence timepoint 1 is the one 
 - **sfs_entropy:** same as sfs but the SFS is computed considering all cells at the timepoint of interest but counting only the variants that were present at a certain time in the past
 - **stats:** a serialised struct storing the mapping between the proliferative events and the number of neutral mutations in the total population at the end of the simulation. Note that the entry `cell_count` is not correct, use this struct only with `poisson_mut_number`
 - **variant_fraction**: the abbundance of all subclones
-- **rates:** the birth-rates of the subclones, for now b0 * (1 + s) for all clones except wild-type which has proliferation rate equal to b0
+- **rates:** the birth-rates of the subclones, where the first entry represents the birth-rate of the wild-type `b0`
 
