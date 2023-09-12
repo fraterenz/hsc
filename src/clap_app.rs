@@ -59,7 +59,8 @@ pub struct Cli {
     neutral_rate: f32,
     #[command(flatten)]
     fitness: FitnessArg,
-    /// Start simulations with an exponential growth phase
+    /// Start simulations with an exponential growth phase with neutral mutation
+    /// rate of  neutral_rate / 4
     #[arg(long, action = ArgAction::SetTrue, default_value_t = false)]
     exponential: bool,
     /// probability of getting an asymmetric division per each proliferate event
@@ -141,7 +142,10 @@ impl Cli {
 
         // convert into rates per cell division
         let u = (mu0 / (b0 * max_cells as f32)) as f64;
-        let m = cli.neutral_rate / b0;
+        let mut m = cli.neutral_rate / b0;
+        if cli.exponential {
+            m /= 4.;
+        }
 
         let probabilities = CellDivisionProbabilities {
             p_asymmetric: cli.p_asymmetric,

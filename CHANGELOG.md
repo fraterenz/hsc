@@ -1,5 +1,8 @@
 # Changelog
 
+# 0.16.1
+- reduce the neutral mutation rate during the growing phase by setting it to `neutral_rate / 4`
+
 # 0.16.0
 - neutral scenario in clap app
 - initial exponential growing phase
