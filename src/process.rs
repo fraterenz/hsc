@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
 pub struct ProcessOptions {
-    pub probabilities: Distributions,
+    pub distributions: Distributions,
     pub snapshot_entropy: f32,
     pub path: PathBuf,
     pub cells2subsample: Option<Vec<usize>>,
@@ -59,7 +59,7 @@ impl Exponential {
     ) -> Exponential {
         let hsc = Exponential {
             subclones: initial_subclones,
-            distributions: process_options.probabilities,
+            distributions: process_options.distributions,
             counter_divisions: 0,
             id,
             verbosity,
@@ -84,7 +84,7 @@ impl Exponential {
             snapshot,
             path2dir: process_options.path,
             verbosity: self.verbosity,
-            distributions: process_options.probabilities,
+            distributions: process_options.distributions,
         }
     }
 }
@@ -171,7 +171,7 @@ pub struct Moran {
 impl Default for Moran {
     fn default() -> Self {
         let process_options = ProcessOptions {
-            probabilities: Distributions {
+            distributions: Distributions {
                 poisson: NeutralMutationPoisson(Poisson::new(1.).unwrap()),
                 bern: Bernoulli::new(0.1).unwrap(),
                 bern_asymmetric: Bernoulli::new(0.).unwrap(),
@@ -208,7 +208,7 @@ impl Moran {
         let snapshot = VecDeque::from(snapshot);
         let hsc = Moran {
             subclones: initial_subclones,
-            distributions: process_options.probabilities,
+            distributions: process_options.distributions,
             counter_divisions: 0,
             id,
             path2dir: process_options.path,

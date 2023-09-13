@@ -226,7 +226,7 @@ fn main() {
         // let rates = subclones.gillespie_rates(app.fitness, app.b0);
         let rates = subclones.gillespie_rates(&app.fitness, app.b0, rng);
 
-        let mut moran = if let Some(options) = app.options_exponential {
+        let mut moran = if let Some(options) = app.options_exponential.as_ref() {
             let mut exp = Exponential::new(
                 options.process_options.clone(),
                 subclones,

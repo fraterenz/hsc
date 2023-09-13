@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 
 use clap::{ArgAction, Args, Parser};
-use hsc::process::{CellDivisionProbabilities, ProcessOptions};
+use hsc::process::{Distributions, ProcessOptions};
 use sosa::{IterTime, NbIndividuals, Options};
 
-use crate::{AppOptions, Fitness};
+use crate::{AppOptions, Fitness, SimulationOptions};
 
 #[derive(Clone, Debug)]
 pub enum Parallel {
@@ -36,14 +36,15 @@ struct FitnessArg {
 }
 
 #[derive(Args, Debug, Clone)]
-#[group(required = true, multiple = false)]
+#[group(required = true, multiple = true)]
 struct NeutralMutationRate {
-    /// Poisson rate for the exponential growing phase
+    /// Poisson rate for the exponential growing phase, leave empty to simulate
+    /// just a Moran process with fixed population size
     #[arg(long, short)]
     exponential: Option<f32>,
     /// Poisson rate for the constant population phase
     #[arg(long, short)]
-    moran: Option<f32>,
+    moran: f32,
 }
 
 #[derive(Debug, Parser)] // requires `derive` feature
@@ -70,10 +71,6 @@ pub struct Cli {
     neutral_rate: NeutralMutationRate,
     #[command(flatten)]
     fitness: FitnessArg,
-    /// Start simulations with an exponential growth phase with neutral mutation
-    /// rate of  neutral_rate / 4
-    #[arg(long, action = ArgAction::SetTrue, default_value_t = false)]
-    exponential: bool,
     /// probability of getting an asymmetric division per each proliferate event
     #[arg(long, default_value_t = 0.)]
     p_asymmetric: f64,
@@ -153,48 +150,59 @@ impl Cli {
 
         // convert into rates per cell division
         let u = (mu0 / (b0 * max_cells as f32)) as f64;
-        let process_options = ProcessOptions {
-            probabilities,
-            snapshot_entropy,
-            path: cli.path,
-            cells2subsample: cli.subsample,
-        };
+        let m = cli.neutral_rate.moran / b0;
 
-        let options_moran, options_exponential  = match cli.neutral_rate.exponential {
-            Some(rate) => todo!("rate / b0");
-            None => {
-                if let Some(rate) = cli.neutral_rate.moran {
-                    todo!("rate / b0");
-                    rate / b0, None
-                } else {
-                    panic!("found emtpy mutation rates");
-                }
-            }
-        };
+        let distributions = Distributions::new(cli.p_asymmetric, m, u, verbosity);
 
-        let options_moran = Options {
-            max_iter_time: IterTime {
-                iter: max_iter,
-                time: years as f32,
-            },
-            max_cells,
-            init_iter: 0,
-            verbosity,
-        };
-        let options_exponential = Options {
-            max_iter_time: IterTime {
-                iter: usize::MAX,
-                time: f32::INFINITY,
-            },
-            max_cells: max_cells - 1,
-            init_iter: 0,
-            verbosity,
-        };
         let snapshot_entropy = if let Some(snapshot_entropy) = cli.snapshot_entropy {
             snapshot_entropy
         } else {
             snapshots[1]
         };
+
+        // Moran
+        let process_options = ProcessOptions {
+            distributions,
+            snapshot_entropy,
+            path: cli.path.clone(),
+            cells2subsample: cli.subsample.clone(),
+        };
+        let options_moran = SimulationOptions {
+            process_options,
+            gillespie_options: Options {
+                max_iter_time: IterTime {
+                    iter: max_iter,
+                    time: years as f32,
+                },
+                max_cells,
+                init_iter: 0,
+                verbosity,
+            },
+        };
+
+        // Exp
+        let options_exponential = cli.neutral_rate.exponential.map(|rate| {
+            let m = rate / b0;
+            let distributions = Distributions::new(cli.p_asymmetric, m, u, verbosity);
+            let process_options = ProcessOptions {
+                distributions,
+                snapshot_entropy,
+                path: cli.path,
+                cells2subsample: cli.subsample,
+            };
+            SimulationOptions {
+                process_options,
+                gillespie_options: Options {
+                    max_iter_time: IterTime {
+                        iter: usize::MAX,
+                        time: f32::INFINITY,
+                    },
+                    max_cells: max_cells - 1,
+                    init_iter: 0,
+                    verbosity,
+                },
+            }
+        });
 
         AppOptions {
             parallel,
