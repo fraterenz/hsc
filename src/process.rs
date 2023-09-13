@@ -12,11 +12,10 @@ use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
 pub struct ProcessOptions {
-    pub probabilities: CellDivisionProbabilities,
+    pub probabilities: Distributions,
     pub snapshot_entropy: f32,
     pub path: PathBuf,
     pub cells2subsample: Option<Vec<usize>>,
-    pub exponential: bool,
 }
 
 #[derive(Hash, PartialEq, Eq)]
@@ -58,15 +57,9 @@ impl Exponential {
         id: usize,
         verbosity: u8,
     ) -> Exponential {
-        let distributions = Distributions::new(
-            process_options.probabilities.p_asymmetric,
-            process_options.probabilities.lambda_poisson,
-            process_options.probabilities.p,
-            verbosity,
-        );
         let hsc = Exponential {
             subclones: initial_subclones,
-            distributions,
+            distributions: process_options.probabilities,
             counter_divisions: 0,
             id,
             verbosity,
@@ -91,7 +84,7 @@ impl Exponential {
             snapshot,
             path2dir: process_options.path,
             verbosity: self.verbosity,
-            distributions: self.distributions,
+            distributions: process_options.probabilities,
         }
     }
 }
@@ -178,15 +171,15 @@ pub struct Moran {
 impl Default for Moran {
     fn default() -> Self {
         let process_options = ProcessOptions {
-            probabilities: CellDivisionProbabilities {
-                p_asymmetric: 0.,
-                lambda_poisson: 1.,
-                p: 0.1,
+            probabilities: Distributions {
+                poisson: NeutralMutationPoisson(Poisson::new(1.).unwrap()),
+                bern: Bernoulli::new(0.1).unwrap(),
+                bern_asymmetric: Bernoulli::new(0.).unwrap(),
+                no_asymmetric_division: true,
             },
             snapshot_entropy: 0.1,
             path: PathBuf::from("./output"),
             cells2subsample: None,
-            exponential: false,
         };
 
         Moran::new(
@@ -211,17 +204,11 @@ impl Moran {
         time: f32,
         verbosity: u8,
     ) -> Moran {
-        let distributions = Distributions::new(
-            process_options.probabilities.p_asymmetric,
-            process_options.probabilities.lambda_poisson,
-            process_options.probabilities.p,
-            verbosity,
-        );
         snapshot.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let snapshot = VecDeque::from(snapshot);
         let hsc = Moran {
             subclones: initial_subclones,
-            distributions,
+            distributions: process_options.probabilities,
             counter_divisions: 0,
             id,
             path2dir: process_options.path,
@@ -489,8 +476,10 @@ impl NeutralMutationPoisson {
 #[derive(Debug, Clone)]
 pub struct Distributions {
     pub poisson: NeutralMutationPoisson,
-    bern: Bernoulli,
-    bern_asymmetric: Bernoulli,
+    /// probability of fit mutations upon cell proliferation
+    pub bern: Bernoulli,
+    /// probability of asymmetric division upon cell proliferation
+    pub bern_asymmetric: Bernoulli,
     no_asymmetric_division: bool,
 }
 

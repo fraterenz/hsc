@@ -16,7 +16,6 @@ use hsc::{
 use indicatif::ParallelProgressIterator;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
-// use rand_distr::{Distribution, Exp};
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use sosa::{simulate, CurrentState, Options};
 
@@ -59,15 +58,20 @@ impl Paths2Stats {
 
 #[derive(Clone, Debug)]
 pub struct SimulationOptions {
+    process_options: ProcessOptions,
+    gillespie_options: Options,
+}
+
+#[derive(Clone, Debug)]
+pub struct AppOptions {
     fitness: Fitness,
     runs: usize,
     /// division rate for the wild-type
     b0: f32,
     seed: u64,
     parallel: Parallel,
-    options_moran: Options,
-    options_exponential: Options,
-    process_options: ProcessOptions,
+    options_moran: SimulationOptions,
+    options_exponential: Option<SimulationOptions>,
     pub snapshots: Vec<f32>,
 }
 
@@ -189,11 +193,7 @@ fn save_measurements(process: &Moran, rng: &mut ChaCha8Rng) -> anyhow::Result<()
 fn main() {
     let app = Cli::build();
 
-    if app.options_moran.verbosity > 1 {
-        println!(
-            "rate of fit variants per cell division {}",
-            app.process_options.probabilities.p
-        );
+    if app.options_moran.gillespie_options.verbosity > 1 {
         println!("app: {:#?}", app);
     }
 
@@ -206,12 +206,15 @@ fn main() {
 
     let run_simulations = |idx| {
         // initial state
-        let cells = if app.process_options.exponential {
+        let cells = if app.options_exponential.is_some() {
             vec![StemCell::new()]
         } else {
-            vec![StemCell::new(); app.options_moran.max_cells as usize - 1]
+            vec![StemCell::new(); app.options_moran.gillespie_options.max_cells as usize - 1]
         };
-        let subclones = SubClones::new(cells, app.options_moran.max_cells as usize);
+        let subclones = SubClones::new(
+            cells,
+            app.options_moran.gillespie_options.max_cells as usize,
+        );
         let state = &mut CurrentState {
             population: Variants::variant_counts(&subclones),
         };
@@ -223,12 +226,12 @@ fn main() {
         // let rates = subclones.gillespie_rates(app.fitness, app.b0);
         let rates = subclones.gillespie_rates(&app.fitness, app.b0, rng);
 
-        let mut moran = if app.process_options.exponential {
+        let mut moran = if let Some(options) = app.options_exponential {
             let mut exp = Exponential::new(
-                app.process_options.clone(),
+                options.process_options.clone(),
                 subclones,
                 idx,
-                app.options_exponential.verbosity,
+                options.gillespie_options.verbosity,
             );
 
             let stop = simulate(
@@ -236,10 +239,10 @@ fn main() {
                 &rates,
                 &possible_reactions,
                 &mut exp,
-                &app.options_exponential,
+                &options.gillespie_options,
                 rng,
             );
-            if app.options_exponential.verbosity > 1 {
+            if options.gillespie_options.verbosity > 1 {
                 println!(
                     "exponential simulation {} stopped because {:#?}, nb cells {}",
                     idx,
@@ -248,15 +251,18 @@ fn main() {
                 );
             }
 
-            exp.switch_to_moran(app.process_options.clone(), app.snapshots.clone())
+            exp.switch_to_moran(
+                app.options_moran.process_options.clone(),
+                app.snapshots.clone(),
+            )
         } else {
             Moran::new(
-                app.process_options.clone(),
+                app.options_moran.process_options.clone(),
                 subclones,
                 app.snapshots.clone(),
                 idx,
                 0.,
-                app.options_moran.verbosity,
+                app.options_moran.gillespie_options.verbosity,
             )
         };
 
@@ -265,10 +271,10 @@ fn main() {
             &rates,
             &possible_reactions,
             &mut moran,
-            &app.options_moran,
+            &app.options_moran.gillespie_options,
             rng,
         );
-        if app.options_moran.verbosity > 1 {
+        if app.options_moran.gillespie_options.verbosity > 1 {
             println!("Moran simulation {} stopped because {:#?}", idx, stop);
         }
 

@@ -4,7 +4,7 @@ use clap::{ArgAction, Args, Parser};
 use hsc::process::{CellDivisionProbabilities, ProcessOptions};
 use sosa::{IterTime, NbIndividuals, Options};
 
-use crate::{Fitness, SimulationOptions};
+use crate::{AppOptions, Fitness};
 
 #[derive(Clone, Debug)]
 pub enum Parallel {
@@ -35,6 +35,17 @@ struct FitnessArg {
     mean_std: Option<Vec<f32>>,
 }
 
+#[derive(Args, Debug, Clone)]
+#[group(required = true, multiple = false)]
+struct NeutralMutationRate {
+    /// Poisson rate for the exponential growing phase
+    #[arg(long, short)]
+    exponential: Option<f32>,
+    /// Poisson rate for the constant population phase
+    #[arg(long, short)]
+    moran: Option<f32>,
+}
+
 #[derive(Debug, Parser)] // requires `derive` feature
 #[command(name = "hsc", version, about = "TODO")]
 pub struct Cli {
@@ -55,8 +66,8 @@ pub struct Cli {
     mu0: f32,
     /// avg number of neutral mutations per each proliferative event assuming a
     /// Poisson distribution, units: mutation / (cell * year)
-    #[arg(long, default_value_t = 1.)]
-    neutral_rate: f32,
+    #[command(flatten)]
+    neutral_rate: NeutralMutationRate,
     #[command(flatten)]
     fitness: FitnessArg,
     /// Start simulations with an exponential growth phase with neutral mutation
@@ -108,7 +119,7 @@ impl Cli {
         x
     }
 
-    pub fn build() -> SimulationOptions {
+    pub fn build() -> AppOptions {
         let cli = Cli::parse();
 
         let fitness = if let Some(s) = cli.fitness.s {
@@ -142,15 +153,23 @@ impl Cli {
 
         // convert into rates per cell division
         let u = (mu0 / (b0 * max_cells as f32)) as f64;
-        let mut m = cli.neutral_rate / b0;
-        if cli.exponential {
-            m /= 4.;
-        }
+        let process_options = ProcessOptions {
+            probabilities,
+            snapshot_entropy,
+            path: cli.path,
+            cells2subsample: cli.subsample,
+        };
 
-        let probabilities = CellDivisionProbabilities {
-            p_asymmetric: cli.p_asymmetric,
-            lambda_poisson: m,
-            p: u,
+        let options_moran, options_exponential  = match cli.neutral_rate.exponential {
+            Some(rate) => todo!("rate / b0");
+            None => {
+                if let Some(rate) = cli.neutral_rate.moran {
+                    todo!("rate / b0");
+                    rate / b0, None
+                } else {
+                    panic!("found emtpy mutation rates");
+                }
+            }
         };
 
         let options_moran = Options {
@@ -176,22 +195,14 @@ impl Cli {
         } else {
             snapshots[1]
         };
-        let process_options = ProcessOptions {
-            probabilities,
-            snapshot_entropy,
-            path: cli.path,
-            cells2subsample: cli.subsample,
-            exponential: cli.exponential,
-        };
 
-        SimulationOptions {
+        AppOptions {
             parallel,
             fitness,
             runs,
             b0,
             seed: cli.seed,
             snapshots,
-            process_options,
             options_moran,
             options_exponential,
         }
