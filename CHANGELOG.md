@@ -1,14 +1,14 @@
 # Changelog
 
-# 0.17.0
+## 0.17.0
 - clap app has two neutral rates, one for the Moran process and the other optional one for the exponential growing phase
 ### BugFix
 - the neutral rate for the exponential growth was used also for the Moran process
 
-# 0.16.1
+## 0.16.1
 - reduce the neutral mutation rate during the growing phase by setting it to `neutral_rate / 4`
 
-# 0.16.0
+## 0.16.0
 - neutral scenario in clap app
 - initial exponential growing phase
 
