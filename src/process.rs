@@ -73,9 +73,11 @@ impl Exponential {
         hsc
     }
 
-    pub fn switch_to_moran(self, process_options: ProcessOptions, mut snapshot: Vec<f32>) -> Moran {
-        snapshot.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        let snapshot = VecDeque::from(snapshot);
+    pub fn switch_to_moran(
+        self,
+        process_options: ProcessOptions,
+        snapshot: VecDeque<f32>,
+    ) -> Moran {
         Moran {
             subclones: self.subclones,
             counter_divisions: self.counter_divisions,
@@ -484,18 +486,6 @@ impl Distributions {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[should_panic]
-    #[test]
-    fn new_distribution_wrong_lambda_test() {
-        Distributions::new(1., 0.9, 0);
-    }
-
-    #[should_panic]
-    #[test]
-    fn new_distribution_wrong_lambda_neg_test() {
-        Distributions::new(1., 0.9, 0);
-    }
 
     #[should_panic]
     #[test]

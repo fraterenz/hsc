@@ -22,11 +22,11 @@ pub enum Parallel {
 struct FitnessArg {
     /// Neutral scenario with all clones having the same fitness coefficient of
     /// 0
-    #[arg(long, short, action = ArgAction::SetTrue)]
+    #[arg(long, action = ArgAction::SetTrue)]
     neutral: Option<bool>,
     /// proliferative advantage conferred by fit mutations assuming all clones
     /// have the same advantange, units: mutation / cell
-    #[arg(long, short)]
+    #[arg(long)]
     s: Option<f32>,
     // /// The Gamma distribution used to sample the fitness coefficients
     // /// representing the proliferative advantage conferred by fit mutations

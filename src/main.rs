@@ -1,4 +1,5 @@
 use std::{
+    collections::VecDeque,
     fs,
     path::{Path, PathBuf},
 };
@@ -94,17 +95,10 @@ fn find_timepoints(path: &Path, cells: usize) -> Vec<u8> {
     timepoints
 }
 
-fn save_exponential(
-    process: &Moran,
-    poisson: &NeutralMutationPoisson,
-    rng: &mut ChaCha8Rng,
-) -> anyhow::Result<StatisticsMutations> {
-    todo!();
-}
-
 fn save_measurements(
     process: &Moran,
     poisson: &NeutralMutationPoisson,
+    exp_poisson: Option<&NeutralMutationPoisson>,
     rng: &mut ChaCha8Rng,
 ) -> anyhow::Result<()> {
     let mut cells2save = vec![process.subclones.compute_tot_cells() as usize];
@@ -114,34 +108,50 @@ fn save_measurements(
         }
     };
 
-    for cell2save in cells2save {
-        let timepoints = find_timepoints(&process.path2dir, cell2save);
-        // last timepoint first to create the stats
-        let last_t = timepoints
-            .first()
-            .expect("found empty timepoints")
-            .to_owned() as usize;
+    // CREATE STATS
+    let timepoints = find_timepoints(&process.path2dir, cells2save[0]);
+    // first timepoint first to create the stats
+    let first_t = timepoints
+        .last()
+        .expect("found empty timepoints")
+        .to_owned() as usize;
+    if process.verbosity > 1 {
+        println!("found the most recent timepoint {}", first_t);
+    }
+    let paths_first_t_genotypes =
+        Paths2Stats::make_paths(process, cells2save[0], first_t)?.genotypes;
+    let cells = load_cells(&paths_first_t_genotypes)
+        .unwrap_or_else(|_| panic!("cannot load cells from {:#?}", paths_first_t_genotypes));
+    if process.verbosity > 0 {
+        println!(
+            "computing the stats for the first timepoint {} with {} cells",
+            first_t,
+            cells.len()
+        );
         if process.verbosity > 1 {
-            println!("found the most recent timepoint {}", last_t);
+            println!("cells: {:#?}", cells);
         }
-        let paths_last_t_genotypes = Paths2Stats::make_paths(process, cell2save, last_t)?.genotypes;
-        let cells = load_cells(&paths_last_t_genotypes)
-            .unwrap_or_else(|_| panic!("cannot load cells from {:#?}", paths_last_t_genotypes));
-        if process.verbosity > 0 {
-            println!(
-                "computing the stats for the last timepoint {} with {} cells",
-                last_t,
-                cells.len()
-            );
-            if process.verbosity > 1 {
-                println!("cells: {:#?}", cells);
-            }
-        }
-        // these stats are the most complete and will be used later on for the
-        // other timepoints as well
-        let mut stats = StatisticsMutations::from_cells(&cells, &poisson, rng, process.verbosity)
-            .with_context(|| "cannot construct the stats for the burden")?;
+    }
+    // create cells with the exponential if present
+    let stats = &mut StatisticsMutations::from_cells(
+        &cells,
+        exp_poisson.unwrap_or(poisson),
+        rng,
+        process.verbosity,
+    )
+    .with_context(|| "cannot construct the stats for the burden")?;
+    // DEAL WITH ENTROPY
+    // remove all entries that do not satisfy the condition, i.e.
+    // proliferation events that occurred after `process.snapshot_entropy`
+    let stats4entropy = process
+        .proliferation_event_entropy
+        .map(|proliferation_event_entropy| {
+            stats
+                .clone()
+                .from_stats_removing_recent_entries(proliferation_event_entropy, process.verbosity)
+        });
 
+    for cell2save in cells2save {
         for t in timepoints.iter() {
             let paths_t = Paths2Stats::make_paths(process, cell2save, *t as usize)?;
             if let Ok(cells) = load_cells(&paths_t.genotypes) {
@@ -149,49 +159,37 @@ fn save_measurements(
                 // using the stats from the oldest timepoint
                 MutationalBurden::from_cells_update_stats(
                     &cells,
-                    &mut stats,
-                    &poisson,
+                    stats,
+                    poisson,
                     rng,
                     process.verbosity,
                 )
                 .unwrap_or_else(|_| panic!("cannot create burden from stats for timepoint {}", t))
                 .save(&paths_t.burden)?;
                 // save the sfs now that the stats have been updated
-                Sfs::from_cells(&cells, &stats, process.verbosity)
+                Sfs::from_cells(&cells, stats, process.verbosity)
                     .unwrap_or_else(|_| panic!("cannot create SFS from stats for timepoint {}", t))
                     .save(&paths_t.sfs)?;
-            }
-        }
-        stats.save(&process.make_path(
-            Stats2Save::Stats,
-            cell2save,
-            *timepoints.first().unwrap() as usize,
-        )?)?;
-
-        // DEAL WITH ENTROPY
-        // remove all entries that do not satisfy the condition, i.e.
-        // proliferation events that occurred after `process.snapshot_entropy`
-        let stats4entropy = stats.from_stats_removing_recent_entries(
-            process
-                .proliferation_event_entropy
-                .expect("No proliferation_event_entropy found"),
-            process.verbosity,
-        );
-        for t in timepoints.into_iter() {
-            let paths_t = Paths2Stats::make_paths(process, cell2save, t as usize)?;
-            if let Ok(cells) = load_cells(&paths_t.genotypes) {
-                // dont use `from_cells_update_stats` since we want to keep only the
-                // mutations that were present at early ages for the entropy
-                MutationalBurden::from_cells(&cells, &stats4entropy, process.verbosity)
-                    .expect("cannot create burden from stats for the entropy")
-                    .save(&paths_t.burden_entropy)?;
-                if process.verbosity > 1 {
-                    println!("saving the sfs entropy");
+                if let Some(stats4entr) = &stats4entropy {
+                    // DEAL WITH ENTROPY
+                    // dont use `from_cells_update_stats` since we want to keep only the
+                    // mutations that were present at early ages for the entropy
+                    MutationalBurden::from_cells(&cells, stats4entr, process.verbosity)
+                        .expect("cannot create burden from stats for the entropy")
+                        .save(&paths_t.burden_entropy)?;
+                    if process.verbosity > 1 {
+                        println!("saving the sfs entropy");
+                    }
+                    Sfs::from_cells(&cells, stats4entr, process.verbosity)
+                        .expect("cannot create SFS entropy from stats")
+                        .save(&paths_t.sfs_entropy)?;
                 }
-                Sfs::from_cells(&cells, &stats4entropy, process.verbosity)
-                    .expect("cannot create SFS entropy from stats")
-                    .save(&paths_t.sfs_entropy)?;
             }
+            stats.save(&process.make_path(
+                Stats2Save::Stats,
+                cell2save,
+                *timepoints.first().unwrap() as usize,
+            )?)?;
         }
     }
     Ok(())
@@ -231,6 +229,9 @@ fn main() {
         rng.set_stream(idx as u64);
 
         let rates = subclones.gillespie_rates(&app.fitness, app.b0, rng);
+        let mut snapshots = app.snapshots.clone();
+        snapshots.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let mut snapshots = VecDeque::from(snapshots);
 
         let mut moran = if let Some(options) = app.options_exponential.as_ref() {
             let mut exp = Exponential::new(
@@ -257,12 +258,17 @@ fn main() {
                 );
             }
 
-            let moran = exp.switch_to_moran(
-                app.options_moran.process_options.clone(),
-                app.snapshots.clone(),
-            );
-            save_measurements(&moran, &options.process_options.neutral_poisson, rng)
-                .expect("cannot save exponential process");
+            snapshots.pop_front();
+            let moran = exp.switch_to_moran(app.options_moran.process_options.clone(), snapshots);
+            save_measurements(
+                &moran,
+                &options.process_options.neutral_poisson,
+                app.options_exponential
+                    .as_ref()
+                    .map(|options| &options.process_options.neutral_poisson),
+                rng,
+            )
+            .expect("cannot save exponential process");
             moran
         } else {
             Moran::new(
@@ -293,6 +299,7 @@ fn main() {
         save_measurements(
             &moran,
             &app.options_moran.process_options.neutral_poisson,
+            None,
             rng,
         )
         .expect("cannot save");
