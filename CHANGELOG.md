@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.18.0
+- the first timepoint is saved at year 0 not at year 1
+
 ## 0.17.0
 - clap app has two neutral rates, one for the Moran process and the other optional one for the exponential growing phase
 ### BugFix

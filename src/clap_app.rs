@@ -106,7 +106,7 @@ pub struct Cli {
 impl Cli {
     fn build_snapshots_from_time(n_snapshots: usize, time: f32) -> Vec<f32> {
         let dx = time / ((n_snapshots - 1) as f32);
-        let mut x = vec![1.; n_snapshots];
+        let mut x = vec![0.; n_snapshots];
         for i in 1..n_snapshots - 1 {
             x[i] = x[i - 1] + dx;
         }
