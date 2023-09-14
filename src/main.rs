@@ -7,7 +7,7 @@ use anyhow::Context;
 use chrono::Utc;
 use clap_app::Parallel;
 use hsc::{
-    genotype::{MutationalBurden, Sfs, StatisticsMutations},
+    genotype::{MutationalBurden, NeutralMutationPoisson, Sfs, StatisticsMutations},
     process::{Exponential, Moran, ProcessOptions, Stats2Save},
     stemcell::{load_cells, StemCell},
     subclone::{Fitness, SubClones, Variants},
@@ -94,7 +94,19 @@ fn find_timepoints(path: &Path, cells: usize) -> Vec<u8> {
     timepoints
 }
 
-fn save_measurements(process: &Moran, rng: &mut ChaCha8Rng) -> anyhow::Result<()> {
+fn save_exponential(
+    process: &Moran,
+    poisson: &NeutralMutationPoisson,
+    rng: &mut ChaCha8Rng,
+) -> anyhow::Result<StatisticsMutations> {
+    todo!();
+}
+
+fn save_measurements(
+    process: &Moran,
+    poisson: &NeutralMutationPoisson,
+    rng: &mut ChaCha8Rng,
+) -> anyhow::Result<()> {
     let mut cells2save = vec![process.subclones.compute_tot_cells() as usize];
     if let Some(subsampling) = process.cells2subsample.as_ref() {
         for cell in subsampling {
@@ -127,13 +139,8 @@ fn save_measurements(process: &Moran, rng: &mut ChaCha8Rng) -> anyhow::Result<()
         }
         // these stats are the most complete and will be used later on for the
         // other timepoints as well
-        let mut stats = StatisticsMutations::from_cells(
-            &cells,
-            &process.distributions.poisson,
-            rng,
-            process.verbosity,
-        )
-        .with_context(|| "cannot construct the stats for the burden")?;
+        let mut stats = StatisticsMutations::from_cells(&cells, &poisson, rng, process.verbosity)
+            .with_context(|| "cannot construct the stats for the burden")?;
 
         for t in timepoints.iter() {
             let paths_t = Paths2Stats::make_paths(process, cell2save, *t as usize)?;
@@ -143,7 +150,7 @@ fn save_measurements(process: &Moran, rng: &mut ChaCha8Rng) -> anyhow::Result<()
                 MutationalBurden::from_cells_update_stats(
                     &cells,
                     &mut stats,
-                    &process.distributions.poisson,
+                    &poisson,
                     rng,
                     process.verbosity,
                 )
@@ -223,7 +230,6 @@ fn main() {
         let rng = &mut ChaCha8Rng::seed_from_u64(app.seed);
         rng.set_stream(idx as u64);
 
-        // let rates = subclones.gillespie_rates(app.fitness, app.b0);
         let rates = subclones.gillespie_rates(&app.fitness, app.b0, rng);
 
         let mut moran = if let Some(options) = app.options_exponential.as_ref() {
@@ -251,10 +257,13 @@ fn main() {
                 );
             }
 
-            exp.switch_to_moran(
+            let moran = exp.switch_to_moran(
                 app.options_moran.process_options.clone(),
                 app.snapshots.clone(),
-            )
+            );
+            save_measurements(&moran, &options.process_options.neutral_poisson, rng)
+                .expect("cannot save exponential process");
+            moran
         } else {
             Moran::new(
                 app.options_moran.process_options.clone(),
@@ -281,7 +290,12 @@ fn main() {
         if moran.verbosity > 1 {
             println!("saving the SFS for all timepoints");
         }
-        save_measurements(&moran, rng).expect("cannot save");
+        save_measurements(
+            &moran,
+            &app.options_moran.process_options.neutral_poisson,
+            rng,
+        )
+        .expect("cannot save");
         write2file(
             &rates.0,
             &moran.path2dir.join("rates").join(format!("{}.csv", idx)),

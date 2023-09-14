@@ -1,14 +1,16 @@
-use crate::genotype::{GenotypeId, NbPoissonMutations};
+use crate::genotype::{GenotypeId, NeutralMutationPoisson};
 use crate::stemcell::save_cells;
-use crate::subclone::{assign, proliferating_cell, CloneId, SubClones, Variants};
-use crate::{write2file, MAX_SUBCLONES};
+use crate::subclone::{
+    assign, proliferating_cell, save_variant_fraction, CloneId, SubClones, Variants,
+};
+use crate::MAX_SUBCLONES;
 use anyhow::Context;
 use rand::Rng;
 use rand_distr::{Bernoulli, Distribution, Poisson, WeightedIndex};
 use sosa::{AdvanceStep, CurrentState, NextReaction};
 use std::collections::VecDeque;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
 pub struct ProcessOptions {
@@ -16,6 +18,7 @@ pub struct ProcessOptions {
     pub snapshot_entropy: f32,
     pub path: PathBuf,
     pub cells2subsample: Option<Vec<usize>>,
+    pub neutral_poisson: NeutralMutationPoisson,
 }
 
 #[derive(Hash, PartialEq, Eq)]
@@ -172,7 +175,6 @@ impl Default for Moran {
     fn default() -> Self {
         let process_options = ProcessOptions {
             distributions: Distributions {
-                poisson: NeutralMutationPoisson(Poisson::new(1.).unwrap()),
                 bern: Bernoulli::new(0.1).unwrap(),
                 bern_asymmetric: Bernoulli::new(0.).unwrap(),
                 no_asymmetric_division: true,
@@ -180,6 +182,7 @@ impl Default for Moran {
             snapshot_entropy: 0.1,
             path: PathBuf::from("./output"),
             cells2subsample: None,
+            neutral_poisson: NeutralMutationPoisson(Poisson::new(1.).unwrap()),
         };
 
         Moran::new(
@@ -262,17 +265,6 @@ impl Moran {
         }
     }
 
-    fn save_variant_fraction(&self, path2file: &Path) -> anyhow::Result<()> {
-        let path2file = path2file.with_extension("csv");
-        let total_variant_frac =
-            Variants::variant_fractions(&self.subclones, self.subclones.compute_tot_cells());
-        if self.verbosity > 1 {
-            println!("total variant fraction in {:#?}", path2file)
-        }
-        write2file(&total_variant_frac, &path2file, None, false)?;
-        Ok(())
-    }
-
     pub fn make_path(
         &self,
         tosave: Stats2Save,
@@ -306,11 +298,11 @@ impl Moran {
         //! Save `nb_cells` cells from the population. Save also the variant
         //! fraction that is the fraction of subclones present in the
         //! population.
-        self.save_variant_fraction(&self.make_path(
-            Stats2Save::VariantFraction,
-            nb_cells,
-            timepoint,
-        )?)?;
+        save_variant_fraction(
+            &self.subclones,
+            &self.make_path(Stats2Save::VariantFraction, nb_cells, timepoint)?,
+            self.verbosity,
+        )?;
 
         let cells = if nb_cells == self.subclones.compute_tot_cells() as usize {
             self.subclones.get_cells()
@@ -454,28 +446,9 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
     }
 }
 
-/// The Poisson probability distribution modeling the appearance of neutral
-/// mutations upon cell-division, aka neutral mutations are assumed to follow
-/// a [Poisson point process](https://en.wikipedia.org/wiki/Poisson_point_process).
-#[derive(Debug, Clone)]
-pub struct NeutralMutationPoisson(pub Poisson<f32>);
-
-impl NeutralMutationPoisson {
-    pub fn nb_neutral_mutations(&self, rng: &mut impl Rng) -> NbPoissonMutations {
-        //! The number of neutral mutations acquired upon cell division.
-        let mut mutations = self.0.sample(rng);
-        while mutations >= u8::MAX as f32 || mutations.is_sign_negative() || mutations.is_nan() {
-            mutations = self.0.sample(rng);
-        }
-        mutations as u16
-    }
-}
-
-/// Distribution probabilities used to model acquisition of neutral and
-/// conferring-fitness mutations upon cell division.
+/// Distribution probabilities for the simulations upon cell division.
 #[derive(Debug, Clone)]
 pub struct Distributions {
-    pub poisson: NeutralMutationPoisson,
     /// probability of fit mutations upon cell proliferation
     pub bern: Bernoulli,
     /// probability of asymmetric division upon cell proliferation
@@ -484,15 +457,15 @@ pub struct Distributions {
 }
 
 impl Distributions {
-    pub fn new(p_asymmetric: f64, lambda_poisson: f32, p_fitness: f64, verbosity: u8) -> Self {
+    pub fn new(p_asymmetric: f64, p_fitness: f64, verbosity: u8) -> Self {
         if verbosity > 1 {
-            println!("creating distributions with parameters asymmetric: {}, neutral_lambda: {}, p_fitness: {}", p_asymmetric, lambda_poisson, p_fitness);
+            println!(
+                "creating distributions with parameters asymmetric: {}, p_fitness: {}",
+                p_asymmetric, p_fitness
+            );
         }
         let no_asymmetric_division = (p_asymmetric - 0.).abs() < f64::EPSILON;
         Self {
-            poisson: NeutralMutationPoisson(
-                Poisson::new(lambda_poisson).expect("Invalid lambda found: lambda <= 0 or nan"),
-            ),
             bern: Bernoulli::new(p_fitness).expect("Invalid p: p<0 or p>1"),
             bern_asymmetric: Bernoulli::new(p_asymmetric).expect("Invalid p: p<0 or p>1"),
             no_asymmetric_division,
@@ -510,54 +483,35 @@ impl Distributions {
 
 #[cfg(test)]
 mod tests {
-    use crate::tests::LambdaFromNonZeroU8;
-
     use super::*;
-    use quickcheck_macros::quickcheck;
-    use rand::SeedableRng;
-    use rand_chacha::ChaCha8Rng;
 
     #[should_panic]
     #[test]
     fn new_distribution_wrong_lambda_test() {
-        Distributions::new(1., f32::NAN, 0.9, 0);
+        Distributions::new(1., 0.9, 0);
     }
 
     #[should_panic]
     #[test]
     fn new_distribution_wrong_lambda_neg_test() {
-        Distributions::new(1., -1.0, 0.9, 0);
+        Distributions::new(1., 0.9, 0);
     }
 
     #[should_panic]
     #[test]
     fn new_distribution_wrong_p_test() {
-        Distributions::new(1., 1., f64::NAN, 0);
+        Distributions::new(1., f64::NAN, 0);
     }
 
     #[should_panic]
     #[test]
     fn new_distribution_wrong_p_inf_test() {
-        Distributions::new(1., 1., f64::INFINITY, 0);
+        Distributions::new(1., f64::INFINITY, 0);
     }
 
     #[should_panic]
     #[test]
     fn new_distribution_wrong_p_neg_test() {
-        Distributions::new(1., 1.0, -0.9, 0);
-    }
-
-    #[quickcheck]
-    fn test_nb_neutral_mutations(lambda_poisson: LambdaFromNonZeroU8) {
-        let mut rng = ChaCha8Rng::seed_from_u64(26);
-        NeutralMutationPoisson(Poisson::new(lambda_poisson.0).unwrap())
-            .nb_neutral_mutations(&mut rng);
-    }
-
-    #[quickcheck]
-    fn poisson_neutral_mutations(seed: u64) -> bool {
-        let mut rng = ChaCha8Rng::seed_from_u64(seed);
-        let poisson = Poisson::new(0.0001).unwrap();
-        NeutralMutationPoisson(poisson).nb_neutral_mutations(&mut rng) < 2
+        Distributions::new(1., -0.9, 0);
     }
 }

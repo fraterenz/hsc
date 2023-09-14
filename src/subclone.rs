@@ -1,4 +1,6 @@
-use crate::{process::Distributions, stemcell::StemCell, MAX_SUBCLONES};
+use std::path::Path;
+
+use crate::{process::Distributions, stemcell::StemCell, write2file, MAX_SUBCLONES};
 use anyhow::{ensure, Context};
 use rand::{seq::IteratorRandom, Rng};
 use rand_distr::{Distribution, Gamma};
@@ -272,6 +274,20 @@ impl Variants {
     }
 }
 
+pub fn save_variant_fraction(
+    subclones: &SubClones,
+    path2file: &Path,
+    verbosity: u8,
+) -> anyhow::Result<()> {
+    let path2file = path2file.with_extension("csv");
+    let total_variant_frac = Variants::variant_fractions(subclones, subclones.compute_tot_cells());
+    if verbosity > 1 {
+        println!("total variant fraction in {:#?}", path2file)
+    }
+    write2file(&total_variant_frac, &path2file, None, false)?;
+    Ok(())
+}
+
 pub fn proliferating_cell(
     subclones: &mut SubClones,
     subclone_id: CloneId,
@@ -296,8 +312,6 @@ pub fn proliferating_cell(
 
 #[cfg(test)]
 mod tests {
-    use crate::tests::LambdaFromNonZeroU8;
-
     use super::*;
     use quickcheck_macros::quickcheck;
     use rand::SeedableRng;
@@ -343,9 +357,9 @@ mod tests {
     }
 
     #[quickcheck]
-    fn division_no_new_clone(lambda: LambdaFromNonZeroU8, seed: u64, cells_present: u8) -> bool {
+    fn division_no_new_clone(seed: u64, cells_present: u8) -> bool {
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
-        let distr = Distributions::new(1., lambda.0, 0f64, 0);
+        let distr = Distributions::new(1., 0f64, 0);
 
         let cells = vec![StemCell::new(); cells_present as usize];
         let before_assignment = cells.len();
@@ -357,9 +371,9 @@ mod tests {
     }
 
     #[quickcheck]
-    fn division_new_clone(lambda: LambdaFromNonZeroU8, seed: u64, cells_present: u8) -> bool {
+    fn division_new_clone(seed: u64, cells_present: u8) -> bool {
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
-        let distr = Distributions::new(1., lambda.0, 1f64, 0);
+        let distr = Distributions::new(1., 1f64, 0);
 
         let cells = vec![StemCell::new(); cells_present as usize];
         let before_assignment = cells.len();
@@ -374,7 +388,7 @@ mod tests {
     #[should_panic]
     fn assign_all_clones_occupied() {
         let mut rng = ChaCha8Rng::seed_from_u64(26);
-        let distr = Distributions::new(1., 1.0, 1f64, 0);
+        let distr = Distributions::new(1., 1f64, 0);
 
         let mut subclones = SubClones::default();
         let cell = StemCell::new();

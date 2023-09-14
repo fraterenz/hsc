@@ -1,7 +1,11 @@
 use std::path::PathBuf;
 
 use clap::{ArgAction, Args, Parser};
-use hsc::process::{Distributions, ProcessOptions};
+use hsc::{
+    genotype::NeutralMutationPoisson,
+    process::{Distributions, ProcessOptions},
+};
+use rand_distr::Poisson;
 use sosa::{IterTime, NbIndividuals, Options};
 
 use crate::{AppOptions, Fitness, SimulationOptions};
@@ -152,7 +156,7 @@ impl Cli {
         let u = (mu0 / (b0 * max_cells as f32)) as f64;
         let m = cli.neutral_rate.moran / b0;
 
-        let distributions = Distributions::new(cli.p_asymmetric, m, u, verbosity);
+        let distributions = Distributions::new(cli.p_asymmetric, u, verbosity);
 
         let snapshot_entropy = if let Some(snapshot_entropy) = cli.snapshot_entropy {
             snapshot_entropy
@@ -166,6 +170,7 @@ impl Cli {
             snapshot_entropy,
             path: cli.path.clone(),
             cells2subsample: cli.subsample.clone(),
+            neutral_poisson: NeutralMutationPoisson(Poisson::new(m).unwrap()),
         };
         let options_moran = SimulationOptions {
             process_options,
@@ -183,12 +188,13 @@ impl Cli {
         // Exp
         let options_exponential = cli.neutral_rate.exponential.map(|rate| {
             let m = rate / b0;
-            let distributions = Distributions::new(cli.p_asymmetric, m, u, verbosity);
+            let distributions = Distributions::new(cli.p_asymmetric, u, verbosity);
             let process_options = ProcessOptions {
                 distributions,
                 snapshot_entropy,
                 path: cli.path,
                 cells2subsample: cli.subsample,
+                neutral_poisson: NeutralMutationPoisson(Poisson::new(m).unwrap()),
             };
             SimulationOptions {
                 process_options,

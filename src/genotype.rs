@@ -1,5 +1,6 @@
 use anyhow::{ensure, Context};
 use rand::Rng;
+use rand_distr::{Distribution, Poisson};
 use rustc_hash::FxHashMap;
 use serde::Serialize;
 use std::{
@@ -9,7 +10,28 @@ use std::{
     path::Path,
 };
 
-use crate::{process::NeutralMutationPoisson, stemcell::StemCell, write2file};
+use crate::{stemcell::StemCell, write2file};
+
+/// The Poisson probability distribution modeling the appearance of neutral
+/// mutations upon cell-division, aka neutral mutations are assumed to follow
+/// a [Poisson point process](https://en.wikipedia.org/wiki/Poisson_point_process).
+#[derive(Debug, Clone)]
+pub struct NeutralMutationPoisson(pub Poisson<f32>);
+
+impl NeutralMutationPoisson {
+    pub fn nb_neutral_mutations(&self, rng: &mut impl Rng) -> NbPoissonMutations {
+        //! The number of neutral mutations acquired upon cell division.
+        let mut mutations = self.0.sample(rng);
+        while mutations >= u8::MAX as f32 || mutations.is_sign_negative() || mutations.is_nan() {
+            mutations = self.0.sample(rng);
+        }
+        mutations as u16
+    }
+}
+
+// poisson: NeutralMutationPoisson(
+//     Poisson::new(lambda_poisson).expect("Invalid lambda found: lambda <= 0 or nan"),
+// ),
 
 /// The mutations are not implemented individually, but a set of mutations
 /// [`GenotypeId`] is instead assigned to each cell upon division.
@@ -333,6 +355,8 @@ mod tests {
     use rand::SeedableRng;
     use rand_chacha::ChaCha8Rng;
     use rand_distr::Poisson;
+
+    use crate::tests::LambdaFromNonZeroU8;
 
     use super::*;
 
@@ -904,5 +928,19 @@ mod tests {
                 && stats.nb_variants == random_nbs[3].get() as u64
                 && *stats.counts.get(&genotype2).unwrap() == counts[&genotype2]
         }
+    }
+
+    #[quickcheck]
+    fn test_nb_neutral_mutations(lambda_poisson: LambdaFromNonZeroU8) {
+        let mut rng = ChaCha8Rng::seed_from_u64(26);
+        NeutralMutationPoisson(Poisson::new(lambda_poisson.0).unwrap())
+            .nb_neutral_mutations(&mut rng);
+    }
+
+    #[quickcheck]
+    fn poisson_neutral_mutations(seed: u64) -> bool {
+        let mut rng = ChaCha8Rng::seed_from_u64(seed);
+        let poisson = Poisson::new(0.0001).unwrap();
+        NeutralMutationPoisson(poisson).nb_neutral_mutations(&mut rng) < 2
     }
 }
