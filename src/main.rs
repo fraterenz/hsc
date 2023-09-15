@@ -124,9 +124,10 @@ fn save_measurements(
         .unwrap_or_else(|_| panic!("cannot load cells from {:#?}", paths_first_t_genotypes));
     if process.verbosity > 0 {
         println!(
-            "computing the stats for the first timepoint {} with {} cells",
+            "computing the stats for the first timepoint {} with {} cells using Poisson distribution {:#?}",
             first_t,
-            cells.len()
+            cells.len(),
+            exp_poisson.unwrap_or(poisson)
         );
         if process.verbosity > 1 {
             println!("cells: {:#?}", cells);
@@ -135,7 +136,15 @@ fn save_measurements(
     // create cells with the exponential if present
     let stats = &mut StatisticsMutations::from_cells(
         &cells,
-        exp_poisson.unwrap_or(poisson),
+        exp_poisson.unwrap_or_else(|| {
+            if process.verbosity > 1 {
+                println!(
+                    "using Poisson distribution from the Moran process {:#?}",
+                    poisson
+                );
+            }
+            poisson
+        }),
         rng,
         process.verbosity,
     )
@@ -258,17 +267,12 @@ fn main() {
                 );
             }
 
+            let timepoint = snapshots.len();
             snapshots.pop_front();
             let moran = exp.switch_to_moran(app.options_moran.process_options.clone(), snapshots);
-            save_measurements(
-                &moran,
-                &options.process_options.neutral_poisson,
-                app.options_exponential
-                    .as_ref()
-                    .map(|options| &options.process_options.neutral_poisson),
-                rng,
-            )
-            .expect("cannot save exponential process");
+            moran
+                .save(timepoint, moran.subclones.compute_tot_cells() as usize, rng)
+                .unwrap();
             moran
         } else {
             Moran::new(
@@ -299,7 +303,9 @@ fn main() {
         save_measurements(
             &moran,
             &app.options_moran.process_options.neutral_poisson,
-            None,
+            app.options_exponential
+                .as_ref()
+                .map(|options| &options.process_options.neutral_poisson),
             rng,
         )
         .expect("cannot save");

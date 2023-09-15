@@ -142,7 +142,7 @@ impl Cli {
             (Parallel::True, cli.runs)
         };
 
-        let years = cli.years + 1;
+        let years = cli.years;
         let (max_cells, years, b0, mu0, verbosity) = if cli.debug {
             (11, 1, 1., 4., u8::MAX)
         } else {

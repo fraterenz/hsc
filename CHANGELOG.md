@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.19.0
+- simulations start at year 0 and end at year `year` not `year+1`
+### BugFix
+-fix the two mutational rates: the two parameters of the Moran and Exponential growing phases were mixed up
+
 ## 0.18.0
 - the first timepoint is saved at year 0 not at year 1
 
