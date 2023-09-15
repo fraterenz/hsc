@@ -1,11 +1,46 @@
+use crate::{stemcell::StemCell, write2file, MAX_SUBCLONES};
+use anyhow::{ensure, Context};
+use rand::seq::IteratorRandom;
+use rand::Rng;
+use rand_distr::Gamma;
+use rand_distr::{Bernoulli, Distribution};
+use sosa::ReactionRates;
 use std::path::Path;
 
-use crate::{process::Distributions, stemcell::StemCell, write2file, MAX_SUBCLONES};
-use anyhow::{ensure, Context};
-use rand::{seq::IteratorRandom, Rng};
-use rand_distr::{Distribution, Gamma};
-use sosa::ReactionRates;
+/// Distribution probabilities for the simulations upon cell division.
+#[derive(Debug, Clone)]
+pub struct Distributions {
+    /// probability of fit mutations upon cell proliferation
+    pub bern: Bernoulli,
+    /// probability of asymmetric division upon cell proliferation
+    pub bern_asymmetric: Bernoulli,
+    no_asymmetric_division: bool,
+}
 
+impl Distributions {
+    pub fn new(p_asymmetric: f64, p_fitness: f64, verbosity: u8) -> Self {
+        if verbosity > 1 {
+            println!(
+                "creating distributions with parameters asymmetric: {}, p_fitness: {}",
+                p_asymmetric, p_fitness
+            );
+        }
+        let no_asymmetric_division = (p_asymmetric - 0.).abs() < f64::EPSILON;
+        Self {
+            bern: Bernoulli::new(p_fitness).expect("Invalid p: p<0 or p>1"),
+            bern_asymmetric: Bernoulli::new(p_asymmetric).expect("Invalid p: p<0 or p>1"),
+            no_asymmetric_division,
+        }
+    }
+
+    pub fn acquire_p_mutation(&self, rng: &mut impl Rng) -> bool {
+        self.bern.sample(rng)
+    }
+
+    pub fn can_only_be_symmetric(&self) -> bool {
+        self.no_asymmetric_division
+    }
+}
 /// Fitness models implemented so far.
 #[derive(Clone, Debug)]
 pub enum Fitness {
@@ -394,5 +429,23 @@ mod tests {
         let cell = StemCell::new();
 
         assign(&mut subclones, 0, cell, &distr, &mut rng, 0);
+    }
+
+    #[should_panic]
+    #[test]
+    fn new_distribution_wrong_p_test() {
+        Distributions::new(1., f64::NAN, 0);
+    }
+
+    #[should_panic]
+    #[test]
+    fn new_distribution_wrong_p_inf_test() {
+        Distributions::new(1., f64::INFINITY, 0);
+    }
+
+    #[should_panic]
+    #[test]
+    fn new_distribution_wrong_p_neg_test() {
+        Distributions::new(1., -0.9, 0);
     }
 }
