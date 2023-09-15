@@ -14,8 +14,8 @@ fn from_neutral_rate(c: &mut Criterion) {
     let mut group = c.benchmark_group("from_neutral_rate");
     let mutations = vec![1usize, 2usize, 3usize];
     let cells = [
-        StemCell::with_set_of_mutations(mutations.clone()),
-        StemCell::with_set_of_mutations(mutations),
+        StemCell::with_mutations(mutations.clone()),
+        StemCell::with_mutations(mutations),
     ];
     let verbosity = 0;
 

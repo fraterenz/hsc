@@ -413,7 +413,7 @@ mod tests {
     fn test_stats_muts_from_cell_with_mutations(lambda: NonZeroU8, seed: u64) -> bool {
         let rng = &mut ChaCha8Rng::seed_from_u64(seed);
         let poisson = &NeutralMutationPoisson(Poisson::new(lambda.get() as f32).unwrap());
-        let cells = &[StemCell::with_set_of_mutations(vec![1])];
+        let cells = &[StemCell::with_mutations(vec![1])];
         let stats = StatisticsMutations::from_cells(cells, poisson, rng, 0).unwrap();
         stats
             .counts
@@ -431,8 +431,8 @@ mod tests {
         let rng = &mut ChaCha8Rng::seed_from_u64(seed);
         let poisson = &NeutralMutationPoisson(Poisson::new(lambda.get() as f32).unwrap());
         let cells = &[
-            StemCell::with_set_of_mutations(vec![1]),
-            StemCell::with_set_of_mutations(vec![1]),
+            StemCell::with_mutations(vec![1]),
+            StemCell::with_mutations(vec![1]),
         ];
         let stats = StatisticsMutations::from_cells(cells, poisson, rng, 0).unwrap();
         stats
@@ -449,8 +449,8 @@ mod tests {
         let rng = &mut ChaCha8Rng::seed_from_u64(seed);
         let poisson = &NeutralMutationPoisson(Poisson::new(lambda.get() as f32).unwrap());
         let cells = &[
-            StemCell::with_set_of_mutations(vec![1]),
-            StemCell::with_set_of_mutations(vec![2]),
+            StemCell::with_mutations(vec![1]),
+            StemCell::with_mutations(vec![2]),
         ];
         let stats = StatisticsMutations::from_cells(cells, poisson, rng, 0).unwrap();
         stats
@@ -523,9 +523,7 @@ mod tests {
         };
         let mut cells = Vec::new();
         for _ in 0..random_nbs[1] {
-            cells.push(StemCell::with_set_of_mutations(vec![
-                random_nbs[0] as usize,
-            ]));
+            cells.push(StemCell::with_mutations(vec![random_nbs[0] as usize]));
         }
         let burden = MutationalBurden::from_cells_update_stats(
             &cells,
@@ -576,14 +574,10 @@ mod tests {
         };
         let mut cells = Vec::new();
         for _ in 0..random_nbs[1] {
-            cells.push(StemCell::with_set_of_mutations(vec![
-                random_nbs[0] as usize,
-            ]));
+            cells.push(StemCell::with_mutations(vec![random_nbs[0] as usize]));
         }
         for _ in 0..random_nbs[4] {
-            cells.push(StemCell::with_set_of_mutations(vec![
-                random_nbs[3] as usize,
-            ]));
+            cells.push(StemCell::with_mutations(vec![random_nbs[3] as usize]));
         }
         let burden = MutationalBurden::from_cells_update_stats(
             &cells,
@@ -631,14 +625,10 @@ mod tests {
         };
         let mut cells = Vec::new();
         for _ in 0..random_nbs[1].get() {
-            cells.push(StemCell::with_set_of_mutations(vec![
-                random_nbs[0].get() as usize
-            ]));
+            cells.push(StemCell::with_mutations(vec![random_nbs[0].get() as usize]));
         }
         for _ in 0..random_nbs[4].get() {
-            cells.push(StemCell::with_set_of_mutations(vec![
-                random_nbs[3].get() as usize
-            ]));
+            cells.push(StemCell::with_mutations(vec![random_nbs[3].get() as usize]));
         }
         let burden = MutationalBurden::from_cells_update_stats(
             &cells,
@@ -691,14 +681,10 @@ mod tests {
         let stats_copy = stats.clone();
         let mut cells = Vec::new();
         for _ in 0..random_nbs[1].get() {
-            cells.push(StemCell::with_set_of_mutations(vec![
-                random_nbs[0].get() as usize
-            ]));
+            cells.push(StemCell::with_mutations(vec![random_nbs[0].get() as usize]));
         }
         for _ in 0..random_nbs[4].get() {
-            cells.push(StemCell::with_set_of_mutations(vec![
-                random_nbs[3].get() as usize
-            ]));
+            cells.push(StemCell::with_mutations(vec![random_nbs[3].get() as usize]));
         }
         let burden = MutationalBurden::from_cells_update_stats(
             &cells,
@@ -715,14 +701,10 @@ mod tests {
         // again (same cells, nothing has changed)
         let mut cells = vec![];
         for _ in 0..random_nbs[1].get() {
-            cells.push(StemCell::with_set_of_mutations(vec![
-                random_nbs[0].get() as usize
-            ]));
+            cells.push(StemCell::with_mutations(vec![random_nbs[0].get() as usize]));
         }
         for _ in 0..random_nbs[4].get() {
-            cells.push(StemCell::with_set_of_mutations(vec![
-                random_nbs[3].get() as usize
-            ]));
+            cells.push(StemCell::with_mutations(vec![random_nbs[3].get() as usize]));
         }
         let burden = MutationalBurden::from_cells_update_stats(
             &cells,
@@ -778,8 +760,8 @@ mod tests {
             nb_variants: (random_nbs[1].get() + random_nbs[3].get()) as u64,
         };
         let cells = [
-            StemCell::with_set_of_mutations(vec![genotype1, genotype2]),
-            StemCell::with_set_of_mutations(vec![genotype1]),
+            StemCell::with_mutations(vec![genotype1, genotype2]),
+            StemCell::with_mutations(vec![genotype1]),
         ];
 
         let sfs = Sfs::from_cells(&cells, &stats, verbosity).unwrap();
@@ -824,8 +806,8 @@ mod tests {
             nb_variants: (random_nbs[1].get() + random_nbs[3].get()) as u64,
         };
         let cells = [
-            StemCell::with_set_of_mutations(vec![genotype1, genotype2]),
-            StemCell::with_set_of_mutations(vec![genotype1, genotype2]),
+            StemCell::with_mutations(vec![genotype1, genotype2]),
+            StemCell::with_mutations(vec![genotype1, genotype2]),
         ];
 
         let sfs = Sfs::from_cells(&cells, &stats, verbosity).unwrap();
@@ -870,8 +852,8 @@ mod tests {
             nb_variants: (random_nbs[1].get() + random_nbs[3].get()) as u64,
         };
         let cells = [
-            StemCell::with_set_of_mutations(vec![genotype1]),
-            StemCell::with_set_of_mutations(vec![genotype2]),
+            StemCell::with_mutations(vec![genotype1]),
+            StemCell::with_mutations(vec![genotype2]),
         ];
 
         let sfs = Sfs::from_cells(&cells, &stats, verbosity).unwrap();
