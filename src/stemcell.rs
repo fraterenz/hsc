@@ -1,4 +1,4 @@
-pub type Variant = u32;
+use crate::genotype::Variant;
 
 /// Hematopoietic stem and progenitor cells (HSPCs) are a rare population of
 /// precursor cells that possess the capacity for self-renewal and multilineage
@@ -47,10 +47,10 @@ pub fn mutate(cell: &mut StemCell, mut mutations: Vec<Variant>) {
 
 #[cfg(test)]
 mod tests {
-    use std::num::NonZeroU8;
-
     use super::*;
     use quickcheck_macros::quickcheck;
+    use std::num::NonZeroU8;
+    use uuid::Uuid;
 
     #[should_panic]
     #[test]
@@ -60,16 +60,16 @@ mod tests {
 
     #[quickcheck]
     fn new_cell_with_mutations_test(nb_mutations: NonZeroU8) -> bool {
-        let cell =
-            StemCell::with_mutations((0..nb_mutations.get()).map(|ele| ele as Variant).collect());
+        let mutations = (0..nb_mutations.get()).map(|_| Uuid::new_v4()).collect();
+        let cell = StemCell::with_mutations(mutations);
         cell.has_mutations() && nb_mutations.get() as usize == cell.burden()
     }
 
     #[quickcheck]
-    fn mutate_test(mutations: Vec<Variant>) -> bool {
+    fn mutate_test(nb_mutations: NonZeroU8) -> bool {
         let mut cell = StemCell::new();
-        let burden = mutations.len();
+        let mutations = (0..nb_mutations.get()).map(|_| Uuid::new_v4()).collect();
         mutate(&mut cell, mutations);
-        burden == cell.burden()
+        nb_mutations.get() as usize == cell.burden()
     }
 }

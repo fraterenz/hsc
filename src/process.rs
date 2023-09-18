@@ -1,12 +1,12 @@
-use crate::genotype::{GenotypeId, NeutralMutationPoisson};
-use crate::stemcell::save_cells;
+use crate::genotype::{MutationalBurden, NeutralMutationPoisson, Sfs};
+use crate::stemcell::mutate;
 use crate::subclone::{
-    assign, proliferating_cell, save_variant_fraction, CloneId, SubClones, Variants,
+    assign, proliferating_cell, save_variant_fraction, CloneId, Distributions, SubClones, Variants,
 };
 use crate::MAX_SUBCLONES;
 use anyhow::Context;
 use rand::Rng;
-use rand_distr::{Bernoulli, Distribution, Poisson, WeightedIndex};
+use rand_distr::{Distribution, WeightedIndex};
 use sosa::{AdvanceStep, CurrentState, NextReaction};
 use std::collections::VecDeque;
 use std::fs;
@@ -15,7 +15,6 @@ use std::path::PathBuf;
 #[derive(Debug, Clone)]
 pub struct ProcessOptions {
     pub distributions: Distributions,
-    pub snapshot_entropy: f32,
     pub path: PathBuf,
     pub cells2subsample: Option<Vec<usize>>,
     pub neutral_poisson: NeutralMutationPoisson,
@@ -51,6 +50,7 @@ pub struct Exponential {
     id: usize,
     pub verbosity: u8,
     pub distributions: Distributions,
+    pub neutral_mutations: NeutralMutationPoisson,
 }
 
 impl Exponential {
@@ -66,6 +66,7 @@ impl Exponential {
             counter_divisions: 0,
             id,
             verbosity,
+            neutral_mutations: process_options.neutral_poisson,
         };
         if verbosity > 1 {
             println!("process created: {:#?}", hsc);
@@ -83,13 +84,12 @@ impl Exponential {
             counter_divisions: self.counter_divisions,
             id: self.id,
             time: 0.,
-            snapshot_entropy: process_options.snapshot_entropy,
-            proliferation_event_entropy: None,
             cells2subsample: process_options.cells2subsample,
             snapshot,
             path2dir: process_options.path,
             verbosity: self.verbosity,
             distributions: process_options.distributions,
+            neutral_mutations: process_options.neutral_poisson,
         }
     }
 }
@@ -109,8 +109,7 @@ impl AdvanceStep<MAX_SUBCLONES> for Exponential {
         //! with id `reaction` determined by the Gillespie algorithm
         //!
         //! 2. for the proliferating cell:
-        //!     * mutate genome by storing the division id, see
-        //!     [`crate::genotype::StatisticsMutations`]
+        //!     * mutate genome by storing a neutral number of TODO
         //!
         //!     * assign to new subclone with a probability determined by the
         //!     rate of mutations conferring a proliferative advantage
@@ -128,7 +127,11 @@ impl AdvanceStep<MAX_SUBCLONES> for Exponential {
         if self.verbosity > 2 {
             println!("assigning mutations to cell {:#?}", stem_cell)
         }
-        stem_cell.record_division(self.counter_divisions);
+
+        let division = self.neutral_mutations.new_muts_upon_division(rng);
+        if let Some(mutations) = division {
+            mutate(&mut stem_cell, mutations);
+        }
 
         // assign cell to clone. This can have two outcomes based on a
         // Bernouilli trial see `assign` and `self.assign`:
@@ -163,28 +166,21 @@ pub struct Moran {
     pub counter_divisions: usize,
     id: usize,
     time: f32,
-    /// The division event corresponding to the `snapshot_entropy`
-    pub proliferation_event_entropy: Option<GenotypeId>,
-    pub snapshot_entropy: f32,
     pub snapshot: VecDeque<f32>,
     pub path2dir: PathBuf,
     pub verbosity: u8,
     pub distributions: Distributions,
+    pub neutral_mutations: NeutralMutationPoisson,
     pub cells2subsample: Option<Vec<usize>>,
 }
 
 impl Default for Moran {
     fn default() -> Self {
         let process_options = ProcessOptions {
-            distributions: Distributions {
-                bern: Bernoulli::new(0.1).unwrap(),
-                bern_asymmetric: Bernoulli::new(0.).unwrap(),
-                no_asymmetric_division: true,
-            },
-            snapshot_entropy: 0.1,
+            distributions: Distributions::default(),
             path: PathBuf::from("./output"),
             cells2subsample: None,
-            neutral_poisson: NeutralMutationPoisson(Poisson::new(1.).unwrap()),
+            neutral_poisson: NeutralMutationPoisson::new(10., 1.).unwrap(),
         };
 
         Moran::new(
@@ -219,10 +215,9 @@ impl Moran {
             path2dir: process_options.path,
             time,
             snapshot,
-            snapshot_entropy: process_options.snapshot_entropy,
-            proliferation_event_entropy: None,
             cells2subsample: process_options.cells2subsample,
             verbosity,
+            neutral_mutations: process_options.neutral_poisson,
         };
         if verbosity > 1 {
             println!("process created: {:#?}", hsc);
@@ -297,9 +292,6 @@ impl Moran {
         nb_cells: usize,
         rng: &mut impl Rng,
     ) -> anyhow::Result<()> {
-        //! Save `nb_cells` cells from the population. Save also the variant
-        //! fraction that is the fraction of subclones present in the
-        //! population.
         save_variant_fraction(
             &self.subclones,
             &self.make_path(Stats2Save::VariantFraction, nb_cells, timepoint)?,
@@ -316,12 +308,13 @@ impl Moran {
             println!("saving {} cells", cells.len());
         }
 
-        save_cells(
-            &cells,
-            &self
-                .make_path(Stats2Save::Genotypes, nb_cells, timepoint)?
-                .with_extension("json"),
-        )?;
+        Sfs::from_cells(&cells, self.verbosity)
+            .unwrap_or_else(|_| panic!("cannot create SFS for timepoint {}", timepoint))
+            .save(&self.make_path(Stats2Save::Sfs, nb_cells, timepoint)?)?;
+
+        MutationalBurden::from_cells(&cells, self.verbosity)
+            .unwrap_or_else(|_| panic!("cannot create burden for the timepoint {}", timepoint))
+            .save(&self.make_path(Stats2Save::Burden, nb_cells, timepoint)?)?;
 
         if self.verbosity > 0 {
             println!(
@@ -354,8 +347,7 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
         //! another cell from another clone to keep to population constant
         //!
         //! 3. for the proliferating cell only (not the clone from 2):
-        //!     * mutate genome by storing the division id, see
-        //!     [`crate::genotype::StatisticsMutations`]
+        //!     * mutate genome by TODO
         //!
         //!     * assign to new subclone with a probability determined by the
         //!     rate of mutations conferring a proliferative advantage
@@ -383,7 +375,16 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
         if self.verbosity > 2 {
             println!("assigning mutations to cell {:#?}", stem_cell)
         }
-        stem_cell.record_division(self.counter_divisions);
+
+        let background = self.neutral_mutations.new_muts_background(rng);
+        if let Some(mutations) = background {
+            mutate(&mut stem_cell, mutations);
+        }
+
+        let division = self.neutral_mutations.new_muts_upon_division(rng);
+        if let Some(mutations) = division {
+            mutate(&mut stem_cell, mutations);
+        }
 
         // assign cell to clone. This can have two outcomes based on a
         // Bernouilli trial see `assign` and `self.assign`:
@@ -408,15 +409,6 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
                 "{:#?} timepoints to save, time now is {}",
                 self.snapshot, self.time
             );
-        }
-        if self.proliferation_event_entropy.is_none() && self.time >= self.snapshot_entropy {
-            self.proliferation_event_entropy = Some(self.counter_divisions);
-            if self.verbosity > 1 {
-                println!(
-                    "saving the proliferation id for the entropy {:#?} at time {} since {}>={}",
-                    self.proliferation_event_entropy, self.time, self.time, self.snapshot_entropy
-                );
-            }
         }
         if let Some(&time) = self.snapshot.front() {
             if self.time >= time {

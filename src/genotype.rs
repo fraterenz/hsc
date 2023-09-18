@@ -3,46 +3,93 @@ use rand::Rng;
 use rand_distr::{Distribution, Poisson};
 use rustc_hash::FxHashMap;
 use std::{fs, path::Path};
+use uuid::Uuid;
 
 use crate::stemcell::StemCell;
 
-/// The Poisson probability distribution modeling the appearance of neutral
-/// mutations upon cell-division, aka neutral mutations are assumed to follow
-/// a [Poisson point process](https://en.wikipedia.org/wiki/Poisson_point_process).
-#[derive(Debug, Clone)]
-pub struct NeutralMutationPoisson(pub Poisson<f32>);
+pub type Variant = Uuid;
 
-impl NeutralMutationPoisson {
-    pub fn nb_neutral_mutations(&self, rng: &mut impl Rng) -> NbPoissonMutations {
-        //! The number of neutral mutations acquired upon cell division.
-        let mut mutations = self.0.sample(rng);
-        while mutations >= u8::MAX as f32 || mutations.is_sign_negative() || mutations.is_nan() {
-            mutations = self.0.sample(rng);
-        }
-        mutations as u16
+fn nb_neutral_mutations(poisson: &Poisson<f32>, rng: &mut impl Rng) -> NbPoissonMutations {
+    //! The number of neutral mutations acquired upon cell division.
+    let mut mutations = poisson.sample(rng);
+    while mutations >= u16::MAX as f32 || mutations.is_sign_negative() || mutations.is_nan() {
+        mutations = poisson.sample(rng);
     }
+    mutations as NbPoissonMutations
 }
 
-/// The mutations are not implemented individually, but a set of mutations
-/// [`GenotypeId`] is instead assigned to each cell upon division.
-///
-/// At the end of the simulation, we simulate the individual mutations from the
-/// sets assigned to each cell by generating a Poisson number for each
-/// [`GenotypeId`] to recreate the SFS.
-pub type GenotypeId = usize;
+/// The Poisson probability distribution modeling the appearance of neutral
+/// mutations, which are assumed to follow a
+/// [Poisson point process](https://en.wikipedia.org/wiki/Poisson_point_process).
+#[derive(Debug, Clone)]
+pub struct NeutralMutationPoisson {
+    background: Poisson<f32>,
+    division: Poisson<f32>,
+}
+
+impl NeutralMutationPoisson {
+    pub fn new(lambda_division: f32, lambda_background: f32) -> anyhow::Result<Self> {
+        //! Create two Poisson distributions, one modelling the neutral
+        //! mutations acquired upon cell-division and the other modelling the
+        //! acquisition of neutral background mutations, i.e. all mutations
+        //! occuring not during cell-division.
+        Ok(Self {
+            background: Poisson::new(lambda_background)
+                .with_context(|| {
+                    format!(
+                        "invalid value of lambda for the background mutations {}",
+                        lambda_background
+                    )
+                })
+                .unwrap(),
+            division: Poisson::new(lambda_division)
+                .with_context(|| {
+                    format!(
+                        "invalid value of lambda for the division mutations {}",
+                        lambda_division
+                    )
+                })
+                .unwrap(),
+        })
+    }
+
+    pub fn new_muts_upon_division(&self, rng: &mut impl Rng) -> Option<Vec<Variant>> {
+        //! Generate neutral mutations acquired upon cell division sampling the
+        //! Poisson
+        //!
+        //! ## Returns
+        //! Returns `None` when the number of mutations have
+        let nb_mutations = nb_neutral_mutations(&self.division, rng);
+        generate_mutations(nb_mutations)
+    }
+
+    pub fn new_muts_background(&self, rng: &mut impl Rng) -> Option<Vec<Variant>> {
+        //! The number of neutral mutations acquired upon cell division.
+        let nb_mutations = nb_neutral_mutations(&self.background, rng);
+        generate_mutations(nb_mutations)
+    }
+}
 
 /// The number of mutations that are produced by a division event.
 /// We assume that a maximal number of 255 neutral mutations can be generated
 /// upon one proliferative event.
-pub type NbPoissonMutations = u16;
+type NbPoissonMutations = u16;
+
+fn generate_mutations(nb_mutations: NbPoissonMutations) -> Option<Vec<Variant>> {
+    if nb_mutations == 0 {
+        None
+    } else {
+        Some((0..nb_mutations).map(|_| Uuid::new_v4()).collect())
+    }
+}
 
 /// [Site frequency spectrum](https://en.wikipedia.org/wiki/Allele_frequency_spectrum)
-/// implemented as mapping with keys being j cells (x-axis) and values being
+/// implemented as mapping with values being j cells (x-axis) and keys being
 /// the number of variants with j cells (y-axis).
 pub struct Sfs(pub FxHashMap<u64, u64>);
 
 impl Sfs {
-    pub fn from_cells(cells: &[StemCell], verbosity: u8) -> anyhow::Result<Self> {
+    pub fn from_cells(cells: &[&StemCell], verbosity: u8) -> anyhow::Result<Self> {
         //! Compute the SFS from the stem cell population.
         let mut sfs_variants = FxHashMap::default();
         for cell in cells.iter() {
@@ -83,7 +130,7 @@ impl Sfs {
 pub struct MutationalBurden(pub FxHashMap<u16, u64>);
 
 impl MutationalBurden {
-    pub fn from_cells(cells: &[StemCell], verbosity: u8) -> anyhow::Result<Self> {
+    pub fn from_cells(cells: &[&StemCell], verbosity: u8) -> anyhow::Result<Self> {
         //! Compute the single-cell mutational burden from the stem cell
         //! population.
         let mut burden: FxHashMap<u16, u64> = FxHashMap::default();
@@ -94,7 +141,7 @@ impl MutationalBurden {
                 .or_insert(1u64);
         }
 
-        if verbosity > 1 {
+        if verbosity > 0 {
             println!("burden: {:#?}", burden);
         }
         Ok(MutationalBurden(burden))
@@ -113,61 +160,22 @@ impl MutationalBurden {
 
 #[cfg(test)]
 mod tests {
-    use std::num::NonZeroU8;
-
-    use quickcheck::{Arbitrary, Gen};
     use quickcheck_macros::quickcheck;
     use rand::SeedableRng;
     use rand_chacha::ChaCha8Rng;
     use rand_distr::Poisson;
 
-    use crate::tests::LambdaFromNonZeroU8;
-
     use super::*;
-
-    #[derive(Debug, Clone)]
-    struct DistinctMutationsId(NbPoissonMutations, NbPoissonMutations, NbPoissonMutations);
-
-    impl Arbitrary for DistinctMutationsId {
-        fn arbitrary(g: &mut Gen) -> DistinctMutationsId {
-            let mut trials = 0;
-            let mut1: NonZeroU8 = NonZeroU8::arbitrary(g);
-            let mut mut2 = NonZeroU8::arbitrary(g);
-            let mut mut3 = NonZeroU8::arbitrary(g);
-            while mut2 <= mut1 {
-                mut2 = NonZeroU8::arbitrary(g);
-                trials += 1;
-                if trials == u8::MAX {
-                    mut2 = unsafe { NonZeroU8::new_unchecked(1) };
-                    break;
-                }
-            }
-            trials = 0;
-
-            while mut3 <= mut1 || mut3 <= mut2 {
-                mut3 = NonZeroU8::arbitrary(g);
-                trials += 1;
-                if trials == u8::MAX {
-                    mut3 = unsafe { NonZeroU8::new_unchecked(2) };
-                    break;
-                }
-            }
-
-            DistinctMutationsId(mut1.get() as u16, mut2.get() as u16, mut3.get() as u16)
-        }
-    }
-
-    #[quickcheck]
-    fn test_nb_neutral_mutations(lambda_poisson: LambdaFromNonZeroU8) {
-        let mut rng = ChaCha8Rng::seed_from_u64(26);
-        NeutralMutationPoisson(Poisson::new(lambda_poisson.0).unwrap())
-            .nb_neutral_mutations(&mut rng);
-    }
 
     #[quickcheck]
     fn poisson_neutral_mutations(seed: u64) -> bool {
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
         let poisson = Poisson::new(0.0001).unwrap();
-        NeutralMutationPoisson(poisson).nb_neutral_mutations(&mut rng) < 2
+        NeutralMutationPoisson {
+            background: poisson.clone(),
+            division: poisson,
+        }
+        .new_muts_upon_division(&mut rng)
+        .is_none()
     }
 }

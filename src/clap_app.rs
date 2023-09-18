@@ -1,11 +1,7 @@
 use std::path::PathBuf;
 
 use clap::{ArgAction, Args, Parser};
-use hsc::{
-    genotype::NeutralMutationPoisson,
-    process::{Distributions, ProcessOptions},
-};
-use rand_distr::Poisson;
+use hsc::{genotype::NeutralMutationPoisson, process::ProcessOptions, subclone::Distributions};
 use sosa::{IterTime, NbIndividuals, Options};
 
 use crate::{AppOptions, Fitness, SimulationOptions};
@@ -45,10 +41,15 @@ struct NeutralMutationRate {
     /// Poisson rate for the exponential growing phase, leave empty to simulate
     /// just a Moran process with fixed population size
     #[arg(long, short)]
-    exponential: Option<f32>,
-    /// Poisson rate for the constant population phase
+    mu_exp: Option<f32>,
+    /// Background mutation rate (all neutral mutations **not** occuring in the
+    /// mitotic phase) for for the constant population phase
     #[arg(long, short)]
-    moran: f32,
+    mu_background: f32,
+    /// Division mutation rate (all neutral mutations occuring upon
+    /// cell-division, mitotic phase) for for the constant population phase
+    #[arg(long, short)]
+    mu_division: f32,
 }
 
 #[derive(Debug, Parser)] // requires `derive` feature
@@ -96,10 +97,6 @@ pub struct Cli {
     /// Number of snapshots to take to save the simulation. Those timepoints
     /// will be linespaced, starting from 1 to `years`.
     snapshots: u8,
-    /// Time until which the variants will be considered to compute the entropy,
-    /// defaults to the second snapshot
-    #[arg(long)]
-    snapshot_entropy: Option<f32>,
     /// Number of cells to subsample before saving the measurements.
     /// If not specified, do not subsample. If subsampling is performed, the
     /// measurements of the whole population will also be saved.
@@ -154,23 +151,18 @@ impl Cli {
 
         // convert into rates per cell division
         let u = (mu0 / (b0 * max_cells as f32)) as f64;
-        let m = cli.neutral_rate.moran / b0;
+        let m_background = cli.neutral_rate.mu_background / b0;
+        let m_division = cli.neutral_rate.mu_division / b0;
 
         let distributions = Distributions::new(cli.p_asymmetric, u, verbosity);
-
-        let snapshot_entropy = if let Some(snapshot_entropy) = cli.snapshot_entropy {
-            snapshot_entropy
-        } else {
-            snapshots[1]
-        };
 
         // Moran
         let process_options = ProcessOptions {
             distributions,
-            snapshot_entropy,
             path: cli.path.clone(),
             cells2subsample: cli.subsample.clone(),
-            neutral_poisson: NeutralMutationPoisson(Poisson::new(m).unwrap()),
+            neutral_poisson: NeutralMutationPoisson::new(m_division, m_background)
+                .expect("wrong lambda"), // TODO
         };
         let options_moran = SimulationOptions {
             process_options,
@@ -186,15 +178,15 @@ impl Cli {
         };
 
         // Exp
-        let options_exponential = cli.neutral_rate.exponential.map(|rate| {
+        let options_exponential = cli.neutral_rate.mu_exp.map(|rate| {
             let m = rate / b0;
             let distributions = Distributions::new(cli.p_asymmetric, u, verbosity);
             let process_options = ProcessOptions {
                 distributions,
-                snapshot_entropy,
                 path: cli.path,
                 cells2subsample: cli.subsample,
-                neutral_poisson: NeutralMutationPoisson(Poisson::new(m).unwrap()),
+                // we assume no background mutation for the exponential growing phase
+                neutral_poisson: NeutralMutationPoisson::new(m, m).expect("wrong lambda"),
             };
             SimulationOptions {
                 process_options,

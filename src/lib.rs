@@ -27,7 +27,7 @@ use anyhow::Context;
 /// The neutral mutations representing the genotype of the stem cells.
 pub mod genotype;
 /// The events to simulate for this Markov process.
-// pub mod process;
+pub mod process;
 /// The agents whose state defines the system simulated by the process.
 pub mod stemcell;
 /// The classes defining the proliferative advantage.

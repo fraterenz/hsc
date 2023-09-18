@@ -41,6 +41,16 @@ impl Distributions {
         self.no_asymmetric_division
     }
 }
+impl Default for Distributions {
+    fn default() -> Self {
+        Distributions {
+            bern: Bernoulli::new(0.1).unwrap(),
+            bern_asymmetric: Bernoulli::new(0.).unwrap(),
+            no_asymmetric_division: true,
+        }
+    }
+}
+
 /// Fitness models implemented so far.
 #[derive(Clone, Debug)]
 pub enum Fitness {
