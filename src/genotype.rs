@@ -1,4 +1,4 @@
-use anyhow::Context;
+use anyhow::{ensure, Context};
 use rand::Rng;
 use rand_distr::{Distribution, Poisson};
 use rustc_hash::FxHashMap;
@@ -23,7 +23,7 @@ fn nb_neutral_mutations(poisson: &Poisson<f32>, rng: &mut impl Rng) -> NbPoisson
 /// [Poisson point process](https://en.wikipedia.org/wiki/Poisson_point_process).
 #[derive(Debug, Clone)]
 pub struct NeutralMutationPoisson {
-    background: Poisson<f32>,
+    background: f32,
     division: Poisson<f32>,
 }
 
@@ -33,15 +33,9 @@ impl NeutralMutationPoisson {
         //! mutations acquired upon cell-division and the other modelling the
         //! acquisition of neutral background mutations, i.e. all mutations
         //! occuring not during cell-division.
+        ensure!(lambda_division > 0., "invalid value of lambda_background");
         Ok(Self {
-            background: Poisson::new(lambda_background)
-                .with_context(|| {
-                    format!(
-                        "invalid value of lambda for the background mutations {}",
-                        lambda_background
-                    )
-                })
-                .unwrap(),
+            background: lambda_background,
             division: Poisson::new(lambda_division)
                 .with_context(|| {
                     format!(
@@ -63,10 +57,29 @@ impl NeutralMutationPoisson {
         generate_mutations(nb_mutations)
     }
 
-    pub fn new_muts_background(&self, rng: &mut impl Rng) -> Option<Vec<Variant>> {
+    pub fn new_muts_background(
+        &self,
+        interdivison_time: f32,
+        rng: &mut impl Rng,
+        verbosity: u8,
+    ) -> Option<Vec<Variant>> {
         //! The number of neutral mutations acquired upon cell division.
-        let nb_mutations = nb_neutral_mutations(&self.background, rng);
-        generate_mutations(nb_mutations)
+        if verbosity > 1 {
+            println!(
+                "interdivison_time = {} and background lambda {}",
+                interdivison_time, self.background
+            );
+        }
+        if interdivison_time > 0. {
+            let background = Poisson::new(self.background * interdivison_time).unwrap();
+            let nb_mutations = nb_neutral_mutations(&background, rng);
+            if verbosity > 1 {
+                println!("{} background mutations", nb_mutations);
+            }
+            generate_mutations(nb_mutations)
+        } else {
+            None
+        }
     }
 }
 
@@ -172,7 +185,7 @@ mod tests {
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
         let poisson = Poisson::new(0.0001).unwrap();
         NeutralMutationPoisson {
-            background: poisson.clone(),
+            background: 0.0001,
             division: poisson,
         }
         .new_muts_upon_division(&mut rng)

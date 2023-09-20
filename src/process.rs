@@ -355,9 +355,30 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
         // that is the clone with id `reaction.event`.
         // Pick random proliferating cells from this clone. **Note that this
         // removes the cells from the clone with id `reaction.event`.**
+        self.time += reaction.time;
         let mut stem_cell =
             proliferating_cell(&mut self.subclones, reaction.event, self.verbosity, rng);
         self.counter_divisions += 1;
+        let interdivison_time = self.time - stem_cell.last_division_t;
+        if self.verbosity > 1 {
+            println!("cell {:#?} is dividing", stem_cell);
+            println!("at time {}", self.time);
+        }
+
+        let background =
+            self.neutral_mutations
+                .new_muts_background(interdivison_time, rng, self.verbosity);
+        if self.verbosity > 2 {
+            println!(
+                "assigning {} background mutations to cell {:#?}",
+                background.as_ref().unwrap_or(&vec![]).len(),
+                stem_cell
+            )
+        }
+        if let Some(mutations) = background {
+            mutate(&mut stem_cell, mutations);
+        }
+        stem_cell.last_division_t = self.time;
 
         if self.distributions.can_only_be_symmetric()
             || !self.distributions.bern_asymmetric.sample(rng)
@@ -372,16 +393,14 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
                 .assign_cell(stem_cell.clone());
         }
 
-        if self.verbosity > 2 {
-            println!("assigning mutations to cell {:#?}", stem_cell)
-        }
-
-        let background = self.neutral_mutations.new_muts_background(rng);
-        if let Some(mutations) = background {
-            mutate(&mut stem_cell, mutations);
-        }
-
         let division = self.neutral_mutations.new_muts_upon_division(rng);
+        if self.verbosity > 2 {
+            println!(
+                "assigning {} mutations upon cell division to cell {:#?}",
+                division.as_ref().unwrap_or(&vec![]).len(),
+                stem_cell
+            )
+        }
         if let Some(mutations) = division {
             mutate(&mut stem_cell, mutations);
         }
@@ -402,7 +421,6 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
             self.verbosity,
         );
 
-        self.time += reaction.time;
         // take snapshot
         if self.verbosity > 2 {
             println!(

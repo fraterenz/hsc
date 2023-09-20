@@ -8,6 +8,8 @@ use crate::genotype::Variant;
 #[derive(Debug, Clone)]
 pub struct StemCell {
     pub variants: Vec<Variant>,
+    /// the last time at which the cell has divided
+    pub last_division_t: f32,
 }
 
 impl Default for StemCell {
@@ -22,6 +24,7 @@ impl StemCell {
         //! Construct a new cell without any neutral mutations.
         StemCell {
             variants: Vec::new(),
+            last_division_t: 0.,
         }
     }
 
