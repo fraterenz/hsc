@@ -40,15 +40,15 @@ struct FitnessArg {
 struct NeutralMutationRate {
     /// Poisson rate for the exponential growing phase, leave empty to simulate
     /// just a Moran process with fixed population size
-    #[arg(long, short)]
+    #[arg(long)]
     mu_exp: Option<f32>,
     /// Background mutation rate (all neutral mutations **not** occuring in the
     /// mitotic phase) for for the constant population phase
-    #[arg(long, short)]
+    #[arg(long)]
     mu_background: f32,
     /// Division mutation rate (all neutral mutations occuring upon
     /// cell-division, mitotic phase) for for the constant population phase
-    #[arg(long, short)]
+    #[arg(long)]
     mu_division: f32,
 }
 
