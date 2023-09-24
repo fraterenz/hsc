@@ -231,8 +231,7 @@ impl Moran {
                 println!("assigning {:#?} to cell {:#?}", mutations, stem_cell);
             }
             mutate(stem_cell, mutations);
-        }
-        if self.verbosity > 2 {
+        } else if self.verbosity > 2 {
             println!("no mutations to assign to cell {:#?}", stem_cell);
         }
     }
@@ -446,6 +445,10 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
             self.keep_const_population_upon_symmetric_division(rng);
         } else {
             self.mutations_during_mitosis(stem_cell, division, reaction.event, rng);
+        }
+
+        if self.verbosity > 2 {
+            println!("{} cells", self.subclones.compute_tot_cells());
         }
 
         // take snapshot
