@@ -141,9 +141,12 @@ fn main() {
     };
 
     std::process::exit({
+        // start from seed for the array job
+        let start_end = app.seed as usize..app.runs + app.seed as usize;
+
         match app.parallel {
-            Parallel::Debug | Parallel::False => (0..app.runs).for_each(run_simulations),
-            Parallel::True => (0..app.runs)
+            Parallel::Debug | Parallel::False => (start_end).for_each(run_simulations),
+            Parallel::True => (start_end)
                 .into_par_iter()
                 .progress_count(app.runs as u64)
                 .for_each(run_simulations),
