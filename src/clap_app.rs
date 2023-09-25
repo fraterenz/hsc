@@ -6,6 +6,22 @@ use sosa::{IterTime, NbIndividuals, Options};
 
 use crate::{AppOptions, Fitness, SimulationOptions};
 
+#[derive(Clone, Copy, Debug)]
+enum ProcessType {
+    MoranSymmetric,
+    MoranAsymmetric,
+}
+
+impl ProcessType {
+    pub fn new(p_asymmetric: f64) -> Self {
+        if (p_asymmetric - 0.).abs() < f64::EPSILON {
+            ProcessType::MoranSymmetric
+        } else {
+            ProcessType::MoranAsymmetric
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum Parallel {
     False,
@@ -117,6 +133,20 @@ impl Cli {
         x
     }
 
+    fn normalise_neutral_mutation_rate(rate: f32, process_type: ProcessType) -> f32 {
+        match process_type {
+            ProcessType::MoranAsymmetric => rate,
+            ProcessType::MoranSymmetric => rate / 2.,
+        }
+    }
+
+    fn normalise_fit_mutation_rate(rate: f64, process_type: ProcessType) -> f64 {
+        match process_type {
+            ProcessType::MoranAsymmetric => rate,
+            ProcessType::MoranSymmetric => rate / 2.,
+        }
+    }
+
     pub fn build() -> AppOptions {
         let cli = Cli::parse();
 
@@ -149,10 +179,15 @@ impl Cli {
         let max_iter = 2 * max_cells as usize * b0 as usize * years;
         let snapshots = Cli::build_snapshots_from_time(cli.snapshots as usize, years as f32);
 
-        // convert into rates per cell division
-        let u = (mu0 / (b0 * max_cells as f32)) as f64;
-        let m_background = cli.neutral_rate.mu_background / b0;
-        let m_division = cli.neutral_rate.mu_division / b0;
+        let process_type = ProcessType::new(cli.p_asymmetric);
+
+        // convert into rates per division
+        let u =
+            Cli::normalise_fit_mutation_rate((mu0 / (b0 * max_cells as f32)) as f64, process_type);
+        let m_background =
+            Cli::normalise_neutral_mutation_rate(cli.neutral_rate.mu_background / b0, process_type);
+        let m_division =
+            Cli::normalise_neutral_mutation_rate(cli.neutral_rate.mu_division / b0, process_type);
 
         let distributions = Distributions::new(cli.p_asymmetric, u, verbosity);
 
@@ -179,7 +214,8 @@ impl Cli {
 
         // Exp
         let options_exponential = cli.neutral_rate.mu_exp.map(|rate| {
-            let m = rate / b0;
+            let m = rate / (2. * b0);
+            let u = (mu0 / (b0 * max_cells as f32)) as f64;
             let distributions = Distributions::new(cli.p_asymmetric, u, verbosity);
             let process_options = ProcessOptions {
                 distributions,

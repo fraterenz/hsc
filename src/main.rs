@@ -142,7 +142,8 @@ fn main() {
 
     std::process::exit({
         // start from seed for the array job
-        let start_end = app.seed as usize..app.runs + app.seed as usize;
+        let start = (app.seed * 10) as usize;
+        let start_end = start..app.runs + start;
 
         match app.parallel {
             Parallel::Debug | Parallel::False => (start_end).for_each(run_simulations),

@@ -108,8 +108,8 @@ impl AdvanceStep<MAX_SUBCLONES> for Exponential {
         //! 1. select the cell that will proliferate next from the clone
         //! with id `reaction` determined by the Gillespie algorithm
         //!
-        //! 2. for the proliferating cell:
-        //!     * mutate genome by storing a neutral number of TODO
+        //! 2. for the proliferating cell and its daughter cell:
+        //!     * mutate genome by storing a neutral number of mutations
         //!
         //!     * assign to new subclone with a probability determined by the
         //!     rate of mutations conferring a proliferative advantage
@@ -117,37 +117,35 @@ impl AdvanceStep<MAX_SUBCLONES> for Exponential {
         // that is the clone with id `reaction.event`.
         // Pick random proliferating cells from this clone. **Note that this
         // removes the cells from the clone with id `reaction.event`.**
-        let mut stem_cell =
+        let stem_cell =
             proliferating_cell(&mut self.subclones, reaction.event, self.verbosity, rng);
         self.counter_divisions += 1;
-        self.subclones
-            .get_mut_clone_unchecked(reaction.event)
-            .assign_cell(stem_cell.clone());
+        for mut cell in [stem_cell.clone(), stem_cell] {
+            if self.verbosity > 2 {
+                println!("assigning mutations to cell {:#?}", cell)
+            }
 
-        if self.verbosity > 2 {
-            println!("assigning mutations to cell {:#?}", stem_cell)
+            let division = self.neutral_mutations.new_muts_upon_division(rng);
+            if let Some(mutations) = division {
+                mutate(&mut cell, mutations);
+            }
+
+            // assign cell to clone. This can have two outcomes based on a
+            // Bernouilli trial see `assign` and `self.assign`:
+            // 1. the stem cell is re-assigned to the old clone with id
+            // `reaction.event` (remember that `self.proliferating_cells` has
+            // removed the cells from the clone)
+            // 2. the stem cell is assigned to a new clone with id different
+            // from `reaction.event`.
+            assign(
+                &mut self.subclones,
+                reaction.event,
+                cell,
+                &self.distributions,
+                rng,
+                self.verbosity,
+            );
         }
-
-        let division = self.neutral_mutations.new_muts_upon_division(rng);
-        if let Some(mutations) = division {
-            mutate(&mut stem_cell, mutations);
-        }
-
-        // assign cell to clone. This can have two outcomes based on a
-        // Bernouilli trial see `assign` and `self.assign`:
-        // 1. the stem cell is re-assigned to the old clone with id
-        // `reaction.event` (remember that `self.proliferating_cells` has
-        // removed the cells from the clone)
-        // 2. the stem cell is assigned to a new clone with id different
-        // from `reaction.event`.
-        assign(
-            &mut self.subclones,
-            reaction.event,
-            stem_cell,
-            &self.distributions,
-            rng,
-            self.verbosity,
-        );
     }
 
     fn update_state(&self, state: &mut CurrentState<MAX_SUBCLONES>) {
@@ -236,32 +234,6 @@ impl Moran {
         }
     }
 
-    fn mutations_during_mitosis(
-        &mut self,
-        mut stem_cell: StemCell,
-        mutations: Option<Vec<Variant>>,
-        old_subclone_id: CloneId,
-        rng: &mut impl Rng,
-    ) {
-        self.assign_mutations(&mut stem_cell, mutations);
-
-        // assign cell to clone. This can have two outcomes based on a
-        // Bernouilli trial see `assign` and `self.assign`:
-        // 1. the stem cell is re-assigned to the old clone with id
-        // `reaction.event` (remember that `self.proliferating_cells` has
-        // removed the cells from the clone)
-        // 2. the stem cell is assigned to a new clone with id different
-        // from `reaction.event`.
-        assign(
-            &mut self.subclones,
-            old_subclone_id,
-            stem_cell,
-            &self.distributions,
-            rng,
-            self.verbosity,
-        );
-    }
-
     fn keep_const_population_upon_symmetric_division(&mut self, rng: &mut impl Rng) {
         //! If an symmetric division is performed, need to remove a random cell
         //! from the population.
@@ -274,6 +246,9 @@ impl Moran {
         //!     2. else, compute the variant counts
         //!     3. and sample from any clone based on the weights defined by
         //!     the variant counts
+        if self.verbosity > 2 {
+            println!("keeping the cell population constant");
+        }
         // remove a cell from a random subclone based on the frequencies of
         // the clones at the current state
         let id2remove = if let Some(id) = self.subclones.the_only_one_subclone_present() {
@@ -387,10 +362,10 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
         //! proliferating cell `c` into `c1` and repeat step 3, 4 with `c1`.
 
         // 1. select a cell `c` at random
-        // The Gillespie sampler samples the clone that will proliferate next,
-        // that is the clone with id `reaction.event`.
-        // Pick random proliferating cells from this clone. **Note that this
-        // removes the cells from the clone with id `reaction.event`.**
+        // the SSA samples the clone that will proliferate next, that is the
+        // clone with id `reaction.event`. Pick random proliferating cells from
+        // this clone. **Note that this removes the cells from the clone with
+        // id `reaction.event`.**
         self.time += reaction.time;
         let mut stem_cell =
             proliferating_cell(&mut self.subclones, reaction.event, self.verbosity, rng);
@@ -416,35 +391,49 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
         self.assign_mutations(&mut stem_cell, background);
 
         // 3., 4. and 5.
-        let division = self.neutral_mutations.new_muts_upon_division(rng);
-        if self.verbosity > 2 {
-            println!(
-                "assigning {} mutations upon cell division to cell {:#?}",
-                division.as_ref().unwrap_or(&vec![]).len(),
-                stem_cell
-            )
-        }
         if self.distributions.can_only_be_symmetric()
             || !self.distributions.bern_asymmetric.sample(rng)
         {
-            self.mutations_during_mitosis(stem_cell.clone(), division, reaction.event, rng);
+            for mut cell in [stem_cell.clone(), stem_cell] {
+                let division = self.neutral_mutations.new_muts_upon_division(rng);
+                if self.verbosity > 2 {
+                    println!(
+                        "assigning {} mutations upon cell division to cell {:#?}",
+                        division.as_ref().unwrap_or(&vec![]).len(),
+                        cell
+                    );
+                }
+                self.assign_mutations(&mut cell, division);
+                assign(
+                    &mut self.subclones,
+                    reaction.event,
+                    cell,
+                    &self.distributions,
+                    rng,
+                    self.verbosity,
+                );
+            }
+
+            // remove a cell from the population
+            self.keep_const_population_upon_symmetric_division(rng);
+        } else {
             let division = self.neutral_mutations.new_muts_upon_division(rng);
             if self.verbosity > 2 {
                 println!(
-                    "assigning {} mutations upon cell division to daugther cell {:#?}",
+                    "assigning {} mutations upon cell division to cell {:#?}",
                     division.as_ref().unwrap_or(&vec![]).len(),
                     stem_cell
                 )
             }
-            self.mutations_during_mitosis(stem_cell, division, reaction.event, rng);
-
-            // remove a cell from the population
-            if self.verbosity > 2 {
-                println!("keeping the cell population constant");
-            }
-            self.keep_const_population_upon_symmetric_division(rng);
-        } else {
-            self.mutations_during_mitosis(stem_cell, division, reaction.event, rng);
+            self.assign_mutations(&mut stem_cell, division);
+            assign(
+                &mut self.subclones,
+                reaction.event,
+                stem_cell,
+                &self.distributions,
+                rng,
+                self.verbosity,
+            );
         }
 
         if self.verbosity > 2 {
