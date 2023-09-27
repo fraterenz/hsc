@@ -97,7 +97,7 @@ fn generate_mutations(nb_mutations: NbPoissonMutations) -> Option<Vec<Variant>> 
 }
 
 /// [Site frequency spectrum](https://en.wikipedia.org/wiki/Allele_frequency_spectrum)
-/// implemented as mapping with values being j cells (x-axis) and keys being
+/// implemented as mapping with keys being j cells (x-axis) and values being
 /// the number of variants with j cells (y-axis).
 pub struct Sfs(pub FxHashMap<u64, u64>);
 

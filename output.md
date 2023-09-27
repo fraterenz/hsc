@@ -15,43 +15,14 @@ test/
 │   │   │   ├── 1.json
 │   │   │   └── ...
 │   │   └── ...
-│   ├── genotypes # nested vec of cells with their proliferative events
-│   │   ├── 1
-│   │   │   ├── 0.json
-│   │   │   ├── 1.json
-│   │   │   └── ...
-│   │   ├── 2
-│   │   │   ├── 0.json
-│   │   │   ├── 1.json
-│   │   │   └── ...
-│   │   └── ...
 │   ├── sfs # site frequency spectrum vector
 │   │   ├── 1
-│   │   │   ├── 0.csv
-│   │   │   ├── 1.csv
+│   │   │   ├── 0.json
+│   │   │   ├── 1.json
 │   │   │   └── ...
 │   │   ├── 2
-│   │   │   ├── 0.csv
-│   │   │   ├── 1.csv
-│   │   │   └── ...
-│   │   └── ...
-│   ├── sfs_entropy # site frequency spectrum vector for the entropy
-│   │   ├── 1
-│   │   │   ├── 0.csv
-│   │   │   ├── 1.csv
-│   │   │   └── ...
-│   │   ├── 2
-│   │   │   ├── 0.csv
-│   │   │   ├── 1.csv
-│   │   │   └── ...
-│   │   └── ...
-│   ├── stats # mapping between proliferative events and nb of neutral muts
-│   │   │   ├── 0.csv
-│   │   │   ├── 1.csv
-│   │   │   └── ...
-│   │   ├── 2
-│   │   │   ├── 0.csv
-│   │   │   ├── 1.csv
+│   │   │   ├── 0.json
+│   │   │   ├── 1.json
 │   │   │   └── ...
 │   │   └── ...
 │   └── variant_fraction # the subclones' abbundance
@@ -70,15 +41,12 @@ test/
     └── ...
 ```
 that is those measurements are saved at the end of the simulations, for each timepoint, for each run.
-There is also a dir `stats` storing all the number of neutral mutations at the end of the simulation.
+
 Note that the order of the timepoints is reversed, hence timepoint 1 is the one saved at last.
 
 ### Measurements
 - **burden**: a json file with keys being the number of mutations (single-cell mutational burden x-axis) and values being the cells with those mutations (single-cell mutational burden y-axis)
-- **genotype:** each entry represents a cell with its proliferative events (cell divisions)
-- **sfs:** a vec where each entry represents a variant and the value stored indicates the number of cells with carrying that variant.
-- **sfs_entropy:** same as sfs but the SFS is computed considering all cells at the timepoint of interest but counting only the variants that were present at a certain time in the past
-- **stats:** a serialised struct storing the mapping between the proliferative events and the number of neutral mutations in the total population at the end of the simulation. Note that the entry `cell_count` is not correct, use this struct only with `poisson_mut_number`
+- **sfs:** a json file with keys being the jcells (x-axis) and values being the number of variants with jcells (y-axis).
 - **variant_fraction**: the abbundance of all subclones
 - **rates:** the birth-rates of the subclones, where the first entry represents the birth-rate of the wild-type `b0`
 
