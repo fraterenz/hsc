@@ -1,8 +1,8 @@
-use std::path::PathBuf;
-
 use clap::{ArgAction, Args, Parser};
 use hsc::{genotype::NeutralMutationPoisson, process::ProcessOptions, subclone::Distributions};
+use num_traits::{Float, NumCast};
 use sosa::{IterTime, NbIndividuals, Options};
+use std::path::PathBuf;
 
 use crate::{AppOptions, Fitness, SimulationOptions};
 
@@ -133,17 +133,10 @@ impl Cli {
         x
     }
 
-    fn normalise_neutral_mutation_rate(rate: f32, process_type: ProcessType) -> f32 {
+    fn normalise_mutation_rate<F: Float>(rate: F, process_type: ProcessType) -> F {
         match process_type {
             ProcessType::MoranAsymmetric => rate,
-            ProcessType::MoranSymmetric => rate / 2.,
-        }
-    }
-
-    fn normalise_fit_mutation_rate(rate: f64, process_type: ProcessType) -> f64 {
-        match process_type {
-            ProcessType::MoranAsymmetric => rate,
-            ProcessType::MoranSymmetric => rate / 2.,
+            ProcessType::MoranSymmetric => rate / NumCast::from(2).unwrap(),
         }
     }
 
@@ -182,12 +175,9 @@ impl Cli {
         let process_type = ProcessType::new(cli.p_asymmetric);
 
         // convert into rates per division
-        let u =
-            Cli::normalise_fit_mutation_rate((mu0 / (b0 * max_cells as f32)) as f64, process_type);
-        let m_background =
-            Cli::normalise_neutral_mutation_rate(cli.neutral_rate.mu_background / b0, process_type);
-        let m_division =
-            Cli::normalise_neutral_mutation_rate(cli.neutral_rate.mu_division / b0, process_type);
+        let u = Cli::normalise_mutation_rate((mu0 / (b0 * max_cells as f32)) as f64, process_type);
+        let m_background = cli.neutral_rate.mu_background / b0;
+        let m_division = cli.neutral_rate.mu_division / b0;
 
         let distributions = Distributions::new(cli.p_asymmetric, u, verbosity);
 
@@ -214,7 +204,7 @@ impl Cli {
 
         // Exp
         let options_exponential = cli.neutral_rate.mu_exp.map(|rate| {
-            let m = rate / (2. * b0);
+            let m = Cli::normalise_mutation_rate(rate / b0, process_type);
             let u = (mu0 / (b0 * max_cells as f32)) as f64;
             let distributions = Distributions::new(cli.p_asymmetric, u, verbosity);
             let process_options = ProcessOptions {
