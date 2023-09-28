@@ -104,6 +104,11 @@ fn main() {
             moran
                 .save(timepoint, moran.subclones.compute_tot_cells() as usize, rng)
                 .unwrap();
+            if let Some(subsample) = moran.cells2subsample.as_ref() {
+                for cells in subsample {
+                    moran.save(timepoint, *cells, rng).unwrap();
+                }
+            }
             moran
         } else {
             Moran::new(

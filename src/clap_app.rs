@@ -181,6 +181,15 @@ impl Cli {
 
         let distributions = Distributions::new(cli.p_asymmetric, u, verbosity);
 
+        if let Some(subsamples) = cli.subsample.as_ref() {
+            for subsample in subsamples {
+                assert!(
+                    *subsample < cli.cells as usize,
+                    "found subsample greater than the population size"
+                );
+            }
+        }
+
         // Moran
         let process_options = ProcessOptions {
             distributions,
