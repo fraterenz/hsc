@@ -191,4 +191,70 @@ mod tests {
         .new_muts_upon_division(&mut rng)
         .is_none()
     }
+
+    #[test]
+    fn test_sfs_4cells_6mutations() {
+        // variants
+        let square = Uuid::new_v4();
+        let circle = Uuid::new_v4();
+        let star = Uuid::new_v4();
+        let triangle = Uuid::new_v4();
+        let diamond = Uuid::new_v4();
+        let thunder = Uuid::new_v4();
+        // cells with variants
+        let cell1 = StemCell::with_mutations(vec![square, circle, star]);
+        let cell2 = StemCell::with_mutations(vec![square, circle, diamond]);
+        let cell3 = StemCell::with_mutations(vec![square, triangle, star]);
+        let cell4 = StemCell::with_mutations(vec![square, thunder]);
+
+        // compute sfs and sort it by jcells
+        let mut sfs = Sfs::from_cells(&[&cell1, &cell2, &cell3, &cell4], 0)
+            .unwrap()
+            .0
+            .into_iter()
+            .collect::<Vec<(u64, u64)>>();
+        sfs.sort_unstable_by(|&entry1, &entry2| entry1.0.cmp(&entry2.0));
+        let jcells = sfs
+            .clone()
+            .into_iter()
+            .map(|ele| ele.0)
+            .collect::<Vec<u64>>();
+        let jmuts = sfs.into_iter().map(|ele| ele.1).collect::<Vec<u64>>();
+
+        assert_eq!(jcells, [1, 2, 4]);
+        assert_eq!(jmuts, [3, 2, 1]);
+    }
+
+    #[test]
+    fn test_sfs_4cells_6mutations_with_variant_with_3cells() {
+        // variants
+        let square = Uuid::new_v4();
+        let circle = Uuid::new_v4();
+        let star = Uuid::new_v4();
+        let triangle = Uuid::new_v4();
+        let diamond = Uuid::new_v4();
+        let thunder = Uuid::new_v4();
+        // cells with variants
+        let cell1 = StemCell::with_mutations(vec![square, circle, star]);
+        let cell2 = StemCell::with_mutations(vec![square, circle, diamond]);
+        let cell3 = StemCell::with_mutations(vec![square, triangle, star]);
+        let cell4 = StemCell::with_mutations(vec![square, circle, thunder]);
+
+        // compute sfs and sort it by jcells
+        let mut sfs = Sfs::from_cells(&[&cell1, &cell2, &cell3, &cell4], 0)
+            .unwrap()
+            .0
+            .into_iter()
+            .collect::<Vec<(u64, u64)>>();
+        sfs.sort_unstable_by(|&entry1, &entry2| entry1.0.cmp(&entry2.0));
+        let jcells = sfs
+            .clone()
+            .into_iter()
+            .map(|ele| ele.0)
+            .collect::<Vec<u64>>();
+        let jmuts = sfs.into_iter().map(|ele| ele.1).collect::<Vec<u64>>();
+
+        assert_eq!(jcells, [1, 2, 3, 4]);
+        assert_eq!(jmuts, [3, 1, 1, 1]);
+    }
 }
