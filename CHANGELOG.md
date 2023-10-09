@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.0
+- Remove the clever implementation and just simulate every cell and every mutations (with uuid).
+
 ## 0.19.0
 - simulations start at year 0 and end at year `year` not `year+1`
 ### BugFix
