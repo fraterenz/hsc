@@ -1,14 +1,17 @@
-use crate::clap_app::Cli;
+use crate::clap_app::{Cli, ProcessType};
 use chrono::Utc;
-use clap_app::Parallel;
+use clap_app::{FitnessArg, Parallel};
 use hsc::{
     process::{Exponential, Moran, ProcessOptions},
     stemcell::StemCell,
-    subclone::{from_shape_scale_to_mean_std, Fitness, SubClones, Variants},
+    subclone::{
+        from_mean_std_to_shape_scale, from_shape_scale_to_mean_std, Distributions, Fitness,
+        SubClones, Variants,
+    },
     write2file,
 };
 use indicatif::ParallelProgressIterator;
-use rand::SeedableRng;
+use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use sosa::{simulate, CurrentState, Options};
@@ -24,7 +27,7 @@ pub struct SimulationOptions {
 
 #[derive(Clone, Debug)]
 pub struct AppOptions {
-    fitness: Fitness,
+    fitness: Option<FitnessArg>,
     runs: usize,
     /// division rate for the wild-type
     b0: f32,
@@ -33,17 +36,27 @@ pub struct AppOptions {
     options_moran: SimulationOptions,
     options_exponential: Option<SimulationOptions>,
     pub snapshots: Vec<f32>,
+    pub p_asymmetric: f64,
+    pub mu0: Option<f32>,
 }
 
-fn create_filename(u: f64, fitness: Fitness, idx: usize) -> PathBuf {
+fn create_filename(u: f64, fitness: Fitness, cells: u64, b0: f32, idx: usize) -> PathBuf {
     let (mean, std) = match fitness {
         Fitness::Neutral => (0., 0.),
         Fitness::Fixed { s } => (s, 0.),
         Fitness::GammaSampled { shape, scale } => from_shape_scale_to_mean_std(shape, scale),
     };
-    format!("{:.2}u_{:.2}mean_{:.2}std_{}id", u, mean, std, idx)
-        .replace('.', "dot")
-        .into()
+    format!(
+        "{}u_{}mean_{}std_{}b0_{}cells_{}id",
+        u,
+        mean,
+        std,
+        b0,
+        cells - 1,
+        idx
+    )
+    .replace('.', "dot")
+    .into()
 }
 
 fn main() {
@@ -79,22 +92,58 @@ fn main() {
         let rng = &mut ChaCha8Rng::seed_from_u64(app.seed);
         rng.set_stream(idx as u64);
 
-        let rates = subclones.gillespie_rates(&app.fitness, app.b0, rng);
+        let fitness = if let Some(fitness) = app.fitness.as_ref() {
+            if let Some(s) = fitness.s {
+                Fitness::Fixed { s }
+            } else if let Some(mean_std) = fitness.mean_std.as_ref() {
+                let (shape, scale) = from_mean_std_to_shape_scale(mean_std[0], mean_std[1]);
+                Fitness::GammaSampled { shape, scale }
+            } else {
+                Fitness::Neutral
+            }
+        } else {
+            // If not present, draw values of use mean_std between (mean_min=0.01, std_min=0.01)
+            // and (mean_max=0.4, std_max=0.1)
+            let (mean, std) = (rng.gen_range(0.01..0.4), rng.gen_range(0.01..0.1));
+            let (shape, scale) = from_mean_std_to_shape_scale(mean, std);
+            Fitness::GammaSampled { shape, scale }
+        };
+        let mu0 = if let Some(mu0) = app.mu0 {
+            mu0
+        } else {
+            rng.gen_range(1..20) as f32
+        };
+
+        // convert into rates per division
+        let process_type = ProcessType::new(app.p_asymmetric);
+        let u = Cli::normalise_mutation_rate(
+            (mu0 / (app.b0 * app.options_moran.gillespie_options.max_cells as f32)) as f64,
+            process_type,
+        );
+        let distributions = Distributions::new(
+            app.p_asymmetric,
+            u,
+            app.options_moran.gillespie_options.verbosity,
+        );
+
+        let rates = subclones.gillespie_rates(&fitness, app.b0, rng);
         let mut snapshots = app.snapshots.clone();
         snapshots.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let mut snapshots = VecDeque::from(snapshots);
 
         let filename = create_filename(
-            app.options_moran.process_options.distributions.u,
-            app.fitness,
+            u,
+            fitness,
+            app.options_moran.gillespie_options.max_cells,
+            app.b0,
             idx,
         );
-        dbg!(&filename);
 
         let mut moran = if let Some(options) = app.options_exponential.as_ref() {
             let mut exp = Exponential::new(
                 options.process_options.clone(),
                 subclones,
+                distributions.clone(),
                 options.gillespie_options.verbosity,
             );
 
@@ -120,6 +169,7 @@ fn main() {
             let moran = exp.switch_to_moran(
                 app.options_moran.process_options.clone(),
                 snapshots,
+                distributions,
                 filename,
             );
             moran
@@ -138,6 +188,7 @@ fn main() {
                 app.snapshots.clone(),
                 0.,
                 filename,
+                distributions,
                 app.options_moran.gillespie_options.verbosity,
             )
         };

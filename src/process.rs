@@ -14,7 +14,6 @@ use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
 pub struct ProcessOptions {
-    pub distributions: Distributions,
     pub path: PathBuf,
     pub cells2subsample: Option<Vec<usize>>,
     pub neutral_poisson: NeutralMutationPoisson,
@@ -56,11 +55,12 @@ impl Exponential {
     pub fn new(
         process_options: ProcessOptions,
         initial_subclones: SubClones,
+        distributions: Distributions,
         verbosity: u8,
     ) -> Exponential {
         let hsc = Exponential {
             subclones: initial_subclones,
-            distributions: process_options.distributions,
+            distributions,
             counter_divisions: 0,
             verbosity,
             neutral_mutations: process_options.neutral_poisson,
@@ -75,6 +75,7 @@ impl Exponential {
         self,
         process_options: ProcessOptions,
         snapshot: VecDeque<f32>,
+        distributions: Distributions,
         filename: PathBuf,
     ) -> Moran {
         Moran {
@@ -85,8 +86,8 @@ impl Exponential {
             snapshot,
             path2dir: process_options.path,
             verbosity: self.verbosity,
-            distributions: process_options.distributions,
             filename,
+            distributions,
             neutral_mutations: process_options.neutral_poisson,
         }
     }
@@ -173,7 +174,6 @@ pub struct Moran {
 impl Default for Moran {
     fn default() -> Self {
         let process_options = ProcessOptions {
-            distributions: Distributions::default(),
             path: PathBuf::from("./output"),
             cells2subsample: None,
             neutral_poisson: NeutralMutationPoisson::new(10., 1.).unwrap(),
@@ -185,6 +185,7 @@ impl Default for Moran {
             vec![0.01, 0.1],
             0.,
             PathBuf::default(),
+            Distributions::default(),
             1,
         )
     }
@@ -199,13 +200,14 @@ impl Moran {
         mut snapshot: Vec<f32>,
         time: f32,
         filename: PathBuf,
+        distributions: Distributions,
         verbosity: u8,
     ) -> Moran {
         snapshot.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let snapshot = VecDeque::from(snapshot);
         let hsc = Moran {
             subclones: initial_subclones,
-            distributions: process_options.distributions,
+            distributions,
             counter_divisions: 0,
             path2dir: process_options.path,
             time,

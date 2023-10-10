@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.1.1
+- Generate random parameters for `u`, `mean` and `std` if not provided.
+
 ## 1.1.0
 - Save files using the filename with the rate of fit mutants per cell division (divide by two since we are in symmetric case), mean and std of the fitness distribution.
 
