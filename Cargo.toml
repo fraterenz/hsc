@@ -29,8 +29,4 @@ features = [
 [dev-dependencies]
 quickcheck = "1"
 quickcheck_macros = "1"
-criterion = { version = "0.5", features = ["html_reports"] }
 
-[[bench]]
-name = "burden"
-harness = false
