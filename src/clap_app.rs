@@ -1,17 +1,13 @@
 use clap::{ArgAction, Args, Parser};
-use hsc::{
-    genotype::NeutralMutationPoisson,
-    process::ProcessOptions,
-    subclone::{from_mean_std_to_shape_scale, Distributions},
-};
+use hsc::{genotype::NeutralMutationPoisson, process::ProcessOptions};
 use num_traits::{Float, NumCast};
 use sosa::{IterTime, NbIndividuals, Options};
 use std::path::PathBuf;
 
-use crate::{AppOptions, Fitness, SimulationOptions};
+use crate::{AppOptions, SimulationOptions};
 
 #[derive(Clone, Copy, Debug)]
-enum ProcessType {
+pub enum ProcessType {
     MoranSymmetric,
     MoranAsymmetric,
 }
@@ -34,21 +30,21 @@ pub enum Parallel {
 }
 
 #[derive(Args, Debug, Clone)]
-#[group(required = true, multiple = false)]
-struct FitnessArg {
+#[group(required = false, multiple = false)]
+pub struct FitnessArg {
     /// Neutral scenario with all clones having the same fitness coefficient of
     /// 0
     #[arg(long, action = ArgAction::SetTrue)]
-    neutral: Option<bool>,
+    pub neutral: Option<bool>,
     /// proliferative advantage conferred by fit mutations assuming all clones
     /// have the same advantange, units: mutation / cell
     #[arg(long)]
-    s: Option<f32>,
+    pub s: Option<f32>,
     /// The mean and the standard deviation of the Gamma distribution used to
     /// sample the fitness coefficients representing the proliferative
     /// advantage conferred by fit mutations
     #[arg(long, num_args = 2)]
-    mean_std: Option<Vec<f32>>,
+    pub mean_std: Option<Vec<f32>>,
 }
 
 #[derive(Args, Debug, Clone)]
@@ -83,15 +79,18 @@ pub struct Cli {
     /// division rate for the wild-type in 1 year, units: division / (year * cell)
     #[arg(long, default_value_t = 1.)]
     b0: f32,
-    /// avg fit mutations arising in 1 year, units: division / year
-    #[arg(long, default_value_t = 2.)]
-    mu0: f32,
+    /// avg fit mutations arising in 1 year, units: division / year. If not passed
+    /// generated a random value between 1 and 14
+    #[arg(long)]
+    mu0: Option<f32>,
     /// avg number of neutral mutations per each proliferative event assuming a
     /// Poisson distribution, units: mutation / (cell * year)
     #[command(flatten)]
     neutral_rate: NeutralMutationRate,
     #[command(flatten)]
-    fitness: FitnessArg,
+    /// If not present, draw values of use mean_std between (mean_min=0.01, std_min=0.01)
+    /// and (mean_max=0.4, std_max=0.1)
+    fitness: Option<FitnessArg>,
     /// probability of getting an asymmetric division per each proliferate event
     #[arg(long, default_value_t = 0.)]
     p_asymmetric: f64,
@@ -133,7 +132,7 @@ impl Cli {
         x
     }
 
-    fn normalise_mutation_rate<F: Float>(rate: F, process_type: ProcessType) -> F {
+    pub fn normalise_mutation_rate<F: Float>(rate: F, process_type: ProcessType) -> F {
         match process_type {
             ProcessType::MoranAsymmetric => rate,
             ProcessType::MoranSymmetric => rate / NumCast::from(2).unwrap(),
@@ -142,15 +141,6 @@ impl Cli {
 
     pub fn build() -> AppOptions {
         let cli = Cli::parse();
-
-        let fitness = if let Some(s) = cli.fitness.s {
-            Fitness::Fixed { s }
-        } else if let Some(mean_std) = cli.fitness.mean_std {
-            let (shape, scale) = from_mean_std_to_shape_scale(mean_std[0], mean_std[1]);
-            Fitness::GammaSampled { shape, scale }
-        } else {
-            Fitness::Neutral
-        };
 
         let (parallel, runs) = if cli.debug {
             (Parallel::Debug, 1)
@@ -161,23 +151,18 @@ impl Cli {
         };
 
         let years = cli.years;
-        let (max_cells, years, b0, mu0, verbosity) = if cli.debug {
-            (11, 1, 1., 4., u8::MAX)
+        let (max_cells, years, b0, verbosity) = if cli.debug {
+            (11, 1, 1., u8::MAX)
         } else {
-            (cli.cells + 1, years, cli.b0, cli.mu0, cli.verbosity)
+            (cli.cells + 1, years, cli.b0, cli.verbosity)
         };
 
         let max_iter = 2 * max_cells as usize * b0 as usize * years;
         let snapshots = Cli::build_snapshots_from_time(cli.snapshots as usize, years as f32);
 
-        let process_type = ProcessType::new(cli.p_asymmetric);
-
         // convert into rates per division
-        let u = Cli::normalise_mutation_rate((mu0 / (b0 * max_cells as f32)) as f64, process_type);
         let m_background = cli.neutral_rate.mu_background / b0;
         let m_division = cli.neutral_rate.mu_division / b0;
-
-        let distributions = Distributions::new(cli.p_asymmetric, u, verbosity);
 
         if let Some(subsamples) = cli.subsample.as_ref() {
             for subsample in subsamples {
@@ -190,7 +175,6 @@ impl Cli {
 
         // Moran
         let process_options = ProcessOptions {
-            distributions,
             path: cli.path.clone(),
             cells2subsample: cli.subsample.clone(),
             neutral_poisson: NeutralMutationPoisson::new(m_division, m_background)
@@ -211,11 +195,9 @@ impl Cli {
 
         // Exp
         let options_exponential = cli.neutral_rate.mu_exp.map(|rate| {
+            let process_type = ProcessType::new(cli.p_asymmetric);
             let m = Cli::normalise_mutation_rate(rate / b0, process_type);
-            let u = (mu0 / (b0 * max_cells as f32)) as f64;
-            let distributions = Distributions::new(cli.p_asymmetric, u, verbosity);
             let process_options = ProcessOptions {
-                distributions,
                 path: cli.path,
                 cells2subsample: cli.subsample,
                 // we assume no background mutation for the exponential growing phase
@@ -237,13 +219,15 @@ impl Cli {
 
         AppOptions {
             parallel,
-            fitness,
+            fitness: cli.fitness,
             runs,
             b0,
             seed: cli.seed,
             snapshots,
             options_moran,
             options_exponential,
+            mu0: cli.mu0,
+            p_asymmetric: cli.p_asymmetric,
         }
     }
 }
