@@ -47,7 +47,6 @@ pub struct Exponential {
     pub subclones: SubClones,
     /// The counter for the number of proliferative events.
     pub counter_divisions: usize,
-    id: usize,
     pub verbosity: u8,
     pub distributions: Distributions,
     pub neutral_mutations: NeutralMutationPoisson,
@@ -57,14 +56,12 @@ impl Exponential {
     pub fn new(
         process_options: ProcessOptions,
         initial_subclones: SubClones,
-        id: usize,
         verbosity: u8,
     ) -> Exponential {
         let hsc = Exponential {
             subclones: initial_subclones,
             distributions: process_options.distributions,
             counter_divisions: 0,
-            id,
             verbosity,
             neutral_mutations: process_options.neutral_poisson,
         };
@@ -78,17 +75,18 @@ impl Exponential {
         self,
         process_options: ProcessOptions,
         snapshot: VecDeque<f32>,
+        filename: PathBuf,
     ) -> Moran {
         Moran {
             subclones: self.subclones,
             counter_divisions: self.counter_divisions,
-            id: self.id,
             time: 0.,
             cells2subsample: process_options.cells2subsample,
             snapshot,
             path2dir: process_options.path,
             verbosity: self.verbosity,
             distributions: process_options.distributions,
+            filename,
             neutral_mutations: process_options.neutral_poisson,
         }
     }
@@ -162,7 +160,6 @@ pub struct Moran {
     pub subclones: SubClones,
     /// The counter for the number of proliferative events.
     pub counter_divisions: usize,
-    id: usize,
     time: f32,
     pub snapshot: VecDeque<f32>,
     pub path2dir: PathBuf,
@@ -170,6 +167,7 @@ pub struct Moran {
     pub distributions: Distributions,
     pub neutral_mutations: NeutralMutationPoisson,
     pub cells2subsample: Option<Vec<usize>>,
+    pub filename: PathBuf,
 }
 
 impl Default for Moran {
@@ -185,8 +183,8 @@ impl Default for Moran {
             process_options,
             SubClones::default(),
             vec![0.01, 0.1],
-            1,
             0.,
+            PathBuf::default(),
             1,
         )
     }
@@ -199,8 +197,8 @@ impl Moran {
         process_options: ProcessOptions,
         initial_subclones: SubClones,
         mut snapshot: Vec<f32>,
-        id: usize,
         time: f32,
+        filename: PathBuf,
         verbosity: u8,
     ) -> Moran {
         snapshot.sort_by(|a, b| a.partial_cmp(b).unwrap());
@@ -209,11 +207,11 @@ impl Moran {
             subclones: initial_subclones,
             distributions: process_options.distributions,
             counter_divisions: 0,
-            id,
             path2dir: process_options.path,
             time,
             snapshot,
             cells2subsample: process_options.cells2subsample,
+            filename,
             verbosity,
             neutral_mutations: process_options.neutral_poisson,
         };
@@ -290,7 +288,7 @@ impl Moran {
         if self.verbosity > 1 {
             println!("creating dirs {:#?}", path2file);
         }
-        Ok(path2file.join(self.id.to_string()))
+        Ok(path2file.join(self.filename.clone()))
     }
 
     pub fn save(

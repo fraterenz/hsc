@@ -14,21 +14,23 @@ pub struct Distributions {
     pub bern: Bernoulli,
     /// probability of asymmetric division upon cell proliferation
     pub bern_asymmetric: Bernoulli,
+    pub u: f64,
     no_asymmetric_division: bool,
 }
 
 impl Distributions {
-    pub fn new(p_asymmetric: f64, p_fitness: f64, verbosity: u8) -> Self {
+    pub fn new(p_asymmetric: f64, u: f64, verbosity: u8) -> Self {
         if verbosity > 1 {
             println!(
                 "creating distributions with parameters asymmetric: {}, p_fitness: {}",
-                p_asymmetric, p_fitness
+                p_asymmetric, u
             );
         }
         let no_asymmetric_division = (p_asymmetric - 0.).abs() < f64::EPSILON;
         Self {
-            bern: Bernoulli::new(p_fitness).expect("Invalid p: p<0 or p>1"),
+            bern: Bernoulli::new(u).expect("Invalid p: p<0 or p>1"),
             bern_asymmetric: Bernoulli::new(p_asymmetric).expect("Invalid p: p<0 or p>1"),
+            u,
             no_asymmetric_division,
         }
     }
@@ -46,13 +48,29 @@ impl Default for Distributions {
         Distributions {
             bern: Bernoulli::new(0.1).unwrap(),
             bern_asymmetric: Bernoulli::new(0.).unwrap(),
+            u: f64::default(),
             no_asymmetric_division: true,
         }
     }
 }
 
+pub fn from_shape_scale_to_mean_std(shape: f32, scale: f32) -> (f32, f32) {
+    //! # Example
+    //! ```
+    //! use hsc::subclone::from_shape_scale_to_mean_std;
+    //!
+    //! let (shape, scale) = (2., 1.);
+    //! assert_eq!((2., 2.), from_shape_scale_to_mean_std(shape, scale));
+    //! ```
+    (shape * scale, shape * scale.powf(2.))
+}
+
+pub fn from_mean_std_to_shape_scale(mean: f32, std: f32) -> (f32, f32) {
+    (mean.powf(2.) / std.powf(2.), std.powf(2.) / mean)
+}
+
 /// Fitness models implemented so far.
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum Fitness {
     /// According to the `Neutral` fitness model, all subclones have the same
     /// birth-rates `b0`, where `b0` is the birth-rate of the wild-type neutral

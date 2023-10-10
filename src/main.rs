@@ -4,7 +4,7 @@ use clap_app::Parallel;
 use hsc::{
     process::{Exponential, Moran, ProcessOptions},
     stemcell::StemCell,
-    subclone::{Fitness, SubClones, Variants},
+    subclone::{from_shape_scale_to_mean_std, Fitness, SubClones, Variants},
     write2file,
 };
 use indicatif::ParallelProgressIterator;
@@ -12,7 +12,7 @@ use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use sosa::{simulate, CurrentState, Options};
-use std::collections::VecDeque;
+use std::{collections::VecDeque, path::PathBuf};
 
 pub mod clap_app;
 
@@ -33,6 +33,17 @@ pub struct AppOptions {
     options_moran: SimulationOptions,
     options_exponential: Option<SimulationOptions>,
     pub snapshots: Vec<f32>,
+}
+
+fn create_filename(u: f64, fitness: Fitness, idx: usize) -> PathBuf {
+    let (mean, std) = match fitness {
+        Fitness::Neutral => (0., 0.),
+        Fitness::Fixed { s } => (s, 0.),
+        Fitness::GammaSampled { shape, scale } => from_shape_scale_to_mean_std(shape, scale),
+    };
+    format!("{:.2}u_{:.2}mean_{:.2}std_{}id", u, mean, std, idx)
+        .replace('.', "dot")
+        .into()
 }
 
 fn main() {
@@ -73,11 +84,17 @@ fn main() {
         snapshots.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let mut snapshots = VecDeque::from(snapshots);
 
+        let filename = create_filename(
+            app.options_moran.process_options.distributions.u,
+            app.fitness,
+            idx,
+        );
+        dbg!(&filename);
+
         let mut moran = if let Some(options) = app.options_exponential.as_ref() {
             let mut exp = Exponential::new(
                 options.process_options.clone(),
                 subclones,
-                idx,
                 options.gillespie_options.verbosity,
             );
 
@@ -100,7 +117,11 @@ fn main() {
 
             let timepoint = snapshots.len();
             snapshots.pop_front();
-            let moran = exp.switch_to_moran(app.options_moran.process_options.clone(), snapshots);
+            let moran = exp.switch_to_moran(
+                app.options_moran.process_options.clone(),
+                snapshots,
+                filename,
+            );
             moran
                 .save(timepoint, moran.subclones.compute_tot_cells() as usize, rng)
                 .unwrap();
@@ -115,8 +136,8 @@ fn main() {
                 app.options_moran.process_options.clone(),
                 subclones,
                 app.snapshots.clone(),
-                idx,
                 0.,
+                filename,
                 app.options_moran.gillespie_options.verbosity,
             )
         };

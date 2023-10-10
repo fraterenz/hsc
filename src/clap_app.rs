@@ -1,5 +1,9 @@
 use clap::{ArgAction, Args, Parser};
-use hsc::{genotype::NeutralMutationPoisson, process::ProcessOptions, subclone::Distributions};
+use hsc::{
+    genotype::NeutralMutationPoisson,
+    process::ProcessOptions,
+    subclone::{from_mean_std_to_shape_scale, Distributions},
+};
 use num_traits::{Float, NumCast};
 use sosa::{IterTime, NbIndividuals, Options};
 use std::path::PathBuf;
@@ -40,10 +44,6 @@ struct FitnessArg {
     /// have the same advantange, units: mutation / cell
     #[arg(long)]
     s: Option<f32>,
-    // /// The Gamma distribution used to sample the fitness coefficients
-    // /// representing the proliferative advantage conferred by fit mutations
-    // #[command(flatten)]
-    // gamma: Option<GammaFitness>,
     /// The mean and the standard deviation of the Gamma distribution used to
     /// sample the fitness coefficients representing the proliferative
     /// advantage conferred by fit mutations
@@ -146,10 +146,8 @@ impl Cli {
         let fitness = if let Some(s) = cli.fitness.s {
             Fitness::Fixed { s }
         } else if let Some(mean_std) = cli.fitness.mean_std {
-            Fitness::GammaSampled {
-                shape: mean_std[0].powf(2.) / mean_std[1].powf(2.),
-                scale: mean_std[1].powf(2.) / mean_std[0],
-            }
+            let (shape, scale) = from_mean_std_to_shape_scale(mean_std[0], mean_std[1]);
+            Fitness::GammaSampled { shape, scale }
         } else {
             Fitness::Neutral
         };
