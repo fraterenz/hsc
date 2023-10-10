@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.1.0
+- Save files using the filename with the rate of fit mutants per cell division (divide by two since we are in symmetric case), mean and std of the fitness distribution.
+
 ## 1.0.0
 - Remove the clever implementation and just simulate every cell and every mutations (with uuid).
 
