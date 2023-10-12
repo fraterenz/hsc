@@ -4,10 +4,7 @@ use clap_app::{FitnessArg, Parallel};
 use hsc::{
     process::{Exponential, Moran, ProcessOptions},
     stemcell::StemCell,
-    subclone::{
-        from_mean_std_to_shape_scale, from_shape_scale_to_mean_std, Distributions, Fitness,
-        SubClones, Variants,
-    },
+    subclone::{from_mean_std_to_shape_scale, Distributions, Fitness, SubClones, Variants},
     write2file,
 };
 use indicatif::ParallelProgressIterator;
@@ -15,7 +12,7 @@ use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use sosa::{simulate, CurrentState, Options};
-use std::{collections::VecDeque, path::PathBuf};
+use std::collections::VecDeque;
 
 pub mod clap_app;
 
@@ -38,25 +35,6 @@ pub struct AppOptions {
     pub snapshots: Vec<f32>,
     pub p_asymmetric: f64,
     pub mu0: Option<f32>,
-}
-
-fn create_filename(u: f64, fitness: Fitness, cells: u64, b0: f32, idx: usize) -> PathBuf {
-    let (mean, std) = match fitness {
-        Fitness::Neutral => (0., 0.),
-        Fitness::Fixed { s } => (s, 0.),
-        Fitness::GammaSampled { shape, scale } => from_shape_scale_to_mean_std(shape, scale),
-    };
-    format!(
-        "{}u_{}mean_{}std_{}b0_{}cells_{}id",
-        u,
-        mean,
-        std,
-        b0,
-        cells - 1,
-        idx
-    )
-    .replace('.', "dot")
-    .into()
 }
 
 fn main() {
@@ -92,26 +70,30 @@ fn main() {
         let rng = &mut ChaCha8Rng::seed_from_u64(app.seed);
         rng.set_stream(idx as u64);
 
-        let fitness = if let Some(fitness) = app.fitness.as_ref() {
+        let (fitness, mean, std) = if let Some(fitness) = app.fitness.as_ref() {
             if let Some(s) = fitness.s {
-                Fitness::Fixed { s }
+                (Fitness::Fixed { s }, s, 0.)
             } else if let Some(mean_std) = fitness.mean_std.as_ref() {
                 let (shape, scale) = from_mean_std_to_shape_scale(mean_std[0], mean_std[1]);
-                Fitness::GammaSampled { shape, scale }
+                (
+                    Fitness::GammaSampled { shape, scale },
+                    mean_std[0],
+                    mean_std[1],
+                )
             } else {
-                Fitness::Neutral
+                (Fitness::Neutral, 0., 0.)
             }
         } else {
             // If not present, draw values of use mean_std between (mean_min=0.01, std_min=0.01)
             // and (mean_max=0.4, std_max=0.1)
             let (mean, std) = (rng.gen_range(0.01..0.4), rng.gen_range(0.01..0.1));
-            let (shape, scale) = from_mean_std_to_shape_scale(mean, std);
-            Fitness::GammaSampled { shape, scale }
+            let (shape, scale) = from_mean_std_to_shape_scale(mean, std as f32);
+            (Fitness::GammaSampled { shape, scale }, mean, std)
         };
         let mu0 = if let Some(mu0) = app.mu0 {
             mu0
         } else {
-            rng.gen_range(1..12) as f32
+            rng.gen_range(1..14) as f32
         };
 
         // convert into rates per division
@@ -131,13 +113,18 @@ fn main() {
         snapshots.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let mut snapshots = VecDeque::from(snapshots);
 
-        let filename = create_filename(
+        let filename = format!(
+            "{}mu0_{}u_{}mean_{}std_{}b0_{}cells_{}idx",
+            mu0,
             u,
-            fitness,
-            app.options_moran.gillespie_options.max_cells,
+            mean,
+            std,
             app.b0,
-            idx,
-        );
+            app.options_moran.gillespie_options.max_cells - 1,
+            idx
+        )
+        .replace('.', "dot")
+        .into();
 
         let mut moran = if let Some(options) = app.options_exponential.as_ref() {
             let mut exp = Exponential::new(

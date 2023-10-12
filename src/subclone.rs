@@ -54,17 +54,6 @@ impl Default for Distributions {
     }
 }
 
-pub fn from_shape_scale_to_mean_std(shape: f32, scale: f32) -> (f32, f32) {
-    //! # Example
-    //! ```
-    //! use hsc::subclone::from_shape_scale_to_mean_std;
-    //!
-    //! let (shape, scale) = (2., 1.);
-    //! assert_eq!((2., 2.), from_shape_scale_to_mean_std(shape, scale));
-    //! ```
-    (shape * scale, shape * scale.powf(2.))
-}
-
 pub fn from_mean_std_to_shape_scale(mean: f32, std: f32) -> (f32, f32) {
     (mean.powf(2.) / std.powf(2.), std.powf(2.) / mean)
 }

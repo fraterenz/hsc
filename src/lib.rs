@@ -38,7 +38,7 @@ pub mod subclone;
 /// If the parameters of the simulation provided by the user (e.g. fit mutation
 /// rate) are too extreme, the program will exit with error. To avoid this,
 /// increase here the number of clones.
-pub const MAX_SUBCLONES: usize = 120;
+pub const MAX_SUBCLONES: usize = 130;
 
 pub fn write2file<T: std::fmt::Display>(
     data: &[T],

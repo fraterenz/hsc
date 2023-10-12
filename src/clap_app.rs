@@ -80,7 +80,7 @@ pub struct Cli {
     #[arg(long, default_value_t = 1.)]
     b0: f32,
     /// avg fit mutations arising in 1 year, units: division / year. If not passed
-    /// generated a random value between 1 and 12
+    /// generated a random value between 1 and 14
     #[arg(long)]
     mu0: Option<f32>,
     /// avg number of neutral mutations per each proliferative event assuming a
