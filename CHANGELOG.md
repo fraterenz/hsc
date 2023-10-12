@@ -2,6 +2,8 @@
 
 ## 1.1.2
 - Increase the number of clones to 130
+### BugFix
+- fix filename for the std
 
 ## 1.1.1
 - Generate random parameters for `u`, `mean` and `std` if not provided.
