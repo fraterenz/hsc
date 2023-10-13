@@ -77,6 +77,7 @@ impl Exponential {
         snapshot: VecDeque<f32>,
         distributions: Distributions,
         filename: PathBuf,
+        save_sfs_only: bool,
     ) -> Moran {
         Moran {
             subclones: self.subclones,
@@ -89,6 +90,7 @@ impl Exponential {
             filename,
             distributions,
             neutral_mutations: process_options.neutral_poisson,
+            save_sfs_only,
         }
     }
 }
@@ -169,6 +171,7 @@ pub struct Moran {
     pub neutral_mutations: NeutralMutationPoisson,
     pub cells2subsample: Option<Vec<usize>>,
     pub filename: PathBuf,
+    pub save_sfs_only: bool,
 }
 
 impl Default for Moran {
@@ -186,6 +189,7 @@ impl Default for Moran {
             0.,
             PathBuf::default(),
             Distributions::default(),
+            false,
             1,
         )
     }
@@ -201,6 +205,7 @@ impl Moran {
         time: f32,
         filename: PathBuf,
         distributions: Distributions,
+        save_sfs_only: bool,
         verbosity: u8,
     ) -> Moran {
         snapshot.sort_by(|a, b| a.partial_cmp(b).unwrap());
@@ -215,6 +220,7 @@ impl Moran {
             cells2subsample: process_options.cells2subsample,
             filename,
             verbosity,
+            save_sfs_only,
             neutral_mutations: process_options.neutral_poisson,
         };
         if verbosity > 1 {
@@ -297,14 +303,9 @@ impl Moran {
         &self,
         timepoint: usize,
         nb_cells: usize,
+        save_sfs_only: bool,
         rng: &mut impl Rng,
     ) -> anyhow::Result<()> {
-        save_variant_fraction(
-            &self.subclones,
-            &self.make_path(Stats2Save::VariantFraction, nb_cells, timepoint)?,
-            self.verbosity,
-        )?;
-
         let cells = if nb_cells == self.subclones.compute_tot_cells() as usize {
             self.subclones.get_cells()
         } else {
@@ -319,9 +320,17 @@ impl Moran {
             .unwrap_or_else(|_| panic!("cannot create SFS for timepoint {}", timepoint))
             .save(&self.make_path(Stats2Save::Sfs, nb_cells, timepoint)?)?;
 
-        MutationalBurden::from_cells(&cells, self.verbosity)
-            .unwrap_or_else(|_| panic!("cannot create burden for the timepoint {}", timepoint))
-            .save(&self.make_path(Stats2Save::Burden, nb_cells, timepoint)?)?;
+        if !save_sfs_only {
+            MutationalBurden::from_cells(&cells, self.verbosity)
+                .unwrap_or_else(|_| panic!("cannot create burden for the timepoint {}", timepoint))
+                .save(&self.make_path(Stats2Save::Burden, nb_cells, timepoint)?)?;
+
+            save_variant_fraction(
+                &self.subclones,
+                &self.make_path(Stats2Save::VariantFraction, nb_cells, timepoint)?,
+                self.verbosity,
+            )?;
+        }
 
         if self.verbosity > 0 {
             println!(
@@ -464,7 +473,7 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
                     }
                 }
                 for cells in cells2save {
-                    self.save(self.snapshot.len(), cells, rng)
+                    self.save(self.snapshot.len(), cells, self.save_sfs_only, rng)
                         .expect("cannot save snapshot");
                 }
                 self.snapshot.pop_front();

@@ -96,6 +96,9 @@ pub struct Cli {
     p_asymmetric: f64,
     #[arg(long, default_value_t = 26)]
     seed: u64,
+    /// Save only the SFS (when you dont want too many files to be saved)
+    #[arg(long, action = ArgAction::SetTrue, default_value_t = false)]
+    save_sfs_only: bool,
     /// Triggers debug mode: max verbosity, 1 sequential simulation, 10 cells,
     /// 20 iterations with high mutation rate
     #[arg(short, long, action = ArgAction::SetTrue, default_value_t = false)]
@@ -191,6 +194,7 @@ impl Cli {
                 init_iter: 0,
                 verbosity,
             },
+            save_sfs_only: cli.save_sfs_only,
         };
 
         // Exp
@@ -214,6 +218,7 @@ impl Cli {
                     init_iter: 0,
                     verbosity,
                 },
+                save_sfs_only: cli.save_sfs_only,
             }
         });
 

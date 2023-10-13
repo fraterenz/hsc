@@ -20,6 +20,7 @@ pub mod clap_app;
 pub struct SimulationOptions {
     process_options: ProcessOptions,
     gillespie_options: Options,
+    save_sfs_only: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -158,13 +159,21 @@ fn main() {
                 snapshots,
                 distributions,
                 filename,
+                app.options_moran.save_sfs_only,
             );
             moran
-                .save(timepoint, moran.subclones.compute_tot_cells() as usize, rng)
+                .save(
+                    timepoint,
+                    moran.subclones.compute_tot_cells() as usize,
+                    app.options_moran.save_sfs_only,
+                    rng,
+                )
                 .unwrap();
             if let Some(subsample) = moran.cells2subsample.as_ref() {
                 for cells in subsample {
-                    moran.save(timepoint, *cells, rng).unwrap();
+                    moran
+                        .save(timepoint, *cells, app.options_moran.save_sfs_only, rng)
+                        .unwrap();
                 }
             }
             moran
@@ -176,6 +185,7 @@ fn main() {
                 0.,
                 filename,
                 distributions,
+                app.options_moran.save_sfs_only,
                 app.options_moran.gillespie_options.verbosity,
             )
         };
