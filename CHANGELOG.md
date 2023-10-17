@@ -1,4 +1,7 @@
 # Changelog
+## 1.3.1
+- decrease the range of mu
+
 ## 1.3.0
 - save timepoints using the `time` from the process instead of the lenght of the timepoints
 

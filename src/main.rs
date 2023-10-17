@@ -94,7 +94,7 @@ fn main() {
         let mu0 = if let Some(mu0) = app.mu0 {
             mu0
         } else {
-            rng.gen_range(1f32..25f32)
+            rng.gen_range(1f32..14f32)
         };
 
         // convert into rates per division
