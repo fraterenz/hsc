@@ -13,6 +13,12 @@ use std::fs;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
+pub struct SavingOptions {
+    pub filename: PathBuf,
+    pub save_sfs_only: bool,
+}
+
+#[derive(Debug, Clone)]
 pub struct ProcessOptions {
     pub path: PathBuf,
     pub cells2subsample: Option<Vec<usize>>,
@@ -22,11 +28,7 @@ pub struct ProcessOptions {
 #[derive(Hash, PartialEq, Eq)]
 pub enum Stats2Save {
     Burden,
-    BurdenEntropy,
-    Genotypes,
     Sfs,
-    SfsEntropy,
-    Stats,
     VariantFraction,
 }
 
@@ -187,9 +189,11 @@ impl Default for Moran {
             SubClones::default(),
             vec![0.01, 0.1],
             0.,
-            PathBuf::default(),
+            SavingOptions {
+                filename: PathBuf::default(),
+                save_sfs_only: false,
+            },
             Distributions::default(),
-            false,
             1,
         )
     }
@@ -203,9 +207,8 @@ impl Moran {
         initial_subclones: SubClones,
         mut snapshot: Vec<f32>,
         time: f32,
-        filename: PathBuf,
+        saving_options: SavingOptions,
         distributions: Distributions,
-        save_sfs_only: bool,
         verbosity: u8,
     ) -> Moran {
         snapshot.sort_by(|a, b| a.partial_cmp(b).unwrap());
@@ -218,9 +221,9 @@ impl Moran {
             time,
             snapshot,
             cells2subsample: process_options.cells2subsample,
-            filename,
+            filename: saving_options.filename,
             verbosity,
-            save_sfs_only,
+            save_sfs_only: saving_options.save_sfs_only,
             neutral_mutations: process_options.neutral_poisson,
         };
         if verbosity > 1 {
@@ -284,12 +287,8 @@ impl Moran {
         let path2dir = self.path2dir.join(format!("{}cells", cells));
         let path2file = match tosave {
             Stats2Save::VariantFraction => path2dir.join("variant_fraction"),
-            Stats2Save::Genotypes => path2dir.join("genotypes"),
             Stats2Save::Burden => path2dir.join("burden"),
-            Stats2Save::BurdenEntropy => path2dir.join("burden_entropy"),
             Stats2Save::Sfs => path2dir.join("sfs"),
-            Stats2Save::SfsEntropy => path2dir.join("sfs_entropy"),
-            Stats2Save::Stats => path2dir.join("stats"),
         };
         let path2file = path2file.join(timepoint.to_string());
         fs::create_dir_all(&path2file).with_context(|| "Cannot create dir")?;

@@ -2,7 +2,7 @@ use crate::clap_app::{Cli, ProcessType};
 use chrono::Utc;
 use clap_app::{FitnessArg, Parallel};
 use hsc::{
-    process::{Exponential, Moran, ProcessOptions},
+    process::{Exponential, Moran, ProcessOptions, SavingOptions},
     stemcell::StemCell,
     subclone::{from_mean_std_to_shape_scale, Distributions, Fitness, SubClones, Variants},
     write2file,
@@ -87,14 +87,14 @@ fn main() {
         } else {
             // If not present, draw values of use mean_std between (mean_min=0.01, std_min=0.01)
             // and (mean_max=0.4, std_max=0.1)
-            let (mean, std) = (rng.gen_range(0.01..0.4), rng.gen_range(0.01..0.1));
-            let (shape, scale) = from_mean_std_to_shape_scale(mean, std as f32);
+            let (mean, std) = (rng.gen_range(0.01..0.4), rng.gen_range(0.01..0.06));
+            let (shape, scale) = from_mean_std_to_shape_scale(mean, std);
             (Fitness::GammaSampled { shape, scale }, mean, std)
         };
         let mu0 = if let Some(mu0) = app.mu0 {
             mu0
         } else {
-            rng.gen_range(1..14) as f32
+            rng.gen_range(1f32..25f32)
         };
 
         // convert into rates per division
@@ -183,9 +183,11 @@ fn main() {
                 subclones,
                 app.snapshots.clone(),
                 0.,
-                filename,
+                SavingOptions {
+                    filename,
+                    save_sfs_only: app.options_moran.save_sfs_only,
+                },
                 distributions,
-                app.options_moran.save_sfs_only,
                 app.options_moran.gillespie_options.verbosity,
             )
         };

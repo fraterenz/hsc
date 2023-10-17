@@ -1,4 +1,7 @@
 # Changelog
+## 1.2.0
+- `clap_app` arguments `nb_snapshots` and `snapshots`
+- `clippy`
 
 ## 1.1.2
 - Increase the number of clones to 130

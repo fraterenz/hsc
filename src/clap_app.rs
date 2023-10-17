@@ -111,10 +111,14 @@ pub struct Cli {
     /// Run sequentially each run instead of using rayon for parallelisation
     #[arg(long, action = ArgAction::SetTrue, default_value_t = false, conflicts_with = "debug")]
     sequential: bool,
-    #[arg(long, default_value_t = 10)]
+    #[arg(long, conflicts_with = "nb_snapshots", num_args = 0..)]
+    /// Snapshots to take to save the simulation. If neither `nb_snapshots` nor
+    /// this argument are set, generate 10 linespaced snapshots from 0 to years.
+    snapshots: Option<Vec<f32>>,
+    #[arg(long, conflicts_with = "snapshots")]
     /// Number of snapshots to take to save the simulation. Those timepoints
     /// will be linespaced, starting from 1 to `years`.
-    snapshots: u8,
+    nb_snapshots: Option<u8>,
     /// Number of cells to subsample before saving the measurements.
     /// If not specified, do not subsample. If subsampling is performed, the
     /// measurements of the whole population will also be saved.
@@ -161,7 +165,22 @@ impl Cli {
         };
 
         let max_iter = 2 * max_cells as usize * b0 as usize * years;
-        let snapshots = Cli::build_snapshots_from_time(cli.snapshots as usize, years as f32);
+        let snapshots = match (cli.nb_snapshots, cli.snapshots) {
+            (Some(nb_snapshots), None) => {
+                Cli::build_snapshots_from_time(nb_snapshots as usize, years as f32)
+            }
+            (None, Some(mut snapshots)) => {
+                snapshots.sort_by(|a, b| a.partial_cmp(b).unwrap());
+                assert!(
+                    *snapshots.last().unwrap() <= years as f32,
+                    "max snapshot is greater than years"
+                );
+                snapshots.dedup();
+                snapshots
+            }
+            (None, None) => Cli::build_snapshots_from_time(10, years as f32),
+            _ => unreachable!("found both `nb_snapshots` and `snapshots`"),
+        };
 
         // convert into rates per division
         let m_background = cli.neutral_rate.mu_background / b0;
