@@ -165,7 +165,7 @@ pub struct Moran {
     pub subclones: SubClones,
     /// The counter for the number of proliferative events.
     pub counter_divisions: usize,
-    time: f32,
+    pub time: f32,
     pub snapshot: VecDeque<f32>,
     pub path2dir: PathBuf,
     pub verbosity: u8,
@@ -282,7 +282,7 @@ impl Moran {
         &self,
         tosave: Stats2Save,
         cells: usize,
-        timepoint: usize,
+        time: f32,
     ) -> anyhow::Result<PathBuf> {
         let path2dir = self.path2dir.join(format!("{}cells", cells));
         let path2file = match tosave {
@@ -290,7 +290,9 @@ impl Moran {
             Stats2Save::Burden => path2dir.join("burden"),
             Stats2Save::Sfs => path2dir.join("sfs"),
         };
-        let path2file = path2file.join(timepoint.to_string());
+        let mut timepoint = format!("{:.1}", time).replace('.', "dot");
+        timepoint.push_str("years");
+        let path2file = path2file.join(timepoint);
         fs::create_dir_all(&path2file).with_context(|| "Cannot create dir")?;
         if self.verbosity > 1 {
             println!("creating dirs {:#?}", path2file);
@@ -300,7 +302,7 @@ impl Moran {
 
     pub fn save(
         &self,
-        timepoint: usize,
+        time: f32,
         nb_cells: usize,
         save_sfs_only: bool,
         rng: &mut impl Rng,
@@ -316,17 +318,19 @@ impl Moran {
         }
 
         Sfs::from_cells(&cells, self.verbosity)
-            .unwrap_or_else(|_| panic!("cannot create SFS for timepoint {}", timepoint))
-            .save(&self.make_path(Stats2Save::Sfs, nb_cells, timepoint)?)?;
+            .unwrap_or_else(|_| panic!("cannot create SFS for timepoint at time {}", time))
+            .save(&self.make_path(Stats2Save::Sfs, nb_cells, time)?)?;
 
         if !save_sfs_only {
             MutationalBurden::from_cells(&cells, self.verbosity)
-                .unwrap_or_else(|_| panic!("cannot create burden for the timepoint {}", timepoint))
-                .save(&self.make_path(Stats2Save::Burden, nb_cells, timepoint)?)?;
+                .unwrap_or_else(|_| {
+                    panic!("cannot create burden for the timepoint at time {}", time)
+                })
+                .save(&self.make_path(Stats2Save::Burden, nb_cells, time)?)?;
 
             save_variant_fraction(
                 &self.subclones,
-                &self.make_path(Stats2Save::VariantFraction, nb_cells, timepoint)?,
+                &self.make_path(Stats2Save::VariantFraction, nb_cells, time)?,
                 self.verbosity,
             )?;
         }
@@ -472,7 +476,7 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
                     }
                 }
                 for cells in cells2save {
-                    self.save(self.snapshot.len(), cells, self.save_sfs_only, rng)
+                    self.save(self.time, cells, self.save_sfs_only, rng)
                         .expect("cannot save snapshot");
                 }
                 self.snapshot.pop_front();

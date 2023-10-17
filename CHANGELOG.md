@@ -1,4 +1,7 @@
 # Changelog
+## 1.3.0
+- save timepoints using the `time` from the process instead of the lenght of the timepoints
+
 ## 1.2.0
 - `clap_app` arguments `nb_snapshots` and `snapshots`
 - `clippy`

@@ -152,7 +152,6 @@ fn main() {
                 );
             }
 
-            let timepoint = snapshots.len();
             snapshots.pop_front();
             let moran = exp.switch_to_moran(
                 app.options_moran.process_options.clone(),
@@ -163,7 +162,7 @@ fn main() {
             );
             moran
                 .save(
-                    timepoint,
+                    moran.time,
                     moran.subclones.compute_tot_cells() as usize,
                     app.options_moran.save_sfs_only,
                     rng,
@@ -172,7 +171,7 @@ fn main() {
             if let Some(subsample) = moran.cells2subsample.as_ref() {
                 for cells in subsample {
                     moran
-                        .save(timepoint, *cells, app.options_moran.save_sfs_only, rng)
+                        .save(moran.time, *cells, app.options_moran.save_sfs_only, rng)
                         .unwrap();
                 }
             }
