@@ -6,31 +6,31 @@ If the directory path given by the user is `/path/to/save/`, then the output of 
 test/
 ├── 10cells
 │   ├── burden # single cell mutational burden mapping
-│   │   ├── 1 # the more recent timepoint
+│   │   ├── 0dot0years
 │   │   │   ├── 0.json  # run 0
 │   │   │   ├── 1.json  # run 1
 │   │   │   └── ...
-│   │   ├── 2
+│   │   ├── 1dot0years
 │   │   │   ├── 0.json
 │   │   │   ├── 1.json
 │   │   │   └── ...
 │   │   └── ...
 │   ├── sfs # site frequency spectrum vector
-│   │   ├── 1
+│   │   ├── 0dot0years
 │   │   │   ├── 0.json
 │   │   │   ├── 1.json
 │   │   │   └── ...
-│   │   ├── 2
+│   │   ├── 1dot0years
 │   │   │   ├── 0.json
 │   │   │   ├── 1.json
 │   │   │   └── ...
 │   │   └── ...
 │   └── variant_fraction # the subclones' abbundance
-│       ├── 1
+│       ├── 0dot0years
 │       │   ├── 0.csv
 │       │   ├── 1.csv
 │       │   └── ...
-│       ├── 2
+│       ├── 1dot0years
 │       │   ├── 0.csv
 │       │   ├── 1.csv
 │       │   └── ...
@@ -42,7 +42,7 @@ test/
 ```
 that is those measurements are saved at the end of the simulations, for each timepoint, for each run.
 
-Note that the order of the timepoints is reversed, hence timepoint 1 is the one saved at last.
+The file name of the runs (here `0.csv` and `1.csv` or `0.json` and `1.json`) have changed such that they incorportate the parameters that have been used to generate them, starting from version `v1.1.0`.
 
 ### Measurements
 - **burden**: a json file with keys being the number of mutations (single-cell mutational burden x-axis) and values being the cells with those mutations (single-cell mutational burden y-axis)
