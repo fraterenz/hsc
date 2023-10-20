@@ -1,5 +1,6 @@
 # Changelog
 ## 1.3.1
+- increase the number of clones to 160
 - decrease the range of mu
 ### BugFix
 - fix saving the variants with subsampling (issue #58)
