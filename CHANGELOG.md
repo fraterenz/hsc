@@ -1,6 +1,8 @@
 # Changelog
 ## 1.3.1
 - decrease the range of mu
+### BugFix
+- fix saving the variants with subsampling (issue #58)
 
 ## 1.3.0
 - save timepoints using the `time` from the process instead of the lenght of the timepoints

@@ -307,11 +307,13 @@ impl Moran {
         save_sfs_only: bool,
         rng: &mut impl Rng,
     ) -> anyhow::Result<()> {
-        let cells = if nb_cells == self.subclones.compute_tot_cells() as usize {
-            self.subclones.get_cells()
+        let cells_with_idx = if nb_cells == self.subclones.compute_tot_cells() as usize {
+            self.subclones.get_cells_with_clones_idx()
         } else {
-            self.subclones.get_cells_subsampled(nb_cells, rng)
+            self.subclones
+                .get_cells_subsampled_with_clones_idx(nb_cells, rng)
         };
+        let cells: Vec<&StemCell> = cells_with_idx.iter().map(|ele| ele.0).collect();
 
         if self.verbosity > 1 {
             println!("saving {} cells", cells.len());
@@ -329,7 +331,12 @@ impl Moran {
                 .save(&self.make_path(Stats2Save::Burden, nb_cells, time)?)?;
 
             save_variant_fraction(
-                &self.subclones,
+                &SubClones::from(
+                    cells_with_idx
+                        .into_iter()
+                        .map(|(cell, id)| (cell.to_owned(), id))
+                        .collect::<Vec<(StemCell, usize)>>(),
+                ),
                 &self.make_path(Stats2Save::VariantFraction, nb_cells, time)?,
                 self.verbosity,
             )?;

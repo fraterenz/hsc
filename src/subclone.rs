@@ -116,6 +116,10 @@ impl SubClone {
         &self.cells
     }
 
+    pub fn get_cells_subclones_idx(&self) -> Vec<(&StemCell, usize)> {
+        self.cells.iter().map(|cell| (cell, self.id)).collect()
+    }
+
     pub fn is_empty(&self) -> bool {
         self.get_cells().is_empty()
     }
@@ -238,10 +242,28 @@ impl SubClones {
             .collect()
     }
 
+    pub fn get_cells_with_clones_idx(&self) -> Vec<(&StemCell, usize)> {
+        self.0
+            .iter()
+            .flat_map(|subclone| subclone.get_cells_subclones_idx())
+            .collect()
+    }
+
     pub fn get_cells_subsampled(&self, nb_cells: usize, rng: &mut impl Rng) -> Vec<&StemCell> {
         self.0
             .iter()
             .flat_map(|subclone| subclone.get_cells())
+            .choose_multiple(rng, nb_cells)
+    }
+
+    pub fn get_cells_subsampled_with_clones_idx(
+        &self,
+        nb_cells: usize,
+        rng: &mut impl Rng,
+    ) -> Vec<(&StemCell, usize)> {
+        self.0
+            .iter()
+            .flat_map(|subclone| subclone.get_cells_subclones_idx())
             .choose_multiple(rng, nb_cells)
     }
 
@@ -285,6 +307,16 @@ impl Default for SubClones {
             subclone
         });
         Self(subclones)
+    }
+}
+
+impl From<Vec<(StemCell, usize)>> for SubClones {
+    fn from(cells: Vec<(StemCell, usize)>) -> Self {
+        let mut subclones = SubClones::default();
+        for (cell, id) in cells.into_iter() {
+            subclones.get_mut_clone_unchecked(id).assign_cell(cell);
+        }
+        subclones
     }
 }
 
