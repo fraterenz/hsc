@@ -1,4 +1,8 @@
 # Changelog
+## 1.3.2
+### BugFix
+- fix bug in the variant fraction
+
 ## 1.3.1
 - increase the number of clones to 160
 - decrease the range of mu

@@ -112,6 +112,17 @@ impl SubClone {
         }
     }
 
+    pub fn with_capacity(id: usize, capacity: usize) -> SubClone {
+        SubClone {
+            cells: Vec::with_capacity(capacity),
+            id,
+        }
+    }
+
+    pub fn empty_with_id(id: usize) -> SubClone {
+        SubClone { cells: vec![], id }
+    }
+
     pub fn get_cells(&self) -> &[StemCell] {
         &self.cells
     }
@@ -202,6 +213,16 @@ impl SubClones {
         }
 
         Self(subclones)
+    }
+
+    pub fn new_empty() -> Self {
+        SubClones(std::array::from_fn(|id| SubClone::empty_with_id(id)))
+    }
+
+    pub fn with_capacity(capacity: usize) -> Self {
+        SubClones(std::array::from_fn(|id| {
+            SubClone::with_capacity(id, capacity)
+        }))
     }
 
     pub fn compute_tot_cells(&self) -> u64 {
@@ -312,7 +333,7 @@ impl Default for SubClones {
 
 impl From<Vec<(StemCell, usize)>> for SubClones {
     fn from(cells: Vec<(StemCell, usize)>) -> Self {
-        let mut subclones = SubClones::default();
+        let mut subclones = SubClones::new_empty();
         for (cell, id) in cells.into_iter() {
             subclones.get_mut_clone_unchecked(id).assign_cell(cell);
         }
@@ -337,20 +358,31 @@ impl Variants {
         std::array::from_fn(|i| subclones.0[i].cell_count())
     }
 
-    pub fn variant_fractions(subclones: &SubClones, tot_cells: u64) -> Vec<f32> {
+    pub fn variant_fractions(subclones: &SubClones) -> Vec<f32> {
         //! The proportion of cells in all subclones.
         //!
         //! ```
         //! use hsc::MAX_SUBCLONES;
+        //! use hsc::subclone::SubClones;
         //! # use hsc::{stemcell::StemCell, process::{Moran}, subclone::Variants};
         //! // create a process with one cell in each `MAX_SUBCLONES` subclones
         //! let mut hsc = Moran::default();
         //!
         //! assert_eq!(
-        //!     Variants::variant_fractions(&hsc.subclones, hsc.subclones.compute_tot_cells()),
+        //!     Variants::variant_fractions(&hsc.subclones),
         //!     [1. / MAX_SUBCLONES as f32; MAX_SUBCLONES]
         //! );
+        //!
+        //! let subclones = SubClones::new(vec![StemCell::new()], MAX_SUBCLONES);
+        //! let mut variant_fraction = [0.; MAX_SUBCLONES];
+        //! variant_fraction[0] = 1.;
+        //!
+        //! assert_eq!(
+        //!     Variants::variant_fractions(&subclones),
+        //!     variant_fraction
+        //! );
         //! ```
+        let tot_cells = subclones.compute_tot_cells();
         Variants::variant_counts(subclones)
             .into_iter()
             .map(|frac| (frac as f32 / tot_cells as f32))
@@ -364,7 +396,7 @@ pub fn save_variant_fraction(
     verbosity: u8,
 ) -> anyhow::Result<()> {
     let path2file = path2file.with_extension("csv");
-    let total_variant_frac = Variants::variant_fractions(subclones, subclones.compute_tot_cells());
+    let total_variant_frac = Variants::variant_fractions(subclones);
     if verbosity > 1 {
         println!("total variant fraction in {:#?}", path2file)
     }
@@ -435,7 +467,7 @@ mod tests {
     fn variant_fraction() {
         let subclones = SubClones::default();
         assert_eq!(
-            Variants::variant_fractions(&subclones, subclones.compute_tot_cells()),
+            Variants::variant_fractions(&subclones),
             &[1. / MAX_SUBCLONES as f32; MAX_SUBCLONES]
         );
     }

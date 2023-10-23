@@ -313,6 +313,7 @@ impl Moran {
             self.subclones
                 .get_cells_subsampled_with_clones_idx(nb_cells, rng)
         };
+        assert_eq!(cells_with_idx.len(), nb_cells);
         let cells: Vec<&StemCell> = cells_with_idx.iter().map(|ele| ele.0).collect();
 
         if self.verbosity > 1 {
@@ -329,7 +330,6 @@ impl Moran {
                     panic!("cannot create burden for the timepoint at time {}", time)
                 })
                 .save(&self.make_path(Stats2Save::Burden, nb_cells, time)?)?;
-
             save_variant_fraction(
                 &SubClones::from(
                     cells_with_idx
