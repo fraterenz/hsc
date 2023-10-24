@@ -216,7 +216,7 @@ impl SubClones {
     }
 
     pub fn new_empty() -> Self {
-        SubClones(std::array::from_fn(|id| SubClone::empty_with_id(id)))
+        SubClones(std::array::from_fn(SubClone::empty_with_id))
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
