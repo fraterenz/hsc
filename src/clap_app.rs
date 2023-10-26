@@ -38,11 +38,15 @@ pub struct FitnessArg {
     pub neutral: Option<bool>,
     /// proliferative advantage conferred by fit mutations assuming all clones
     /// have the same advantange, units: mutation / cell
+    ///
+    /// s cannot be greater than 1.
     #[arg(long)]
     pub s: Option<f32>,
     /// The mean and the standard deviation of the Gamma distribution used to
     /// sample the fitness coefficients representing the proliferative
-    /// advantage conferred by fit mutations
+    /// advantage conferred by fit mutations.
+    ///
+    /// The mean and the std cannot be greater than 1 and 0.1 respectively
     #[arg(long, num_args = 2)]
     pub mean_std: Option<Vec<f32>>,
 }
@@ -164,7 +168,7 @@ impl Cli {
             (cli.cells + 1, years, cli.b0, cli.verbosity)
         };
 
-        let max_iter = 2 * max_cells as usize * b0 as usize * years;
+        let max_iter = 10 * max_cells as usize * b0 as usize * years;
         let snapshots = match (cli.nb_snapshots, cli.snapshots) {
             (Some(nb_snapshots), None) => {
                 Cli::build_snapshots_from_time(nb_snapshots as usize, years as f32)

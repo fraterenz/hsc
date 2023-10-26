@@ -1,4 +1,8 @@
 # Changelog
+## 1.3.3
+- ensure the mean and the std are not too high (< 1 and smaller than 0.1 respectively)
+- increase the max number of iterations
+
 ## 1.3.2
 ### BugFix
 - fix bug in the variant fraction

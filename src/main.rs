@@ -11,7 +11,7 @@ use indicatif::ParallelProgressIterator;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
-use sosa::{simulate, CurrentState, Options};
+use sosa::{simulate, CurrentState, Options, StopReason};
 use std::collections::VecDeque;
 
 pub mod clap_app;
@@ -73,8 +73,11 @@ fn main() {
 
         let (fitness, mean, std) = if let Some(fitness) = app.fitness.as_ref() {
             if let Some(s) = fitness.s {
+                assert!(s < 1., "s should be smaller than 1");
                 (Fitness::Fixed { s }, s, 0.)
             } else if let Some(mean_std) = fitness.mean_std.as_ref() {
+                assert!(mean_std[0] < 1., "the mean should be smaller than 1");
+                assert!(mean_std[1] < 0.1, "the std should be smaller than 0.1");
                 let (shape, scale) = from_mean_std_to_shape_scale(mean_std[0], mean_std[1]);
                 (
                     Fitness::GammaSampled { shape, scale },
@@ -199,8 +202,14 @@ fn main() {
             &app.options_moran.gillespie_options,
             rng,
         );
-        if app.options_moran.gillespie_options.verbosity > 1 {
-            println!("Moran simulation {} stopped because {:#?}", idx, stop);
+        match stop {
+            StopReason::MaxTimeReached => {
+                if app.options_moran.gillespie_options.verbosity > 1 {
+                    println!("Moran simulation {} stopped because {:#?}", idx, stop);
+                }
+            },
+            StopReason::MaxItersReached => println!("the simulation stopped earlier than expected because the max number of iterations has been reached"),
+            _ => unreachable!("the simulation shouldnt have stopped")
         }
 
         if moran.verbosity > 1 {
