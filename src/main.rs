@@ -90,14 +90,14 @@ fn main() {
         } else {
             // If not present, draw values of use mean_std between (mean_min=0.01, std_min=0.01)
             // and (mean_max=0.4, std_max=0.1)
-            let (mean, std) = (rng.gen_range(0.01..0.4), rng.gen_range(0.01..0.06));
+            let (mean, std) = (rng.gen_range(0.01..0.4), rng.gen_range(0.005..0.1));
             let (shape, scale) = from_mean_std_to_shape_scale(mean, std);
             (Fitness::GammaSampled { shape, scale }, mean, std)
         };
         let mu0 = if let Some(mu0) = app.mu0 {
             mu0
         } else {
-            rng.gen_range(1f32..14f32)
+            rng.gen_range(0.1f32..20f32)
         };
 
         // convert into rates per division

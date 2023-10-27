@@ -1,4 +1,8 @@
 # Changelog
+## 1.3.4
+- change random ranges of parameters mean: \[0.01, 0.4\], std: \[0.005, 0.1\] and mu: \[0.1, 20\].
+- increase the number of clones to 200
+
 ## 1.3.3
 - ensure the mean and the std are not too high (< 1 and smaller than 0.1 respectively)
 - increase the max number of iterations
