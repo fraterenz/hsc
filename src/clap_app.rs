@@ -1,5 +1,5 @@
 use clap::{ArgAction, Args, Parser};
-use hsc::{genotype::NeutralMutationPoisson, process::ProcessOptions};
+use hsc::process::ProcessOptions;
 use num_traits::{Float, NumCast};
 use sosa::{IterTime, NbIndividuals, Options};
 use std::path::PathBuf;
@@ -53,19 +53,19 @@ pub struct FitnessArg {
 
 #[derive(Args, Debug, Clone)]
 #[group(required = true, multiple = true)]
-struct NeutralMutationRate {
+pub struct NeutralMutationRate {
     /// Poisson rate for the exponential growing phase, leave empty to simulate
     /// just a Moran process with fixed population size
     #[arg(long)]
-    mu_exp: Option<f32>,
+    pub mu_exp: Option<f32>,
     /// Background mutation rate (all neutral mutations **not** occuring in the
     /// mitotic phase) for for the constant population phase
     #[arg(long)]
-    mu_background: f32,
+    pub mu_background: f32,
     /// Division mutation rate (all neutral mutations occuring upon
     /// cell-division, mitotic phase) for for the constant population phase
     #[arg(long)]
-    mu_division: f32,
+    pub mu_division: f32,
 }
 
 #[derive(Debug, Parser)] // requires `derive` feature
@@ -81,8 +81,9 @@ pub struct Cli {
     #[arg(short, long, default_value_t = 1)]
     runs: usize,
     /// division rate for the wild-type in 1 year, units: division / (year * cell)
-    #[arg(long, default_value_t = 1.)]
-    b0: f32,
+    /// If not provided, generate a random value between 0.1 and 5.
+    #[arg(long)]
+    r: Option<f32>,
     /// avg fit mutations arising in 1 year, units: division / year. If not passed
     /// generated a random value between 1 and 14
     #[arg(long)]
@@ -162,13 +163,13 @@ impl Cli {
         };
 
         let years = cli.years;
-        let (max_cells, years, b0, verbosity) = if cli.debug {
-            (11, 1, 1., u8::MAX)
+        let (max_cells, years, verbosity) = if cli.debug {
+            (11, 1, u8::MAX)
         } else {
-            (cli.cells + 1, years, cli.b0, cli.verbosity)
+            (cli.cells + 1, years, cli.verbosity)
         };
 
-        let max_iter = 10 * max_cells as usize * b0 as usize * years;
+        let max_iter = 10 * max_cells as usize * 10 * years;
         let snapshots = match (cli.nb_snapshots, cli.snapshots) {
             (Some(nb_snapshots), None) => {
                 Cli::build_snapshots_from_time(nb_snapshots as usize, years as f32)
@@ -186,10 +187,6 @@ impl Cli {
             _ => unreachable!("found both `nb_snapshots` and `snapshots`"),
         };
 
-        // convert into rates per division
-        let m_background = cli.neutral_rate.mu_background / b0;
-        let m_division = cli.neutral_rate.mu_division / b0;
-
         if let Some(subsamples) = cli.subsample.as_ref() {
             for subsample in subsamples {
                 assert!(
@@ -198,13 +195,10 @@ impl Cli {
                 );
             }
         }
-
         // Moran
         let process_options = ProcessOptions {
             path: cli.path.clone(),
             cells2subsample: cli.subsample.clone(),
-            neutral_poisson: NeutralMutationPoisson::new(m_division, m_background)
-                .expect("wrong lambda"), // TODO
         };
         let options_moran = SimulationOptions {
             process_options,
@@ -221,14 +215,11 @@ impl Cli {
         };
 
         // Exp
-        let options_exponential = cli.neutral_rate.mu_exp.map(|rate| {
-            let process_type = ProcessType::new(cli.p_asymmetric);
-            let m = Cli::normalise_mutation_rate(rate / b0, process_type);
+        let options_exponential = cli.neutral_rate.mu_exp.map(|_| {
+            assert!(cli.neutral_rate.mu_exp.is_some());
             let process_options = ProcessOptions {
                 path: cli.path,
                 cells2subsample: cli.subsample,
-                // we assume no background mutation for the exponential growing phase
-                neutral_poisson: NeutralMutationPoisson::new(m, m).expect("wrong lambda"),
             };
             SimulationOptions {
                 process_options,
@@ -249,13 +240,15 @@ impl Cli {
             parallel,
             fitness: cli.fitness,
             runs,
-            b0,
+            r: cli.r,
             seed: cli.seed,
             snapshots,
             options_moran,
             options_exponential,
             mu0: cli.mu0,
             p_asymmetric: cli.p_asymmetric,
+            neutral_rate: cli.neutral_rate,
+            verbosity: cli.verbosity,
         }
     }
 }

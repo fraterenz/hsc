@@ -1,6 +1,6 @@
 use crate::clap_app::{Cli, ProcessType};
 use chrono::Utc;
-use clap_app::{FitnessArg, Parallel};
+use clap_app::{FitnessArg, NeutralMutationRate, Parallel};
 use hsc::{
     process::{Exponential, Moran, ProcessOptions, SavingOptions},
     stemcell::StemCell,
@@ -28,7 +28,7 @@ pub struct AppOptions {
     fitness: Option<FitnessArg>,
     runs: usize,
     /// division rate for the wild-type
-    b0: f32,
+    pub r: Option<f32>,
     seed: u64,
     parallel: Parallel,
     options_moran: SimulationOptions,
@@ -36,12 +36,14 @@ pub struct AppOptions {
     pub snapshots: Vec<f32>,
     pub p_asymmetric: f64,
     pub mu0: Option<f32>,
+    pub verbosity: u8,
+    pub neutral_rate: NeutralMutationRate,
 }
 
 fn main() {
     let app = Cli::build();
 
-    if app.options_moran.gillespie_options.verbosity > 1 {
+    if app.verbosity > 1 {
         println!("app: {:#?}", app);
     }
 
@@ -53,6 +55,19 @@ fn main() {
     println!("{} starting simulation", Utc::now());
 
     let run_simulations = |idx| {
+        let rng = &mut ChaCha8Rng::seed_from_u64(app.seed);
+        rng.set_stream(idx as u64);
+
+        let r = if let Some(r) = app.r {
+            r
+        } else {
+            rng.gen_range(0.1f32..5f32)
+        };
+
+        // convert into rates per division
+        let m_background = app.neutral_rate.mu_background / r;
+        let m_division = app.neutral_rate.mu_division / r;
+
         // initial state
         let cells = if app.options_exponential.is_some() {
             vec![StemCell::new()]
@@ -67,9 +82,6 @@ fn main() {
             population: Variants::variant_counts(&subclones),
         };
         let possible_reactions = subclones.gillespie_set_of_reactions();
-
-        let rng = &mut ChaCha8Rng::seed_from_u64(app.seed);
-        rng.set_stream(idx as u64);
 
         let (fitness, mean, std) = if let Some(fitness) = app.fitness.as_ref() {
             if let Some(s) = fitness.s {
@@ -103,27 +115,29 @@ fn main() {
         // convert into rates per division
         let process_type = ProcessType::new(app.p_asymmetric);
         let u = Cli::normalise_mutation_rate(
-            (mu0 / (app.b0 * app.options_moran.gillespie_options.max_cells as f32)) as f64,
+            (mu0 / (r * app.options_moran.gillespie_options.max_cells as f32)) as f64,
             process_type,
         );
         let distributions = Distributions::new(
             app.p_asymmetric,
             u,
+            m_background,
+            m_division,
             app.options_moran.gillespie_options.verbosity,
         );
 
-        let rates = subclones.gillespie_rates(&fitness, app.b0, rng);
+        let rates = subclones.gillespie_rates(&fitness, r, rng);
         let mut snapshots = app.snapshots.clone();
         snapshots.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let mut snapshots = VecDeque::from(snapshots);
 
         let filename = format!(
-            "{}mu0_{}u_{}mean_{}std_{}b0_{}cells_{}idx",
+            "{}mu0_{}u_{}mean_{}std_{}r_{}cells_{}idx",
             mu0,
             u,
             mean,
             std,
-            app.b0,
+            r,
             app.options_moran.gillespie_options.max_cells - 1,
             idx
         )
@@ -131,10 +145,21 @@ fn main() {
         .into();
 
         let mut moran = if let Some(options) = app.options_exponential.as_ref() {
+            let rate = app
+                .neutral_rate
+                .mu_exp
+                .expect("find no exp neutral rate but options_exp");
+            let m = Cli::normalise_mutation_rate(rate / r, process_type);
+            // we assume no background mutation for the exponential growing phase
             let mut exp = Exponential::new(
-                options.process_options.clone(),
                 subclones,
-                distributions.clone(),
+                Distributions::new(
+                    app.p_asymmetric,
+                    u,
+                    m,
+                    m,
+                    app.options_moran.gillespie_options.verbosity,
+                ),
                 options.gillespie_options.verbosity,
             );
 

@@ -27,6 +27,12 @@ pub struct NeutralMutationPoisson {
     division: Poisson<f32>,
 }
 
+impl Default for NeutralMutationPoisson {
+    fn default() -> Self {
+        NeutralMutationPoisson::new(1., 1.).unwrap()
+    }
+}
+
 impl NeutralMutationPoisson {
     pub fn new(lambda_division: f32, lambda_background: f32) -> anyhow::Result<Self> {
         //! Create two Poisson distributions, one modelling the neutral

@@ -1,4 +1,4 @@
-use crate::genotype::{MutationalBurden, NeutralMutationPoisson, Sfs, Variant};
+use crate::genotype::{MutationalBurden, Sfs, Variant};
 use crate::stemcell::{mutate, StemCell};
 use crate::subclone::{
     assign, proliferating_cell, save_variant_fraction, CloneId, Distributions, SubClones, Variants,
@@ -22,7 +22,6 @@ pub struct SavingOptions {
 pub struct ProcessOptions {
     pub path: PathBuf,
     pub cells2subsample: Option<Vec<usize>>,
-    pub neutral_poisson: NeutralMutationPoisson,
 }
 
 #[derive(Hash, PartialEq, Eq)]
@@ -50,12 +49,10 @@ pub struct Exponential {
     pub counter_divisions: usize,
     pub verbosity: u8,
     pub distributions: Distributions,
-    pub neutral_mutations: NeutralMutationPoisson,
 }
 
 impl Exponential {
     pub fn new(
-        process_options: ProcessOptions,
         initial_subclones: SubClones,
         distributions: Distributions,
         verbosity: u8,
@@ -65,7 +62,6 @@ impl Exponential {
             distributions,
             counter_divisions: 0,
             verbosity,
-            neutral_mutations: process_options.neutral_poisson,
         };
         if verbosity > 1 {
             println!("process created: {:#?}", hsc);
@@ -91,7 +87,6 @@ impl Exponential {
             verbosity: self.verbosity,
             filename,
             distributions,
-            neutral_mutations: process_options.neutral_poisson,
             save_sfs_only,
         }
     }
@@ -128,7 +123,10 @@ impl AdvanceStep<MAX_SUBCLONES> for Exponential {
                 println!("assigning mutations to cell {:#?}", cell)
             }
 
-            let division = self.neutral_mutations.new_muts_upon_division(rng);
+            let division = self
+                .distributions
+                .neutral_poisson
+                .new_muts_upon_division(rng);
             if let Some(mutations) = division {
                 mutate(&mut cell, mutations);
             }
@@ -170,7 +168,6 @@ pub struct Moran {
     pub path2dir: PathBuf,
     pub verbosity: u8,
     pub distributions: Distributions,
-    pub neutral_mutations: NeutralMutationPoisson,
     pub cells2subsample: Option<Vec<usize>>,
     pub filename: PathBuf,
     pub save_sfs_only: bool,
@@ -181,7 +178,6 @@ impl Default for Moran {
         let process_options = ProcessOptions {
             path: PathBuf::from("./output"),
             cells2subsample: None,
-            neutral_poisson: NeutralMutationPoisson::new(10., 1.).unwrap(),
         };
 
         Moran::new(
@@ -224,7 +220,6 @@ impl Moran {
             filename: saving_options.filename,
             verbosity,
             save_sfs_only: saving_options.save_sfs_only,
-            neutral_mutations: process_options.neutral_poisson,
         };
         if verbosity > 1 {
             println!("process created: {:#?}", hsc);
@@ -397,9 +392,11 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
         stem_cell.last_division_t = self.time;
 
         // 2. draw background mutations and assign them to `c`
-        let background =
-            self.neutral_mutations
-                .new_muts_background(interdivison_time, rng, self.verbosity);
+        let background = self.distributions.neutral_poisson.new_muts_background(
+            interdivison_time,
+            rng,
+            self.verbosity,
+        );
         if self.verbosity > 2 {
             println!(
                 "assigning {} background mutations to cell {:#?}",
@@ -414,7 +411,10 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
             || !self.distributions.bern_asymmetric.sample(rng)
         {
             for mut cell in [stem_cell.clone(), stem_cell] {
-                let division = self.neutral_mutations.new_muts_upon_division(rng);
+                let division = self
+                    .distributions
+                    .neutral_poisson
+                    .new_muts_upon_division(rng);
                 if self.verbosity > 2 {
                     println!(
                         "assigning {} mutations upon cell division to cell {:#?}",
@@ -436,7 +436,10 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
             // remove a cell from the population
             self.keep_const_population_upon_symmetric_division(rng);
         } else {
-            let division = self.neutral_mutations.new_muts_upon_division(rng);
+            let division = self
+                .distributions
+                .neutral_poisson
+                .new_muts_upon_division(rng);
             if self.verbosity > 2 {
                 println!(
                     "assigning {} mutations upon cell division to cell {:#?}",

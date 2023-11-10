@@ -1,4 +1,8 @@
 # Changelog
+## 1.3.5
+- rename the proliferation rate of the wild type from `mu0` to `r`.
+- generate random `r` when not provided between range of 0.1 and 5.
+
 ## 1.3.4
 - change random ranges of parameters mean: \[0.01, 0.4\], std: \[0.005, 0.1\] and mu: \[0.1, 20\].
 - increase the number of clones to 200
