@@ -63,10 +63,12 @@ fn main() {
         } else {
             rng.gen_range(0.1f32..5f32)
         };
+        let process_type = ProcessType::new(app.p_asymmetric);
 
-        // convert into rates per division
-        let m_background = app.neutral_rate.mu_background / r;
-        let m_division = app.neutral_rate.mu_division / r;
+        // units: [mut/year]
+        let m_background = app.neutral_rate.mu_background;
+        // units: [mut/div]
+        let m_division = app.neutral_rate.mu_division;
 
         // initial state
         let cells = if app.options_exponential.is_some() {
@@ -113,7 +115,6 @@ fn main() {
         };
 
         // convert into rates per division
-        let process_type = ProcessType::new(app.p_asymmetric);
         let u = Cli::normalise_mutation_rate(
             (mu0 / (r * app.options_moran.gillespie_options.max_cells as f32)) as f64,
             process_type,
@@ -149,7 +150,10 @@ fn main() {
                 .neutral_rate
                 .mu_exp
                 .expect("find no exp neutral rate but options_exp");
-            let m = Cli::normalise_mutation_rate(rate / r, process_type);
+            // use 1 as we dont care about time during the exp growth phase
+            let rates = subclones.gillespie_rates(&fitness, 1.0, rng);
+            // since we are using 1, we dont divide the rate by r
+            let m = Cli::normalise_mutation_rate(rate, process_type);
             // we assume no background mutation for the exponential growing phase
             let mut exp = Exponential::new(
                 subclones,
@@ -181,6 +185,7 @@ fn main() {
             }
 
             snapshots.pop_front();
+            // switch_to_moran start with time 0
             let moran = exp.switch_to_moran(
                 app.options_moran.process_options.clone(),
                 snapshots,
