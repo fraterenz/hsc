@@ -27,8 +27,8 @@ pub struct SimulationOptions {
 pub struct AppOptions {
     fitness: Option<FitnessArg>,
     runs: usize,
-    /// division rate for the wild-type
-    pub r: Option<f32>,
+    /// intertime division rate for the wild-type measured in years
+    pub tau: Option<f32>,
     seed: u64,
     parallel: Parallel,
     options_moran: SimulationOptions,
@@ -58,10 +58,10 @@ fn main() {
         let rng = &mut ChaCha8Rng::seed_from_u64(app.seed);
         rng.set_stream(idx as u64);
 
-        let r = if let Some(r) = app.r {
-            r
+        let tau = if let Some(tau) = app.tau {
+            tau
         } else {
-            rng.gen_range(0.1f32..5f32)
+            rng.gen_range(0.1f32..10f32)
         };
         let process_type = ProcessType::new(app.p_asymmetric);
 
@@ -116,7 +116,7 @@ fn main() {
 
         // convert into rates per division
         let u = Cli::normalise_mutation_rate(
-            (mu0 / (r * app.options_moran.gillespie_options.max_cells as f32)) as f64,
+            (tau * mu0 / (app.options_moran.gillespie_options.max_cells as f32)) as f64,
             process_type,
         );
         let distributions = Distributions::new(
@@ -127,18 +127,18 @@ fn main() {
             app.options_moran.gillespie_options.verbosity,
         );
 
-        let rates = subclones.gillespie_rates(&fitness, r, rng);
+        let rates = subclones.gillespie_rates(&fitness, 1. / tau, rng);
         let mut snapshots = app.snapshots.clone();
         snapshots.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let mut snapshots = VecDeque::from(snapshots);
 
         let filename = format!(
-            "{}mu0_{}u_{}mean_{}std_{}r_{}cells_{}idx",
+            "{}mu0_{}u_{}mean_{}std_{}tau_{}cells_{}idx",
             mu0,
             u,
             mean,
             std,
-            r,
+            tau,
             app.options_moran.gillespie_options.max_cells - 1,
             idx
         )

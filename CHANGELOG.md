@@ -1,4 +1,11 @@
 # Changelog
+The semantic versioning is kind of random.
+
+## 1.4.0
+- remove parameter `r` and replace it by `--tau`, being `1/r`
+### BugFix
+- fix the rate for the mutational burden for `r` different than one
+
 ## 1.3.5
 - rename the proliferation rate of the wild type from `mu0` to `r`.
 - generate random `r` when not provided between range of 0.1 and 5.

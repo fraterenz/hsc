@@ -82,10 +82,10 @@ pub struct Cli {
     cells: NbIndividuals,
     #[arg(short, long, default_value_t = 1)]
     runs: usize,
-    /// division rate for the wild-type in 1 year, units: division / (year * cell)
-    /// If not provided, generate a random value between 0.1 and 5.
+    /// time between wild-type stem cells divisions in years, units: year / (division * cell)
+    /// If not provided, generate a random value between 0.1 and 10.
     #[arg(long)]
-    r: Option<f32>,
+    tau: Option<f32>,
     /// avg fit mutations arising in 1 year, units: division / year. If not passed
     /// generated a random value between 1 and 14
     #[arg(long)]
@@ -242,7 +242,7 @@ impl Cli {
             parallel,
             fitness: cli.fitness,
             runs,
-            r: cli.r,
+            tau: cli.tau,
             seed: cli.seed,
             snapshots,
             options_moran,
