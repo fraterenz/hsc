@@ -83,6 +83,18 @@ pub enum Fitness {
     GammaSampled { shape: f32, scale: f32 },
 }
 
+impl Fitness {
+    pub fn get_mean_std(&self) -> (f32, f32) {
+        match self {
+            Fitness::Neutral => (0., 0.),
+            Fitness::Fixed { s } => (*s, 0.),
+            Fitness::GammaSampled { shape, scale } => {
+                (shape * scale, f32::sqrt(shape * scale.powi(2)))
+            }
+        }
+    }
+}
+
 /// Id of the [`SubClone`]s.
 pub type CloneId = usize;
 

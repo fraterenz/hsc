@@ -1,6 +1,9 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 2.0.0
+- change the behaviour of leaving empty arguments: empty parameters were sampled from intervals before (for ABC), but now instead they are constant and not sampled from any interval.
+
 ## 1.4.0
 - remove parameter `r` and replace it by `--tau`, being `1/r`
 ### BugFix

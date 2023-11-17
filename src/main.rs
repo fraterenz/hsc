@@ -1,14 +1,15 @@
 use crate::clap_app::{Cli, ProcessType};
+use anyhow::Context;
 use chrono::Utc;
-use clap_app::{FitnessArg, NeutralMutationRate, Parallel};
+use clap_app::{NeutralMutationRate, Parallel};
 use hsc::{
     process::{Exponential, Moran, ProcessOptions, SavingOptions},
     stemcell::StemCell,
-    subclone::{from_mean_std_to_shape_scale, Distributions, Fitness, SubClones, Variants},
+    subclone::{Distributions, Fitness, SubClones, Variants},
     write2file,
 };
 use indicatif::ParallelProgressIterator;
-use rand::{Rng, SeedableRng};
+use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use sosa::{simulate, CurrentState, Options, StopReason};
@@ -25,23 +26,25 @@ pub struct SimulationOptions {
 
 #[derive(Clone, Debug)]
 pub struct AppOptions {
-    fitness: Option<FitnessArg>,
+    fitness: Fitness,
     runs: usize,
     /// intertime division rate for the wild-type measured in years
-    pub tau: Option<f32>,
+    pub tau: f32,
     seed: u64,
     parallel: Parallel,
     options_moran: SimulationOptions,
     options_exponential: Option<SimulationOptions>,
     pub snapshots: Vec<f32>,
     pub p_asymmetric: f64,
-    pub mu0: Option<f32>,
+    pub mu0: f32,
     pub verbosity: u8,
     pub neutral_rate: NeutralMutationRate,
 }
 
 fn main() {
-    let app = Cli::build();
+    let app = Cli::build()
+        .with_context(|| "Cannot construct the app".to_string())
+        .unwrap();
 
     if app.verbosity > 1 {
         println!("app: {:#?}", app);
@@ -58,11 +61,6 @@ fn main() {
         let rng = &mut ChaCha8Rng::seed_from_u64(app.seed);
         rng.set_stream(idx as u64);
 
-        let tau = if let Some(tau) = app.tau {
-            tau
-        } else {
-            rng.gen_range(0.1f32..10f32)
-        };
         let process_type = ProcessType::new(app.p_asymmetric);
 
         // units: [mut/year]
@@ -85,38 +83,9 @@ fn main() {
         };
         let possible_reactions = subclones.gillespie_set_of_reactions();
 
-        let (fitness, mean, std) = if let Some(fitness) = app.fitness.as_ref() {
-            if let Some(s) = fitness.s {
-                assert!(s < 1., "s should be smaller than 1");
-                (Fitness::Fixed { s }, s, 0.)
-            } else if let Some(mean_std) = fitness.mean_std.as_ref() {
-                assert!(mean_std[0] < 1., "the mean should be smaller than 1");
-                assert!(mean_std[1] < 0.1, "the std should be smaller than 0.1");
-                let (shape, scale) = from_mean_std_to_shape_scale(mean_std[0], mean_std[1]);
-                (
-                    Fitness::GammaSampled { shape, scale },
-                    mean_std[0],
-                    mean_std[1],
-                )
-            } else {
-                (Fitness::Neutral, 0., 0.)
-            }
-        } else {
-            // If not present, draw values of use mean_std between (mean_min=0.01, std_min=0.01)
-            // and (mean_max=0.4, std_max=0.1)
-            let (mean, std) = (rng.gen_range(0.01..0.4), rng.gen_range(0.005..0.1));
-            let (shape, scale) = from_mean_std_to_shape_scale(mean, std);
-            (Fitness::GammaSampled { shape, scale }, mean, std)
-        };
-        let mu0 = if let Some(mu0) = app.mu0 {
-            mu0
-        } else {
-            rng.gen_range(0.1f32..20f32)
-        };
-
         // convert into rates per division
         let u = Cli::normalise_mutation_rate(
-            (tau * mu0 / (app.options_moran.gillespie_options.max_cells as f32)) as f64,
+            (app.tau * app.mu0 / (app.options_moran.gillespie_options.max_cells as f32)) as f64,
             process_type,
         );
         let distributions = Distributions::new(
@@ -127,18 +96,19 @@ fn main() {
             app.options_moran.gillespie_options.verbosity,
         );
 
-        let rates = subclones.gillespie_rates(&fitness, 1. / tau, rng);
+        let rates = subclones.gillespie_rates(&app.fitness, 1. / app.tau, rng);
         let mut snapshots = app.snapshots.clone();
         snapshots.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let mut snapshots = VecDeque::from(snapshots);
 
+        let (mean, std) = app.fitness.get_mean_std();
         let filename = format!(
             "{}mu0_{}u_{}mean_{}std_{}tau_{}cells_{}idx",
-            mu0,
+            app.mu0,
             u,
             mean,
             std,
-            tau,
+            app.tau,
             app.options_moran.gillespie_options.max_cells - 1,
             idx
         )
@@ -151,7 +121,7 @@ fn main() {
                 .mu_exp
                 .expect("find no exp neutral rate but options_exp");
             // use 1 as we dont care about time during the exp growth phase
-            let rates = subclones.gillespie_rates(&fitness, 1.0, rng);
+            let rates = subclones.gillespie_rates(&app.fitness, 1.0, rng);
             // since we are using 1, we dont divide the rate by r
             let m = Cli::normalise_mutation_rate(rate, process_type);
             // we assume no background mutation for the exponential growing phase

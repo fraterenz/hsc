@@ -1,8 +1,12 @@
+use anyhow::bail;
 use clap::{ArgAction, Args, Parser};
-use hsc::process::ProcessOptions;
+use hsc::{
+    process::ProcessOptions,
+    subclone::{from_mean_std_to_shape_scale, Fitness},
+};
 use num_traits::{Float, NumCast};
 use sosa::{IterTime, NbIndividuals, Options};
-use std::path::PathBuf;
+use std::{ops::RangeInclusive, path::PathBuf};
 
 use crate::{AppOptions, SimulationOptions};
 
@@ -34,14 +38,14 @@ pub enum Parallel {
 pub struct FitnessArg {
     /// Neutral scenario with all clones having the same fitness coefficient of
     /// 0
-    #[arg(long, action = ArgAction::SetTrue)]
-    pub neutral: Option<bool>,
+    #[arg(long, action = ArgAction::SetTrue, default_value_t = false)]
+    pub neutral: bool,
     /// proliferative advantage conferred by fit mutations assuming all clones
     /// have the same advantange, units: mutation / cell
     ///
     /// s cannot be greater than 1.
-    #[arg(long)]
-    pub s: Option<f32>,
+    #[arg(long, default_value_t = 0.11, value_parser = fitness_in_range)]
+    pub s: f32,
     /// The mean and the standard deviation of the Gamma distribution used to
     /// sample the fitness coefficients representing the proliferative
     /// advantage conferred by fit mutations.
@@ -51,8 +55,26 @@ pub struct FitnessArg {
     pub mean_std: Option<Vec<f32>>,
 }
 
+const MEAN_RANGE: RangeInclusive<f32> = 0.01..=1.;
+const STD_RANGE: RangeInclusive<f32> = 0.01..=0.1;
+
+fn fitness_in_range(s: &str) -> Result<f32, String> {
+    let fitness: f32 = s
+        .parse()
+        .map_err(|_| format!("`{s}` isn't a fitness number"))?;
+    if MEAN_RANGE.contains(&fitness) {
+        Ok(fitness)
+    } else {
+        Err(format!(
+            "mean not in range {}-{}",
+            MEAN_RANGE.start(),
+            MEAN_RANGE.end()
+        ))
+    }
+}
+
 #[derive(Args, Debug, Clone)]
-#[group(required = true, multiple = true)]
+#[group(required = false, multiple = true)]
 pub struct NeutralMutationRate {
     /// Poisson rate for the exponential growing phase, leave empty to simulate
     /// just a Moran process with fixed population size
@@ -61,12 +83,12 @@ pub struct NeutralMutationRate {
     /// Background mutation rate (all neutral mutations **not** occuring in the
     /// mitotic phase) for for the constant population phase
     /// units: [mut/year]
-    #[arg(long)]
+    #[arg(long, default_value_t = 12.)]
     pub mu_background: f32,
     /// Division mutation rate (all neutral mutations occuring upon
     /// cell-division, mitotic phase) for for the constant population phase
     /// units: [mut/division]
-    #[arg(long)]
+    #[arg(long, default_value_t = 1.2)]
     pub mu_division: f32,
 }
 
@@ -83,21 +105,19 @@ pub struct Cli {
     #[arg(short, long, default_value_t = 1)]
     runs: usize,
     /// time between wild-type stem cells divisions in years, units: year / (division * cell)
-    /// If not provided, generate a random value between 0.1 and 10.
-    #[arg(long)]
-    tau: Option<f32>,
+    #[arg(long, default_value_t = 1.)]
+    tau: f32,
     /// avg fit mutations arising in 1 year, units: division / year. If not passed
     /// generated a random value between 1 and 14
-    #[arg(long)]
-    mu0: Option<f32>,
+    #[arg(long, default_value_t = 4.)]
+    mu0: f32,
     /// avg number of neutral mutations per each proliferative event assuming a
     /// Poisson distribution, units: mutation / (cell * year)
     #[command(flatten)]
     neutral_rate: NeutralMutationRate,
     #[command(flatten)]
-    /// If not present, draw values of use mean_std between (mean_min=0.01, std_min=0.01)
-    /// and (mean_max=0.4, std_max=0.1)
-    fitness: Option<FitnessArg>,
+    /// If not present, use a constant fitness of 0.11
+    fitness: FitnessArg,
     /// probability of getting an asymmetric division per each proliferate event
     #[arg(long, default_value_t = 0.)]
     p_asymmetric: f64,
@@ -153,7 +173,7 @@ impl Cli {
         }
     }
 
-    pub fn build() -> AppOptions {
+    pub fn build() -> anyhow::Result<AppOptions> {
         let cli = Cli::parse();
 
         let (parallel, runs) = if cli.debug {
@@ -238,9 +258,32 @@ impl Cli {
             }
         });
 
-        AppOptions {
+        let fitness = if let Some(mean_std) = cli.fitness.mean_std {
+            if !MEAN_RANGE.contains(&mean_std[0]) {
+                bail!(format!(
+                    "fitness not in range {}-{}",
+                    MEAN_RANGE.start(),
+                    MEAN_RANGE.end()
+                ));
+            }
+            if !STD_RANGE.contains(&mean_std[1]) {
+                bail!(format!(
+                    "std not in range {}-{}",
+                    STD_RANGE.start(),
+                    STD_RANGE.end()
+                ));
+            }
+            let (shape, scale) = from_mean_std_to_shape_scale(mean_std[0], mean_std[1]);
+            Fitness::GammaSampled { shape, scale }
+        } else if cli.fitness.neutral {
+            Fitness::Neutral
+        } else {
+            Fitness::Fixed { s: cli.fitness.s }
+        };
+
+        Ok(AppOptions {
             parallel,
-            fitness: cli.fitness,
+            fitness,
             runs,
             tau: cli.tau,
             seed: cli.seed,
@@ -251,7 +294,7 @@ impl Cli {
             p_asymmetric: cli.p_asymmetric,
             neutral_rate: cli.neutral_rate,
             verbosity: cli.verbosity,
-        }
+        })
     }
 }
 
