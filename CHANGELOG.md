@@ -1,6 +1,9 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 2.1.0
+- increase the number of clones from 200 to 400
+
 ## 2.0.0
 - change the behaviour of leaving empty arguments: empty parameters were sampled from intervals before (for ABC), but now instead they are constant and not sampled from any interval.
 
