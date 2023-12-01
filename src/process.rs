@@ -356,6 +356,10 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
         //! Update the process by simulating the next proliferative event
         //! according to the next `reaction` determined by the [Gillespie
         //! algorithm](`sosa`).
+        //! For every simulated timestep, the algorithm samples an exponential
+        //! waiting time and the non-empty clone that will proliferate.
+        //! From the proliferating clone selected, we sample a random cell to
+        //! which we assign neutral and fit mutations.
         //!
         //! The proliferation step is implemented as following:
         //!
@@ -363,14 +367,14 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
         //! with id `reaction` determined by the Gillespie algorithm
         //!
         //! 2. draw and assign mb neutral background mutations to `c` from
-        //! Poisson(DeltaT * mub)
+        //! Poisson(DeltaT * mub), where mub is the backgound mutation rate
         //!
         //! 3. draw and assign md neutral division mutations to `c` from
-        //! Poisson(mud)
+        //! Poisson(mud), where mud is the division mutation rate
         //!
-        //! 4. check if there is a fit mutation and in case switch clone it
-        //! that's the case, clone switch can be performed to any clone except
-        //! wild-type
+        //! 4. draw from a Bernoulli trial a fit mutation and in case assign
+        //! `c` to a new clone. This clone must be empty and different from the
+        //! old clone which `c` belonged to.
         //!
         //! 5. (optional) if that was a symmetric division, clone the
         //! proliferating cell `c` into `c1` and repeat step 3, 4 with `c1`.

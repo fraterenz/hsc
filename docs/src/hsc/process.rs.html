@@ -498,6 +498,10 @@
 <a href="#498" id="498">498</a>
 <a href="#499" id="499">499</a>
 <a href="#500" id="500">500</a>
+<a href="#501" id="501">501</a>
+<a href="#502" id="502">502</a>
+<a href="#503" id="503">503</a>
+<a href="#504" id="504">504</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::genotype::{MutationalBurden, Sfs, Variant};
 <span class="kw">use </span><span class="kw">crate</span>::stemcell::{mutate, StemCell};
 <span class="kw">use </span><span class="kw">crate</span>::subclone::{
@@ -856,6 +860,10 @@
         <span class="doccomment">//! Update the process by simulating the next proliferative event
         //! according to the next `reaction` determined by the [Gillespie
         //! algorithm](`sosa`).
+        //! For every simulated timestep, the algorithm samples an exponential
+        //! waiting time and the non-empty clone that will proliferate.
+        //! From the proliferating clone selected, we sample a random cell to
+        //! which we assign neutral and fit mutations.
         //!
         //! The proliferation step is implemented as following:
         //!
@@ -863,14 +871,14 @@
         //! with id `reaction` determined by the Gillespie algorithm
         //!
         //! 2. draw and assign mb neutral background mutations to `c` from
-        //! Poisson(DeltaT * mub)
+        //! Poisson(DeltaT * mub), where mub is the backgound mutation rate
         //!
         //! 3. draw and assign md neutral division mutations to `c` from
-        //! Poisson(mud)
+        //! Poisson(mud), where mud is the division mutation rate
         //!
-        //! 4. check if there is a fit mutation and in case switch clone it
-        //! that&#39;s the case, clone switch can be performed to any clone except
-        //! wild-type
+        //! 4. draw from a Bernoulli trial a fit mutation and in case assign
+        //! `c` to a new clone. This clone must be empty and different from the
+        //! old clone which `c` belonged to.
         //!
         //! 5. (optional) if that was a symmetric division, clone the
         //! proliferating cell `c` into `c1` and repeat step 3, 4 with `c1`.

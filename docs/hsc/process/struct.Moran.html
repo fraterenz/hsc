@@ -35,14 +35,18 @@ all cells will be assigned.</p>
     nb_cells: <a class="primitive" href="https://doc.rust-lang.org/1.73.0/std/primitive.usize.html">usize</a>,
     save_sfs_only: <a class="primitive" href="https://doc.rust-lang.org/1.73.0/std/primitive.bool.html">bool</a>,
     rng: &amp;mut impl <a class="trait" href="../../rand/rng/trait.Rng.html" title="trait rand::rng::Rng">Rng</a>
-) -&gt; <a class="type" href="../../anyhow/type.Result.html" title="type anyhow::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.73.0/std/primitive.unit.html">()</a>&gt;</h4></section></div></details></div><h2 id="trait-implementations" class="small-section-header">Trait Implementations<a href="#trait-implementations" class="anchor">§</a></h2><div id="trait-implementations-list"><details class="toggle implementors-toggle" open><summary><section id="impl-AdvanceStep%3CMAX_SUBCLONES%3E-for-Moran" class="impl"><a class="src rightside" href="../../src/hsc/process.rs.html#351-500">source</a><a href="#impl-AdvanceStep%3CMAX_SUBCLONES%3E-for-Moran" class="anchor">§</a><h3 class="code-header">impl <a class="trait" href="../../sosa/trait.AdvanceStep.html" title="trait sosa::AdvanceStep">AdvanceStep</a>&lt;MAX_SUBCLONES&gt; for <a class="struct" href="struct.Moran.html" title="struct hsc::process::Moran">Moran</a></h3></section></summary><div class="impl-items"><details class="toggle" open><summary><section id="associatedtype.Reaction" class="associatedtype trait-impl"><a href="#associatedtype.Reaction" class="anchor">§</a><h4 class="code-header">type <a href="../../sosa/trait.AdvanceStep.html#associatedtype.Reaction" class="associatedtype">Reaction</a> = <a class="primitive" href="https://doc.rust-lang.org/1.73.0/std/primitive.usize.html">usize</a></h4></section></summary><div class="docblock"><p>The id of a subclone <a href="../subclone/type.CloneId.html" title="type hsc::subclone::CloneId"><code>CloneId</code></a>.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.advance_step" class="method trait-impl"><a class="src rightside" href="../../src/hsc/process.rs.html#355-495">source</a><a href="#method.advance_step" class="anchor">§</a><h4 class="code-header">fn <a href="../../sosa/trait.AdvanceStep.html#tymethod.advance_step" class="fn">advance_step</a>(
+) -&gt; <a class="type" href="../../anyhow/type.Result.html" title="type anyhow::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.73.0/std/primitive.unit.html">()</a>&gt;</h4></section></div></details></div><h2 id="trait-implementations" class="small-section-header">Trait Implementations<a href="#trait-implementations" class="anchor">§</a></h2><div id="trait-implementations-list"><details class="toggle implementors-toggle" open><summary><section id="impl-AdvanceStep%3CMAX_SUBCLONES%3E-for-Moran" class="impl"><a class="src rightside" href="../../src/hsc/process.rs.html#351-504">source</a><a href="#impl-AdvanceStep%3CMAX_SUBCLONES%3E-for-Moran" class="anchor">§</a><h3 class="code-header">impl <a class="trait" href="../../sosa/trait.AdvanceStep.html" title="trait sosa::AdvanceStep">AdvanceStep</a>&lt;MAX_SUBCLONES&gt; for <a class="struct" href="struct.Moran.html" title="struct hsc::process::Moran">Moran</a></h3></section></summary><div class="impl-items"><details class="toggle" open><summary><section id="associatedtype.Reaction" class="associatedtype trait-impl"><a href="#associatedtype.Reaction" class="anchor">§</a><h4 class="code-header">type <a href="../../sosa/trait.AdvanceStep.html#associatedtype.Reaction" class="associatedtype">Reaction</a> = <a class="primitive" href="https://doc.rust-lang.org/1.73.0/std/primitive.usize.html">usize</a></h4></section></summary><div class="docblock"><p>The id of a subclone <a href="../subclone/type.CloneId.html" title="type hsc::subclone::CloneId"><code>CloneId</code></a>.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.advance_step" class="method trait-impl"><a class="src rightside" href="../../src/hsc/process.rs.html#355-499">source</a><a href="#method.advance_step" class="anchor">§</a><h4 class="code-header">fn <a href="../../sosa/trait.AdvanceStep.html#tymethod.advance_step" class="fn">advance_step</a>(
     &amp;mut self,
     reaction: <a class="struct" href="../../sosa/struct.NextReaction.html" title="struct sosa::NextReaction">NextReaction</a>&lt;Self::<a class="associatedtype" href="../../sosa/trait.AdvanceStep.html#associatedtype.Reaction" title="type sosa::AdvanceStep::Reaction">Reaction</a>&gt;,
     rng: &amp;mut impl <a class="trait" href="../../rand/rng/trait.Rng.html" title="trait rand::rng::Rng">Rng</a>
 )</h4></section></summary><div class="docblock"><p>Update the process by simulating the next proliferative event
 according to the next <code>reaction</code> determined by the <a href="../../sosa/index.html" title="mod sosa">Gillespie
-algorithm</a>.</p>
+algorithm</a>.
+For every simulated timestep, the algorithm samples an exponential
+waiting time and the non-empty clone that will proliferate.
+From the proliferating clone selected, we sample a random cell to
+which we assign neutral and fit mutations.</p>
 <p>The proliferation step is implemented as following:</p>
 <ol>
 <li>
@@ -51,23 +55,23 @@ with id <code>reaction</code> determined by the Gillespie algorithm</p>
 </li>
 <li>
 <p>draw and assign mb neutral background mutations to <code>c</code> from
-Poisson(DeltaT * mub)</p>
+Poisson(DeltaT * mub), where mub is the backgound mutation rate</p>
 </li>
 <li>
 <p>draw and assign md neutral division mutations to <code>c</code> from
-Poisson(mud)</p>
+Poisson(mud), where mud is the division mutation rate</p>
 </li>
 <li>
-<p>check if there is a fit mutation and in case switch clone it
-that’s the case, clone switch can be performed to any clone except
-wild-type</p>
+<p>draw from a Bernoulli trial a fit mutation and in case assign
+<code>c</code> to a new clone. This clone must be empty and different from the
+old clone which <code>c</code> belonged to.</p>
 </li>
 <li>
 <p>(optional) if that was a symmetric division, clone the
 proliferating cell <code>c</code> into <code>c1</code> and repeat step 3, 4 with <code>c1</code>.</p>
 </li>
 </ol>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.update_state" class="method trait-impl"><a class="src rightside" href="../../src/hsc/process.rs.html#497-499">source</a><a href="#method.update_state" class="anchor">§</a><h4 class="code-header">fn <a href="../../sosa/trait.AdvanceStep.html#tymethod.update_state" class="fn">update_state</a>(&amp;self, state: &amp;mut <a class="struct" href="../../sosa/struct.CurrentState.html" title="struct sosa::CurrentState">CurrentState</a>&lt;MAX_SUBCLONES&gt;)</h4></section></summary><div class='docblock'>Once the process has been updated by <a href="../../sosa/trait.AdvanceStep.html#tymethod.advance_step" title="method sosa::AdvanceStep::advance_step"><code>AdvanceStep::advance_step</code></a>,
+</div></details><details class="toggle method-toggle" open><summary><section id="method.update_state" class="method trait-impl"><a class="src rightside" href="../../src/hsc/process.rs.html#501-503">source</a><a href="#method.update_state" class="anchor">§</a><h4 class="code-header">fn <a href="../../sosa/trait.AdvanceStep.html#tymethod.update_state" class="fn">update_state</a>(&amp;self, state: &amp;mut <a class="struct" href="../../sosa/struct.CurrentState.html" title="struct sosa::CurrentState">CurrentState</a>&lt;MAX_SUBCLONES&gt;)</h4></section></summary><div class='docblock'>Once the process has been updated by <a href="../../sosa/trait.AdvanceStep.html#tymethod.advance_step" title="method sosa::AdvanceStep::advance_step"><code>AdvanceStep::advance_step</code></a>,
 update back the <a href="../../sosa/struct.CurrentState.html" title="struct sosa::CurrentState"><code>CurrentState</code></a> according to the process’ rules.</div></details><details class="toggle method-toggle" open><summary><section id="method.next_reaction" class="method trait-impl"><a class="src rightside" href="../../src/sosa/lib.rs.html#167-175">source</a><a href="#method.next_reaction" class="anchor">§</a><h4 class="code-header">fn <a href="../../sosa/trait.AdvanceStep.html#method.next_reaction" class="fn">next_reaction</a>(
     &amp;self,
     state: &amp;<a class="struct" href="../../sosa/struct.CurrentState.html" title="struct sosa::CurrentState">CurrentState</a>&lt;NB_REACTIONS&gt;,
