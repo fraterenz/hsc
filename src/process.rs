@@ -1,5 +1,5 @@
 use crate::genotype::{MutationalBurden, Sfs, Variant};
-use crate::stemcell::{mutate, StemCell};
+use crate::stemcell::{assign_background_mutations, mutate, StemCell};
 use crate::subclone::{
     assign, proliferating_cell, save_variant_fraction, CloneId, Distributions, SubClones, Variants,
 };
@@ -356,6 +356,9 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
         //! Update the process by simulating the next proliferative event
         //! according to the next `reaction` determined by the [Gillespie
         //! algorithm](`sosa`).
+        //! Here we also save the state of the simulation at different
+        //! timepoints, see `self.snapshot`.
+        //!
         //! For every simulated timestep, the algorithm samples an exponential
         //! waiting time and the non-empty clone that will proliferate.
         //! From the proliferating clone selected, we sample a random cell to
@@ -388,27 +391,19 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
         let mut stem_cell =
             proliferating_cell(&mut self.subclones, reaction.event, self.verbosity, rng);
         self.counter_divisions += 1;
-        let interdivison_time = self.time - stem_cell.last_division_t;
+
+        // 2. draw background mutations and assign them to `c`
+        assign_background_mutations(
+            &mut stem_cell,
+            self.time,
+            &self.distributions.neutral_poisson,
+            rng,
+            self.verbosity,
+        );
         if self.verbosity > 1 {
             println!("cell {:#?} is dividing", stem_cell);
             println!("at time {}", self.time);
         }
-        stem_cell.last_division_t = self.time;
-
-        // 2. draw background mutations and assign them to `c`
-        let background = self.distributions.neutral_poisson.new_muts_background(
-            interdivison_time,
-            rng,
-            self.verbosity,
-        );
-        if self.verbosity > 2 {
-            println!(
-                "assigning {} background mutations to cell {:#?}",
-                background.as_ref().unwrap_or(&vec![]).len(),
-                stem_cell
-            )
-        }
-        self.assign_mutations(&mut stem_cell, background);
 
         // 3., 4. and 5.
         if self.distributions.can_only_be_symmetric()
@@ -475,6 +470,21 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
         }
         if let Some(&time) = self.snapshot.front() {
             if self.time >= time {
+                // this is important: we update all background mutations at this
+                // time such that all cells are all on the same page.
+                // Since background mutations are implemented at each division, and
+                // cells do not proliferate at the same rate, we need to correct and
+                // update the background mutations at the timepoint corresponding
+                // to sampling step, i.e. before saving.
+                for stem_cell in self.subclones.get_mut_cells() {
+                    assign_background_mutations(
+                        stem_cell,
+                        self.time,
+                        &self.distributions.neutral_poisson,
+                        rng,
+                        self.verbosity,
+                    );
+                }
                 if self.verbosity > 0 {
                     println!(
                         "saving variant fraction for {:#?} at time {} for timepoint {}",

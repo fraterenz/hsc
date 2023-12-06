@@ -1,4 +1,6 @@
-use crate::genotype::Variant;
+use rand::Rng;
+
+use crate::genotype::{NeutralMutationPoisson, Variant};
 
 /// Hematopoietic stem and progenitor cells (HSPCs) are a rare population of
 /// precursor cells that possess the capacity for self-renewal and multilineage
@@ -46,6 +48,31 @@ impl StemCell {
 
 pub fn mutate(cell: &mut StemCell, mut mutations: Vec<Variant>) {
     cell.variants.append(&mut mutations);
+}
+
+pub fn assign_background_mutations(
+    stem_cell: &mut StemCell,
+    time: f32,
+    neutral_poisson: &NeutralMutationPoisson,
+    rng: &mut impl Rng,
+    verbosity: u8,
+) {
+    //! Assign background mutations to all cells in the system based on the
+    //! current simulation time.
+    let interdivison_time = time - stem_cell.last_division_t;
+    // 2. draw background mutations and assign them to `c`
+    if let Some(background) = neutral_poisson.new_muts_background(interdivison_time, rng, verbosity)
+    {
+        if verbosity > 2 {
+            println!(
+                "assigning {} background mutations to cell {:#?}",
+                background.len(),
+                stem_cell
+            )
+        }
+        mutate(stem_cell, background);
+    }
+    stem_cell.last_division_t = time;
 }
 
 #[cfg(test)]

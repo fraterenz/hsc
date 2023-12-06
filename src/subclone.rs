@@ -139,6 +139,10 @@ impl SubClone {
         SubClone { cells: vec![], id }
     }
 
+    pub fn get_mut_cells(&mut self) -> &mut [StemCell] {
+        &mut self.cells
+    }
+
     pub fn get_cells(&self) -> &[StemCell] {
         &self.cells
     }
@@ -270,6 +274,13 @@ impl SubClones {
 
     pub fn gillespie_set_of_reactions(&self) -> [CloneId; MAX_SUBCLONES] {
         core::array::from_fn(|i| i)
+    }
+
+    pub fn get_mut_cells(&mut self) -> Vec<&mut StemCell> {
+        self.0
+            .iter_mut()
+            .flat_map(|subclone| subclone.get_mut_cells())
+            .collect()
     }
 
     pub fn get_cells(&self) -> Vec<&StemCell> {

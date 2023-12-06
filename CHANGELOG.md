@@ -1,6 +1,9 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 2.1.1
+- at the end of the simulation, update the background mutations for all cells.
+
 ## 2.1.0
 - increase the number of clones from 200 to 400
 
