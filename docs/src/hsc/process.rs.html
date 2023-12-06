@@ -502,8 +502,18 @@
 <a href="#502" id="502">502</a>
 <a href="#503" id="503">503</a>
 <a href="#504" id="504">504</a>
+<a href="#505" id="505">505</a>
+<a href="#506" id="506">506</a>
+<a href="#507" id="507">507</a>
+<a href="#508" id="508">508</a>
+<a href="#509" id="509">509</a>
+<a href="#510" id="510">510</a>
+<a href="#511" id="511">511</a>
+<a href="#512" id="512">512</a>
+<a href="#513" id="513">513</a>
+<a href="#514" id="514">514</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::genotype::{MutationalBurden, Sfs, Variant};
-<span class="kw">use </span><span class="kw">crate</span>::stemcell::{mutate, StemCell};
+<span class="kw">use </span><span class="kw">crate</span>::stemcell::{assign_background_mutations, mutate, StemCell};
 <span class="kw">use </span><span class="kw">crate</span>::subclone::{
     assign, proliferating_cell, save_variant_fraction, CloneId, Distributions, SubClones, Variants,
 };
@@ -860,6 +870,9 @@
         <span class="doccomment">//! Update the process by simulating the next proliferative event
         //! according to the next `reaction` determined by the [Gillespie
         //! algorithm](`sosa`).
+        //! Here we also save the state of the simulation at different
+        //! timepoints, see `self.snapshot`.
+        //!
         //! For every simulated timestep, the algorithm samples an exponential
         //! waiting time and the non-empty clone that will proliferate.
         //! From the proliferating clone selected, we sample a random cell to
@@ -892,27 +905,19 @@
         <span class="kw">let </span><span class="kw-2">mut </span>stem_cell =
             proliferating_cell(<span class="kw-2">&amp;mut </span><span class="self">self</span>.subclones, reaction.event, <span class="self">self</span>.verbosity, rng);
         <span class="self">self</span>.counter_divisions += <span class="number">1</span>;
-        <span class="kw">let </span>interdivison_time = <span class="self">self</span>.time - stem_cell.last_division_t;
+
+        <span class="comment">// 2. draw background mutations and assign them to `c`
+        </span>assign_background_mutations(
+            <span class="kw-2">&amp;mut </span>stem_cell,
+            <span class="self">self</span>.time,
+            <span class="kw-2">&amp;</span><span class="self">self</span>.distributions.neutral_poisson,
+            rng,
+            <span class="self">self</span>.verbosity,
+        );
         <span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">1 </span>{
             <span class="macro">println!</span>(<span class="string">&quot;cell {:#?} is dividing&quot;</span>, stem_cell);
             <span class="macro">println!</span>(<span class="string">&quot;at time {}&quot;</span>, <span class="self">self</span>.time);
         }
-        stem_cell.last_division_t = <span class="self">self</span>.time;
-
-        <span class="comment">// 2. draw background mutations and assign them to `c`
-        </span><span class="kw">let </span>background = <span class="self">self</span>.distributions.neutral_poisson.new_muts_background(
-            interdivison_time,
-            rng,
-            <span class="self">self</span>.verbosity,
-        );
-        <span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">2 </span>{
-            <span class="macro">println!</span>(
-                <span class="string">&quot;assigning {} background mutations to cell {:#?}&quot;</span>,
-                background.as_ref().unwrap_or(<span class="kw-2">&amp;</span><span class="macro">vec!</span>[]).len(),
-                stem_cell
-            )
-        }
-        <span class="self">self</span>.assign_mutations(<span class="kw-2">&amp;mut </span>stem_cell, background);
 
         <span class="comment">// 3., 4. and 5.
         </span><span class="kw">if </span><span class="self">self</span>.distributions.can_only_be_symmetric()
@@ -979,6 +984,21 @@
         }
         <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>time) = <span class="self">self</span>.snapshot.front() {
             <span class="kw">if </span><span class="self">self</span>.time &gt;= time {
+                <span class="comment">// this is important: we update all background mutations at this
+                // time such that all cells are all on the same page.
+                // Since background mutations are implemented at each division, and
+                // cells do not proliferate at the same rate, we need to correct and
+                // update the background mutations at the timepoint corresponding
+                // to sampling step, i.e. before saving.
+                </span><span class="kw">for </span>stem_cell <span class="kw">in </span><span class="self">self</span>.subclones.get_mut_cells() {
+                    assign_background_mutations(
+                        stem_cell,
+                        <span class="self">self</span>.time,
+                        <span class="kw-2">&amp;</span><span class="self">self</span>.distributions.neutral_poisson,
+                        rng,
+                        <span class="self">self</span>.verbosity,
+                    );
+                }
                 <span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">0 </span>{
                     <span class="macro">println!</span>(
                         <span class="string">&quot;saving variant fraction for {:#?} at time {} for timepoint {}&quot;</span>,
