@@ -1,6 +1,9 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 2.2.0
+- allow subsampling at specific timepoints with different number of cells.
+
 ## 2.1.1
 - at the end of the simulation, update the background mutations for all cells.
 

@@ -3,7 +3,7 @@ use anyhow::Context;
 use chrono::Utc;
 use clap_app::{NeutralMutationRate, Parallel};
 use hsc::{
-    process::{Exponential, Moran, ProcessOptions, SavingOptions},
+    process::{Exponential, Moran, ProcessOptions, SavingOptions, Snapshot},
     stemcell::StemCell,
     subclone::{Distributions, Fitness, SubClones, Variants},
     write2file,
@@ -34,7 +34,7 @@ pub struct AppOptions {
     parallel: Parallel,
     options_moran: SimulationOptions,
     options_exponential: Option<SimulationOptions>,
-    pub snapshots: Vec<f32>,
+    pub snapshots: VecDeque<Snapshot>,
     pub p_asymmetric: f64,
     pub mu0: f32,
     pub verbosity: u8,
@@ -98,8 +98,6 @@ fn main() {
 
         let rates = subclones.gillespie_rates(&app.fitness, 1. / app.tau, rng);
         let mut snapshots = app.snapshots.clone();
-        snapshots.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        let mut snapshots = VecDeque::from(snapshots);
 
         let (mean, std) = app.fitness.get_mean_std();
         let filename = format!(
@@ -157,8 +155,10 @@ fn main() {
             snapshots.pop_front();
             // switch_to_moran start with time 0
             let moran = exp.switch_to_moran(
-                app.options_moran.process_options.clone(),
-                snapshots,
+                ProcessOptions {
+                    path: app.options_moran.process_options.path.clone(),
+                    snapshots,
+                },
                 distributions,
                 filename,
                 app.options_moran.save_sfs_only,
@@ -171,19 +171,11 @@ fn main() {
                     rng,
                 )
                 .unwrap();
-            if let Some(subsample) = moran.cells2subsample.as_ref() {
-                for cells in subsample {
-                    moran
-                        .save(moran.time, *cells, app.options_moran.save_sfs_only, rng)
-                        .unwrap();
-                }
-            }
             moran
         } else {
             Moran::new(
                 app.options_moran.process_options.clone(),
                 subclones,
-                app.snapshots.clone(),
                 0.,
                 SavingOptions {
                     filename,
@@ -202,6 +194,14 @@ fn main() {
             &app.options_moran.gillespie_options,
             rng,
         );
+        moran
+            .save(
+                moran.time,
+                moran.subclones.get_cells().len(),
+                moran.save_sfs_only,
+                rng,
+            )
+            .unwrap();
         match stop {
             StopReason::MaxTimeReached => {
                 if app.options_moran.gillespie_options.verbosity > 1 {

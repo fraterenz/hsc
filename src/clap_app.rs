@@ -1,12 +1,12 @@
-use anyhow::bail;
+use anyhow::{bail, ensure};
 use clap::{ArgAction, Args, Parser};
 use hsc::{
-    process::ProcessOptions,
+    process::{ProcessOptions, Snapshot},
     subclone::{from_mean_std_to_shape_scale, Fitness},
 };
 use num_traits::{Float, NumCast};
 use sosa::{IterTime, NbIndividuals, Options};
-use std::{ops::RangeInclusive, path::PathBuf};
+use std::{collections::VecDeque, ops::RangeInclusive, path::PathBuf};
 
 use crate::{AppOptions, SimulationOptions};
 
@@ -97,7 +97,7 @@ pub struct NeutralMutationRate {
 pub struct Cli {
     /// The years simulated will be `years + 1`, that is simulations start at
     /// year zero and the end at year `year + 1`
-    #[arg(short, long, default_value_t = 1)]
+    #[arg(short, long, default_value_t = 9)]
     years: usize,
     /// Number of cells to simulate
     #[arg(short, long, default_value_t = 100)]
@@ -138,19 +138,28 @@ pub struct Cli {
     /// Run sequentially each run instead of using rayon for parallelisation
     #[arg(long, action = ArgAction::SetTrue, default_value_t = false, conflicts_with = "debug")]
     sequential: bool,
-    #[arg(long, conflicts_with = "nb_snapshots", num_args = 0..)]
-    /// Snapshots to take to save the simulation. If neither `nb_snapshots` nor
-    /// this argument are set, generate 10 linespaced snapshots from 0 to years.
+    #[arg(long, requires = "subsamples", num_args = 1..)]
+    /// Snapshots to take to save the simulation, requires `subsamples`.
+    ///
+    /// The combination of `snapshots` with `subsamples` gives four different
+    /// behaviours:
+    ///
+    /// 1. when `snapshots.len() = 1` and `subsamples.len() = 1`: subsample once with the number of cells corresponding to `snapshots[0]`
+    ///
+    /// 2. when `snapshots.len() > 1` and `subsamples.len() = 1`: for every `s` in `snapshots`, subsample with the number of cells corresponding to `snapshots[0]`
+    ///
+    /// 3. when `snapshots.len() = 1` and `subsamples.len() > 1`: for every `c` in `subsamples`, subsample once with the number of cells corresponding to `c`
+    ///
+    /// 4. when `snapshots.len() > 1` and `subsamples.len() > 1`: for every pair `(s, c)` in `snapshots.zip(subsamples)`, subsample at time `s` with `c` cells
     snapshots: Option<Vec<f32>>,
-    #[arg(long, conflicts_with = "snapshots")]
-    /// Number of snapshots to take to save the simulation. Those timepoints
-    /// will be linespaced, starting from 1 to `years`.
-    nb_snapshots: Option<u8>,
-    /// Number of cells to subsample before saving the measurements.
-    /// If not specified, do not subsample. If subsampling is performed, the
-    /// measurements of the whole population will also be saved.
-    #[arg(long, num_args = 0..)]
-    subsample: Option<Vec<usize>>,
+    /// Number of cells to subsample before saving the measurements, leave
+    /// empty when no subsample is needed.
+    /// If subsampling is performed, the measurements of the whole population
+    /// will also be saved.
+    ///
+    /// See help for `snapshots` for more details.
+    #[arg(long, requires = "snapshots", num_args = 1..)]
+    subsamples: Option<Vec<usize>>,
 }
 
 impl Cli {
@@ -192,35 +201,75 @@ impl Cli {
         };
 
         let max_iter = 10 * max_cells as usize * 10 * years;
-        let snapshots = match (cli.nb_snapshots, cli.snapshots) {
-            (Some(nb_snapshots), None) => {
-                Cli::build_snapshots_from_time(nb_snapshots as usize, years as f32)
+
+        let mut snapshots = match (cli.subsamples, cli.snapshots) {
+            (Some(sub), Some(snap)) => {
+                match (&sub[..], &snap[..]) {
+                    // subsample `unique_sub` once at `unique_snap` time
+                    ([unique_sub], [unique_snap]) => VecDeque::from_iter(
+                        [(unique_sub, unique_snap)]
+                            .into_iter()
+                            .map(|(&cells2sample, &time)| Snapshot { cells2sample, time }),
+                    ),
+                    // subsample `unique_sub` at several `snaps` times
+                    ([unique_sub], snaps) => VecDeque::from_iter(
+                        snaps
+                            .iter()
+                            .zip(std::iter::repeat(unique_sub))
+                            .map(|(&time, &cells2sample)| Snapshot { cells2sample, time }),
+                    ),
+                    // subsample with different cells `unique_sub` once at `unique_snap` time
+                    (subs, [unique_snap]) => VecDeque::from_iter(
+                        subs.iter()
+                            .zip(std::iter::repeat(unique_snap))
+                            .map(|(&cells2sample, &time)| Snapshot { cells2sample, time }),
+                    ),
+                    // subsample with many cells `subs` at specific `snaps`
+                    (subs, snaps) => {
+                        ensure!(
+                            subs.len() == snaps.len(),
+                            "the lenght of snapshots do not match the lenght of subsamples"
+                        );
+                        VecDeque::from_iter(
+                            subs.iter()
+                                .zip(snaps)
+                                .map(|(&cells2sample, &time)| Snapshot { cells2sample, time }),
+                        )
+                    }
+                }
             }
-            (None, Some(mut snapshots)) => {
-                snapshots.sort_by(|a, b| a.partial_cmp(b).unwrap());
-                assert!(
-                    *snapshots.last().unwrap() <= years as f32,
-                    "max snapshot is greater than years"
-                );
-                snapshots.dedup();
-                snapshots
-            }
-            (None, None) => Cli::build_snapshots_from_time(10, years as f32),
-            _ => unreachable!("found both `nb_snapshots` and `snapshots`"),
+            (None, None) => VecDeque::from_iter(
+                Cli::build_snapshots_from_time(10usize, years as f32)
+                    .into_iter()
+                    .map(|t| Snapshot {
+                        cells2sample: cli.cells as usize,
+                        time: t,
+                    }),
+            ),
+            _ => unreachable!(),
         };
 
-        if let Some(subsamples) = cli.subsample.as_ref() {
-            for subsample in subsamples {
-                assert!(
-                    *subsample < cli.cells as usize,
-                    "found subsample greater than the population size"
-                );
-            }
-        }
+        snapshots.make_contiguous();
+        snapshots
+            .as_mut_slices()
+            .0
+            .sort_by(|s1, s2| s1.time.partial_cmp(&s2.time).unwrap());
+
+        ensure!(
+            snapshots.iter().all(|s| s.time < cli.years as f32),
+            "times to take `snapshots` must be smaller than total `years`"
+        );
+        ensure!(
+            snapshots
+                .iter()
+                .all(|s| s.cells2sample < cli.cells as usize),
+            "the cells to subsample must be smaller than the total population size"
+        );
+
         // Moran
         let process_options = ProcessOptions {
             path: cli.path.clone(),
-            cells2subsample: cli.subsample.clone(),
+            snapshots: snapshots.clone(),
         };
         let options_moran = SimulationOptions {
             process_options,
@@ -241,7 +290,7 @@ impl Cli {
             assert!(cli.neutral_rate.mu_exp.is_some());
             let process_options = ProcessOptions {
                 path: cli.path,
-                cells2subsample: cli.subsample,
+                snapshots: snapshots.clone(),
             };
             SimulationOptions {
                 process_options,

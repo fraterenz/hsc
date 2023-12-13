@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["Stats2Save"],"struct":["CellDivisionProbabilities","Exponential","Moran","ProcessOptions","SavingOptions"]};
+window.SIDEBAR_ITEMS = {"enum":["Stats2Save"],"struct":["CellDivisionProbabilities","Exponential","Moran","ProcessOptions","SavingOptions","Snapshot"]};

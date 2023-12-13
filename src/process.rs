@@ -13,6 +13,14 @@ use std::fs;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
+pub struct Snapshot {
+    /// The number of cells to subsample
+    pub cells2sample: usize,
+    /// The time at which we subsample
+    pub time: f32,
+}
+
+#[derive(Debug, Clone)]
 pub struct SavingOptions {
     pub filename: PathBuf,
     pub save_sfs_only: bool,
@@ -21,7 +29,7 @@ pub struct SavingOptions {
 #[derive(Debug, Clone)]
 pub struct ProcessOptions {
     pub path: PathBuf,
-    pub cells2subsample: Option<Vec<usize>>,
+    pub snapshots: VecDeque<Snapshot>,
 }
 
 #[derive(Hash, PartialEq, Eq)]
@@ -72,7 +80,6 @@ impl Exponential {
     pub fn switch_to_moran(
         self,
         process_options: ProcessOptions,
-        snapshot: VecDeque<f32>,
         distributions: Distributions,
         filename: PathBuf,
         save_sfs_only: bool,
@@ -81,8 +88,7 @@ impl Exponential {
             subclones: self.subclones,
             counter_divisions: self.counter_divisions,
             time: 0.,
-            cells2subsample: process_options.cells2subsample,
-            snapshot,
+            snapshots: process_options.snapshots,
             path2dir: process_options.path,
             verbosity: self.verbosity,
             filename,
@@ -164,11 +170,10 @@ pub struct Moran {
     /// The counter for the number of proliferative events.
     pub counter_divisions: usize,
     pub time: f32,
-    pub snapshot: VecDeque<f32>,
     pub path2dir: PathBuf,
     pub verbosity: u8,
     pub distributions: Distributions,
-    pub cells2subsample: Option<Vec<usize>>,
+    pub snapshots: VecDeque<Snapshot>,
     pub filename: PathBuf,
     pub save_sfs_only: bool,
 }
@@ -177,13 +182,12 @@ impl Default for Moran {
     fn default() -> Self {
         let process_options = ProcessOptions {
             path: PathBuf::from("./output"),
-            cells2subsample: None,
+            snapshots: VecDeque::default(),
         };
 
         Moran::new(
             process_options,
             SubClones::default(),
-            vec![0.01, 0.1],
             0.,
             SavingOptions {
                 filename: PathBuf::default(),
@@ -201,22 +205,18 @@ impl Moran {
     pub fn new(
         process_options: ProcessOptions,
         initial_subclones: SubClones,
-        mut snapshot: Vec<f32>,
         time: f32,
         saving_options: SavingOptions,
         distributions: Distributions,
         verbosity: u8,
     ) -> Moran {
-        snapshot.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        let snapshot = VecDeque::from(snapshot);
         let hsc = Moran {
             subclones: initial_subclones,
             distributions,
             counter_divisions: 0,
             path2dir: process_options.path,
             time,
-            snapshot,
-            cells2subsample: process_options.cells2subsample,
+            snapshots: process_options.snapshots,
             filename: saving_options.filename,
             verbosity,
             save_sfs_only: saving_options.save_sfs_only,
@@ -461,15 +461,10 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
             println!("{} cells", self.subclones.compute_tot_cells());
         }
 
-        // take snapshot
-        if self.verbosity > 2 {
-            println!(
-                "{:#?} timepoints to save, time now is {}",
-                self.snapshot, self.time
-            );
-        }
-        if let Some(&time) = self.snapshot.front() {
-            if self.time >= time {
+        if !self.snapshots.is_empty() {
+            // take snapshot
+            if self.snapshots.iter().any(|s| self.time >= s.time) {
+                let snapshot = self.snapshots.pop_front().unwrap();
                 // this is important: we update all background mutations at this
                 // time such that all cells are all on the same page.
                 // Since background mutations are implemented at each division, and
@@ -487,23 +482,15 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
                 }
                 if self.verbosity > 0 {
                     println!(
-                        "saving variant fraction for {:#?} at time {} for timepoint {}",
-                        time,
+                        "saving variant fraction for {:#?} at time {} for timepoint {}th with {} cells",
+                        snapshot.time,
                         self.time,
-                        self.snapshot.len()
+                        self.snapshots.len(),
+                        snapshot.cells2sample
                     );
                 }
-                let mut cells2save = vec![self.subclones.compute_tot_cells() as usize];
-                if let Some(subsampling) = self.cells2subsample.as_ref() {
-                    for cell in subsampling {
-                        cells2save.push(*cell);
-                    }
-                }
-                for cells in cells2save {
-                    self.save(self.time, cells, self.save_sfs_only, rng)
-                        .expect("cannot save snapshot");
-                }
-                self.snapshot.pop_front();
+                self.save(self.time, snapshot.cells2sample, self.save_sfs_only, rng)
+                    .expect("cannot save snapshot");
             }
         }
     }
