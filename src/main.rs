@@ -97,7 +97,7 @@ fn main() {
         );
 
         let rates = subclones.gillespie_rates(&app.fitness, 1. / app.tau, rng);
-        let mut snapshots = app.snapshots.clone();
+        let snapshots = app.snapshots.clone();
 
         let (mean, std) = app.fitness.get_mean_std();
         let filename = format!(
@@ -152,9 +152,8 @@ fn main() {
                 );
             }
 
-            snapshots.pop_front();
             // switch_to_moran start with time 0
-            let moran = exp.switch_to_moran(
+            exp.switch_to_moran(
                 ProcessOptions {
                     path: app.options_moran.process_options.path.clone(),
                     snapshots,
@@ -162,16 +161,7 @@ fn main() {
                 distributions,
                 filename,
                 app.options_moran.save_sfs_only,
-            );
-            moran
-                .save(
-                    moran.time,
-                    moran.subclones.compute_tot_cells() as usize,
-                    app.options_moran.save_sfs_only,
-                    rng,
-                )
-                .unwrap();
-            moran
+            )
         } else {
             Moran::new(
                 app.options_moran.process_options.clone(),

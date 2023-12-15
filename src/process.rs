@@ -125,7 +125,7 @@ impl AdvanceStep<MAX_SUBCLONES> for Exponential {
             proliferating_cell(&mut self.subclones, reaction.event, self.verbosity, rng);
         self.counter_divisions += 1;
         for mut cell in [stem_cell.clone(), stem_cell] {
-            if self.verbosity > 2 {
+            if self.verbosity > 1 {
                 println!("assigning mutations to cell {:#?}", cell)
             }
 
@@ -382,6 +382,34 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
         //! 5. (optional) if that was a symmetric division, clone the
         //! proliferating cell `c` into `c1` and repeat step 3, 4 with `c1`.
 
+        // take snapshot
+        while !self.snapshots.is_empty() && self.snapshots.iter().any(|s| self.time >= s.time) {
+            let snapshot = self.snapshots.pop_front().unwrap();
+            // this is important: we update all background mutations at this
+            // time such that all cells are all on the same page.
+            // Since background mutations are implemented at each division, and
+            // cells do not proliferate at the same rate, we need to correct and
+            // update the background mutations at the timepoint corresponding
+            // to sampling step, i.e. before saving.
+            for stem_cell in self.subclones.get_mut_cells() {
+                assign_background_mutations(
+                    stem_cell,
+                    self.time,
+                    &self.distributions.neutral_poisson,
+                    rng,
+                    self.verbosity,
+                );
+            }
+            if self.verbosity > 0 {
+                println!(
+                    "saving state for timepoint at time {:#?} at simulation's time {} with {} cells",
+                    snapshot.time, self.time, snapshot.cells2sample
+                );
+            }
+            self.save(self.time, snapshot.cells2sample, self.save_sfs_only, rng)
+                .expect("cannot save snapshot");
+        }
+
         // 1. select a cell `c` at random
         // the SSA samples the clone that will proliferate next, that is the
         // clone with id `reaction.event`. Pick random proliferating cells from
@@ -459,39 +487,6 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
 
         if self.verbosity > 2 {
             println!("{} cells", self.subclones.compute_tot_cells());
-        }
-
-        if !self.snapshots.is_empty() {
-            // take snapshot
-            if self.snapshots.iter().any(|s| self.time >= s.time) {
-                let snapshot = self.snapshots.pop_front().unwrap();
-                // this is important: we update all background mutations at this
-                // time such that all cells are all on the same page.
-                // Since background mutations are implemented at each division, and
-                // cells do not proliferate at the same rate, we need to correct and
-                // update the background mutations at the timepoint corresponding
-                // to sampling step, i.e. before saving.
-                for stem_cell in self.subclones.get_mut_cells() {
-                    assign_background_mutations(
-                        stem_cell,
-                        self.time,
-                        &self.distributions.neutral_poisson,
-                        rng,
-                        self.verbosity,
-                    );
-                }
-                if self.verbosity > 0 {
-                    println!(
-                        "saving variant fraction for {:#?} at time {} for timepoint {}th with {} cells",
-                        snapshot.time,
-                        self.time,
-                        self.snapshots.len(),
-                        snapshot.cells2sample
-                    );
-                }
-                self.save(self.time, snapshot.cells2sample, self.save_sfs_only, rng)
-                    .expect("cannot save snapshot");
-            }
         }
     }
 
