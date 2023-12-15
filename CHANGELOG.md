@@ -4,6 +4,7 @@ The semantic versioning is kind of random.
 ## 2.2.1
 ### BugFix
 - fix subsampling after the exponential phase and also better subsampling when we subsample with different number of cells but at the same time. Note that subsampling after the exponential phase occurs after one extra division from the Moran phase.
+- fix skipping the first timepoint to subsample
 
 ## 2.2.0
 - allow subsampling at specific timepoints with different number of cells.
