@@ -5,6 +5,7 @@ The semantic versioning is kind of random.
 - allow subsampling at specific timepoints with different number of cells.
 
 ## 2.1.1
+### BugFix
 - at the end of the simulation, update the background mutations for all cells.
 
 ## 2.1.0
