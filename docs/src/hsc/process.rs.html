@@ -494,11 +494,6 @@
 <a href="#494" id="494">494</a>
 <a href="#495" id="495">495</a>
 <a href="#496" id="496">496</a>
-<a href="#497" id="497">497</a>
-<a href="#498" id="498">498</a>
-<a href="#499" id="499">499</a>
-<a href="#500" id="500">500</a>
-<a href="#501" id="501">501</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::genotype::{MutationalBurden, Sfs, Variant};
 <span class="kw">use </span><span class="kw">crate</span>::stemcell::{assign_background_mutations, mutate, StemCell};
 <span class="kw">use </span><span class="kw">crate</span>::subclone::{
@@ -626,7 +621,7 @@
             proliferating_cell(<span class="kw-2">&amp;mut </span><span class="self">self</span>.subclones, reaction.event, <span class="self">self</span>.verbosity, rng);
         <span class="self">self</span>.counter_divisions += <span class="number">1</span>;
         <span class="kw">for </span><span class="kw-2">mut </span>cell <span class="kw">in </span>[stem_cell.clone(), stem_cell] {
-            <span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">2 </span>{
+            <span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">1 </span>{
                 <span class="macro">println!</span>(<span class="string">&quot;assigning mutations to cell {:#?}&quot;</span>, cell)
             }
 
@@ -883,7 +878,35 @@
         //! 5. (optional) if that was a symmetric division, clone the
         //! proliferating cell `c` into `c1` and repeat step 3, 4 with `c1`.
 
-        </span><span class="comment">// 1. select a cell `c` at random
+        </span><span class="comment">// take snapshot
+        </span><span class="kw">while </span>!<span class="self">self</span>.snapshots.is_empty() &amp;&amp; <span class="self">self</span>.snapshots.iter().any(|s| <span class="self">self</span>.time &gt;= s.time) {
+            <span class="kw">let </span>snapshot = <span class="self">self</span>.snapshots.pop_front().unwrap();
+            <span class="comment">// this is important: we update all background mutations at this
+            // time such that all cells are all on the same page.
+            // Since background mutations are implemented at each division, and
+            // cells do not proliferate at the same rate, we need to correct and
+            // update the background mutations at the timepoint corresponding
+            // to sampling step, i.e. before saving.
+            </span><span class="kw">for </span>stem_cell <span class="kw">in </span><span class="self">self</span>.subclones.get_mut_cells() {
+                assign_background_mutations(
+                    stem_cell,
+                    <span class="self">self</span>.time,
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.distributions.neutral_poisson,
+                    rng,
+                    <span class="self">self</span>.verbosity,
+                );
+            }
+            <span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">0 </span>{
+                <span class="macro">println!</span>(
+                    <span class="string">&quot;saving state for timepoint at time {:#?} at simulation&#39;s time {} with {} cells&quot;</span>,
+                    snapshot.time, <span class="self">self</span>.time, snapshot.cells2sample
+                );
+            }
+            <span class="self">self</span>.save(<span class="self">self</span>.time, snapshot.cells2sample, <span class="self">self</span>.save_sfs_only, rng)
+                .expect(<span class="string">&quot;cannot save snapshot&quot;</span>);
+        }
+
+        <span class="comment">// 1. select a cell `c` at random
         // the SSA samples the clone that will proliferate next, that is the
         // clone with id `reaction.event`. Pick random proliferating cells from
         // this clone. **Note that this removes the cells from the clone with
@@ -960,39 +983,6 @@
 
         <span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">2 </span>{
             <span class="macro">println!</span>(<span class="string">&quot;{} cells&quot;</span>, <span class="self">self</span>.subclones.compute_tot_cells());
-        }
-
-        <span class="kw">if </span>!<span class="self">self</span>.snapshots.is_empty() {
-            <span class="comment">// take snapshot
-            </span><span class="kw">if </span><span class="self">self</span>.snapshots.iter().any(|s| <span class="self">self</span>.time &gt;= s.time) {
-                <span class="kw">let </span>snapshot = <span class="self">self</span>.snapshots.pop_front().unwrap();
-                <span class="comment">// this is important: we update all background mutations at this
-                // time such that all cells are all on the same page.
-                // Since background mutations are implemented at each division, and
-                // cells do not proliferate at the same rate, we need to correct and
-                // update the background mutations at the timepoint corresponding
-                // to sampling step, i.e. before saving.
-                </span><span class="kw">for </span>stem_cell <span class="kw">in </span><span class="self">self</span>.subclones.get_mut_cells() {
-                    assign_background_mutations(
-                        stem_cell,
-                        <span class="self">self</span>.time,
-                        <span class="kw-2">&amp;</span><span class="self">self</span>.distributions.neutral_poisson,
-                        rng,
-                        <span class="self">self</span>.verbosity,
-                    );
-                }
-                <span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">0 </span>{
-                    <span class="macro">println!</span>(
-                        <span class="string">&quot;saving variant fraction for {:#?} at time {} for timepoint {}th with {} cells&quot;</span>,
-                        snapshot.time,
-                        <span class="self">self</span>.time,
-                        <span class="self">self</span>.snapshots.len(),
-                        snapshot.cells2sample
-                    );
-                }
-                <span class="self">self</span>.save(<span class="self">self</span>.time, snapshot.cells2sample, <span class="self">self</span>.save_sfs_only, rng)
-                    .expect(<span class="string">&quot;cannot save snapshot&quot;</span>);
-            }
         }
     }
 
