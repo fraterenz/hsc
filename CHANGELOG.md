@@ -1,6 +1,11 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 2.2.2
+- remove all the asymmetric stuff
+### BugFix
+- remove factor 2 in the neutral mutation rate
+
 ## 2.2.1
 ### BugFix
 - fix subsampling after the exponential phase and also better subsampling when we subsample with different number of cells but at the same time. Note that subsampling after the exponential phase occurs after one extra division from the Moran phase.

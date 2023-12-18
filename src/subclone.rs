@@ -13,27 +13,18 @@ use std::path::Path;
 pub struct Distributions {
     /// probability of fit mutations upon cell proliferation
     pub bern: Bernoulli,
-    /// probability of asymmetric division upon cell proliferation
-    pub bern_asymmetric: Bernoulli,
     pub u: f64,
-    no_asymmetric_division: bool,
     pub neutral_poisson: NeutralMutationPoisson,
 }
 
 impl Distributions {
-    pub fn new(p_asymmetric: f64, u: f64, background: f32, division: f32, verbosity: u8) -> Self {
+    pub fn new(u: f64, background: f32, division: f32, verbosity: u8) -> Self {
         if verbosity > 1 {
-            println!(
-                "creating distributions with parameters asymmetric: {}, p_fitness: {}",
-                p_asymmetric, u
-            );
+            println!("creating distributions with p_fitness: {}", u);
         }
-        let no_asymmetric_division = (p_asymmetric - 0.).abs() < f64::EPSILON;
         Self {
             bern: Bernoulli::new(u).expect("Invalid p: p<0 or p>1"),
-            bern_asymmetric: Bernoulli::new(p_asymmetric).expect("Invalid p: p<0 or p>1"),
             u,
-            no_asymmetric_division,
             neutral_poisson: NeutralMutationPoisson::new(division, background).unwrap(),
         }
     }
@@ -41,18 +32,13 @@ impl Distributions {
     pub fn acquire_p_mutation(&self, rng: &mut impl Rng) -> bool {
         self.bern.sample(rng)
     }
-
-    pub fn can_only_be_symmetric(&self) -> bool {
-        self.no_asymmetric_division
-    }
 }
+
 impl Default for Distributions {
     fn default() -> Self {
         Distributions {
             bern: Bernoulli::new(0.1).unwrap(),
-            bern_asymmetric: Bernoulli::new(0.).unwrap(),
             u: f64::default(),
-            no_asymmetric_division: true,
             neutral_poisson: NeutralMutationPoisson::default(),
         }
     }
@@ -502,7 +488,7 @@ mod tests {
     #[quickcheck]
     fn division_no_new_clone(seed: u64, cells_present: u8) -> bool {
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
-        let distr = Distributions::new(1., 0f64, 1.1, 1.1, 0);
+        let distr = Distributions::new(0f64, 1.1, 1.1, 0);
 
         let cells = vec![StemCell::new(); cells_present as usize];
         let before_assignment = cells.len();
@@ -516,7 +502,7 @@ mod tests {
     #[quickcheck]
     fn division_new_clone(seed: u64, cells_present: u8) -> bool {
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
-        let distr = Distributions::new(1., 1f64, 1.1, 1.1, 0);
+        let distr = Distributions::new(1f64, 1.1, 1.1, 0);
 
         let cells = vec![StemCell::new(); cells_present as usize];
         let before_assignment = cells.len();
@@ -531,7 +517,7 @@ mod tests {
     #[should_panic]
     fn assign_all_clones_occupied() {
         let mut rng = ChaCha8Rng::seed_from_u64(26);
-        let distr = Distributions::new(1., 1f64, 1.1, 1.1, 0);
+        let distr = Distributions::new(1f64, 1.1, 1.1, 0);
 
         let mut subclones = SubClones::default();
         let cell = StemCell::new();
@@ -542,18 +528,18 @@ mod tests {
     #[should_panic]
     #[test]
     fn new_distribution_wrong_p_test() {
-        Distributions::new(1., f64::NAN, 1.1, 1.1, 0);
+        Distributions::new(f64::NAN, 1.1, 1.1, 0);
     }
 
     #[should_panic]
     #[test]
     fn new_distribution_wrong_p_inf_test() {
-        Distributions::new(1., f64::INFINITY, 1.1, 1.1, 0);
+        Distributions::new(f64::INFINITY, 1.1, 1.1, 0);
     }
 
     #[should_panic]
     #[test]
     fn new_distribution_wrong_p_neg_test() {
-        Distributions::new(1., -0.9, 1.1, 1.1, 0);
+        Distributions::new(-0.9, 1.1, 1.1, 0);
     }
 }

@@ -434,35 +434,7 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
         }
 
         // 3., 4. and 5.
-        if self.distributions.can_only_be_symmetric()
-            || !self.distributions.bern_asymmetric.sample(rng)
-        {
-            for mut cell in [stem_cell.clone(), stem_cell] {
-                let division = self
-                    .distributions
-                    .neutral_poisson
-                    .new_muts_upon_division(rng);
-                if self.verbosity > 2 {
-                    println!(
-                        "assigning {} mutations upon cell division to cell {:#?}",
-                        division.as_ref().unwrap_or(&vec![]).len(),
-                        cell
-                    );
-                }
-                self.assign_mutations(&mut cell, division);
-                assign(
-                    &mut self.subclones,
-                    reaction.event,
-                    cell,
-                    &self.distributions,
-                    rng,
-                    self.verbosity,
-                );
-            }
-
-            // remove a cell from the population
-            self.keep_const_population_upon_symmetric_division(rng);
-        } else {
+        for mut cell in [stem_cell.clone(), stem_cell] {
             let division = self
                 .distributions
                 .neutral_poisson
@@ -471,19 +443,22 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
                 println!(
                     "assigning {} mutations upon cell division to cell {:#?}",
                     division.as_ref().unwrap_or(&vec![]).len(),
-                    stem_cell
-                )
+                    cell
+                );
             }
-            self.assign_mutations(&mut stem_cell, division);
+            self.assign_mutations(&mut cell, division);
             assign(
                 &mut self.subclones,
                 reaction.event,
-                stem_cell,
+                cell,
                 &self.distributions,
                 rng,
                 self.verbosity,
             );
         }
+
+        // remove a cell from the population
+        self.keep_const_population_upon_symmetric_division(rng);
 
         if self.verbosity > 2 {
             println!("{} cells", self.subclones.compute_tot_cells());

@@ -118,9 +118,6 @@ pub struct Cli {
     #[command(flatten)]
     /// If not present, use a constant fitness of 0.11
     fitness: FitnessArg,
-    /// probability of getting an asymmetric division per each proliferate event
-    #[arg(long, default_value_t = 0.)]
-    p_asymmetric: f64,
     #[arg(long, default_value_t = 26)]
     seed: u64,
     /// Save only the SFS (when you dont want too many files to be saved)
@@ -340,7 +337,6 @@ impl Cli {
             options_moran,
             options_exponential,
             mu0: cli.mu0,
-            p_asymmetric: cli.p_asymmetric,
             neutral_rate: cli.neutral_rate,
             verbosity: cli.verbosity,
         })

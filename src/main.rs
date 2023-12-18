@@ -1,4 +1,4 @@
-use crate::clap_app::{Cli, ProcessType};
+use crate::clap_app::Cli;
 use anyhow::Context;
 use chrono::Utc;
 use clap_app::{NeutralMutationRate, Parallel};
@@ -35,7 +35,6 @@ pub struct AppOptions {
     options_moran: SimulationOptions,
     options_exponential: Option<SimulationOptions>,
     pub snapshots: VecDeque<Snapshot>,
-    pub p_asymmetric: f64,
     pub mu0: f32,
     pub verbosity: u8,
     pub neutral_rate: NeutralMutationRate,
@@ -61,8 +60,6 @@ fn main() {
         let rng = &mut ChaCha8Rng::seed_from_u64(app.seed);
         rng.set_stream(idx as u64);
 
-        let process_type = ProcessType::new(app.p_asymmetric);
-
         // units: [mut/year]
         let m_background = app.neutral_rate.mu_background;
         // units: [mut/div]
@@ -84,12 +81,8 @@ fn main() {
         let possible_reactions = subclones.gillespie_set_of_reactions();
 
         // convert into rates per division
-        let u = Cli::normalise_mutation_rate(
-            (app.tau * app.mu0 / (app.options_moran.gillespie_options.max_cells as f32)) as f64,
-            process_type,
-        );
+        let u = (app.tau * app.mu0 / (app.options_moran.gillespie_options.max_cells as f32)) as f64;
         let distributions = Distributions::new(
-            app.p_asymmetric,
             u,
             m_background,
             m_division,
@@ -120,18 +113,10 @@ fn main() {
                 .expect("find no exp neutral rate but options_exp");
             // use 1 as we dont care about time during the exp growth phase
             let rates = subclones.gillespie_rates(&app.fitness, 1.0, rng);
-            // since we are using 1, we dont divide the rate by r
-            let m = Cli::normalise_mutation_rate(rate, process_type);
             // we assume no background mutation for the exponential growing phase
             let mut exp = Exponential::new(
                 subclones,
-                Distributions::new(
-                    app.p_asymmetric,
-                    u,
-                    m,
-                    m,
-                    app.options_moran.gillespie_options.verbosity,
-                ),
+                Distributions::new(u, rate, rate, app.options_moran.gillespie_options.verbosity),
                 options.gillespie_options.verbosity,
             );
 
