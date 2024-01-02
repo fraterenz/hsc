@@ -115,7 +115,7 @@ dependencies = [
  "js-sys",
  "num-traits",
  "wasm-bindgen",
- "windows-targets",
+ "windows-targets 0.48.0",
 ]
 
 [[package]]
@@ -330,7 +330,7 @@ dependencies = [
 
 [[package]]
 name = "hsc"
-version = "2.2.2"
+version = "2.2.3"
 dependencies = [
  "anyhow",
  "chrono",

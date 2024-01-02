@@ -1,6 +1,9 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 2.2.3
+- update dep with dependabot
+
 ## 2.2.2
 - remove all the asymmetric stuff
 ### BugFix
