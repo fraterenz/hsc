@@ -1,6 +1,9 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 2.2.5
+- increase the max number of subclones from 400 to 1000.
+
 ## 2.2.4
 - update dep with dependabot
 
