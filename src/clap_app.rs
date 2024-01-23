@@ -56,7 +56,7 @@ pub struct FitnessArg {
 }
 
 const MEAN_RANGE: RangeInclusive<f32> = 0.01..=1.;
-const STD_RANGE: RangeInclusive<f32> = 0.01..=0.1;
+const STD_RANGE: RangeInclusive<f32> = 0.001..=0.1;
 
 fn fitness_in_range(s: &str) -> Result<f32, String> {
     let fitness: f32 = s

@@ -1,6 +1,10 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 2.2.7
+- increase the max number of subclones from 750 to 800.
+- decrease the min possible range for `std` to 0.001
+
 ## 2.2.6
 - decrease the max number of subclones from 1000 to 750 such that jobs with smaller tau can hopefully finish in 1h.
 
