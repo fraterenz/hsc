@@ -1,7 +1,12 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 2.2.6
+- decrease the max number of subclones from 1000 to 750 such that jobs with smaller tau can hopefully finish in 1h.
+
 ## 2.2.5
+- increase the max number of subclones from 400 to 1000.
+
 - increase the max number of subclones from 400 to 1000.
 
 ## 2.2.4
