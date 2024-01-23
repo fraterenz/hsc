@@ -1,6 +1,10 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 2.2.9
+- increase the max number of subclones from 1000 to 1200
+- increase range fitness and std up to 2 and 0.2
+
 ## 2.2.8
 - increase the max number of subclones from 800 to 1000
 

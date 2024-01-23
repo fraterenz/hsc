@@ -55,8 +55,8 @@ pub struct FitnessArg {
     pub mean_std: Option<Vec<f32>>,
 }
 
-const MEAN_RANGE: RangeInclusive<f32> = 0.01..=1.;
-const STD_RANGE: RangeInclusive<f32> = 0.001..=0.1;
+const MEAN_RANGE: RangeInclusive<f32> = 0.01..=2.;
+const STD_RANGE: RangeInclusive<f32> = 0.001..=0.2;
 
 fn fitness_in_range(s: &str) -> Result<f32, String> {
     let fitness: f32 = s
