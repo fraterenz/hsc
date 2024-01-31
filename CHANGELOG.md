@@ -1,6 +1,11 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 2.2.11
+### BugFix
+- when subsampling save the whole population as well with new flag `--save-population`
+- fix some default parameters in cli
+
 ## 2.2.10
 - increase range std to 0.5
 

@@ -3,7 +3,7 @@ use anyhow::Context;
 use chrono::Utc;
 use clap_app::{NeutralMutationRate, Parallel};
 use hsc::{
-    process::{Exponential, Moran, ProcessOptions, SavingOptions, Snapshot},
+    process::{Exponential, Moran, ProcessOptions, SavingCells, SavingOptions, Snapshot},
     stemcell::StemCell,
     subclone::{Distributions, Fitness, SubClones, Variants},
     write2file,
@@ -22,6 +22,7 @@ pub struct SimulationOptions {
     process_options: ProcessOptions,
     gillespie_options: Options,
     save_sfs_only: bool,
+    save_population: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -146,6 +147,7 @@ fn main() {
                 distributions,
                 filename,
                 app.options_moran.save_sfs_only,
+                app.options_moran.save_population,
             )
         } else {
             Moran::new(
@@ -155,6 +157,7 @@ fn main() {
                 SavingOptions {
                     filename,
                     save_sfs_only: app.options_moran.save_sfs_only,
+                    save_population: app.options_moran.save_population,
                 },
                 distributions,
                 app.options_moran.gillespie_options.verbosity,
@@ -172,7 +175,7 @@ fn main() {
         moran
             .save(
                 moran.time,
-                moran.subclones.get_cells().len(),
+                &SavingCells::WholePopulation,
                 moran.save_sfs_only,
                 rng,
             )

@@ -12,6 +12,15 @@ use std::collections::VecDeque;
 use std::fs;
 use std::path::PathBuf;
 
+#[derive(Debug, Clone, Copy)]
+pub enum SavingCells {
+    WholePopulation,
+    Subsampling {
+        sample_size: usize,
+        population_as_well: bool,
+    },
+}
+
 #[derive(Debug, Clone)]
 pub struct Snapshot {
     /// The number of cells to subsample
@@ -24,6 +33,7 @@ pub struct Snapshot {
 pub struct SavingOptions {
     pub filename: PathBuf,
     pub save_sfs_only: bool,
+    pub save_population: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -83,6 +93,7 @@ impl Exponential {
         distributions: Distributions,
         filename: PathBuf,
         save_sfs_only: bool,
+        save_population: bool,
     ) -> Moran {
         Moran {
             subclones: self.subclones,
@@ -94,6 +105,7 @@ impl Exponential {
             filename,
             distributions,
             save_sfs_only,
+            save_population,
         }
     }
 }
@@ -176,6 +188,7 @@ pub struct Moran {
     pub snapshots: VecDeque<Snapshot>,
     pub filename: PathBuf,
     pub save_sfs_only: bool,
+    pub save_population: bool,
 }
 
 impl Default for Moran {
@@ -192,6 +205,7 @@ impl Default for Moran {
             SavingOptions {
                 filename: PathBuf::default(),
                 save_sfs_only: false,
+                save_population: true,
             },
             Distributions::default(),
             1,
@@ -220,6 +234,7 @@ impl Moran {
             filename: saving_options.filename,
             verbosity,
             save_sfs_only: saving_options.save_sfs_only,
+            save_population: saving_options.save_population,
         };
         if verbosity > 1 {
             println!("process created: {:#?}", hsc);
@@ -295,24 +310,17 @@ impl Moran {
         Ok(path2file.join(self.filename.clone()))
     }
 
-    pub fn save(
+    fn save_it(
         &self,
         time: f32,
-        nb_cells: usize,
+        cells_with_idx: Vec<(&StemCell, usize)>,
         save_sfs_only: bool,
-        rng: &mut impl Rng,
     ) -> anyhow::Result<()> {
-        let cells_with_idx = if nb_cells == self.subclones.compute_tot_cells() as usize {
-            self.subclones.get_cells_with_clones_idx()
-        } else {
-            self.subclones
-                .get_cells_subsampled_with_clones_idx(nb_cells, rng)
-        };
-        assert_eq!(cells_with_idx.len(), nb_cells);
         let cells: Vec<&StemCell> = cells_with_idx.iter().map(|ele| ele.0).collect();
+        let nb_cells = cells.len();
 
         if self.verbosity > 1 {
-            println!("saving {} cells", cells.len());
+            println!("saving {} cells", nb_cells);
         }
 
         Sfs::from_cells(&cells, self.verbosity)
@@ -343,7 +351,40 @@ impl Moran {
                 self.counter_divisions
             );
         }
+        Ok(())
+    }
 
+    pub fn save(
+        &self,
+        time: f32,
+        saving_cells: &SavingCells,
+        save_sfs_only: bool,
+        rng: &mut impl Rng,
+    ) -> anyhow::Result<()> {
+        let population = self.subclones.get_cells_with_clones_idx();
+        match saving_cells {
+            SavingCells::WholePopulation => self
+                .save_it(time, population, save_sfs_only)
+                .with_context(|| "cannot save the full population")
+                .unwrap(),
+            SavingCells::Subsampling {
+                sample_size,
+                population_as_well: populaiton_as_well,
+            } => {
+                if *populaiton_as_well {
+                    self.save_it(time, population, save_sfs_only)
+                        .with_context(|| "cannot save the full population")
+                        .unwrap();
+                }
+                let cells_with_idx = self
+                    .subclones
+                    .get_cells_subsampled_with_clones_idx(*sample_size, rng);
+                assert_eq!(cells_with_idx.len(), *sample_size);
+                self.save_it(time, cells_with_idx, save_sfs_only)
+                    .with_context(|| "cannot save the subsample")
+                    .unwrap();
+            }
+        }
         Ok(())
     }
 }
@@ -406,7 +447,16 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
                     snapshot.time, self.time, snapshot.cells2sample
                 );
             }
-            self.save(self.time, snapshot.cells2sample, self.save_sfs_only, rng)
+            let saving_cells =
+                if snapshot.cells2sample == self.subclones.compute_tot_cells() as usize {
+                    SavingCells::WholePopulation
+                } else {
+                    SavingCells::Subsampling {
+                        sample_size: snapshot.cells2sample,
+                        population_as_well: self.save_population,
+                    }
+                };
+            self.save(self.time, &saving_cells, self.save_sfs_only, rng)
                 .expect("cannot save snapshot");
         }
 

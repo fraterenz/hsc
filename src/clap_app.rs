@@ -120,6 +120,9 @@ pub struct Cli {
     fitness: FitnessArg,
     #[arg(long, default_value_t = 26)]
     seed: u64,
+    /// Save the whole population
+    #[arg(long, action = ArgAction::SetTrue, default_value_t = false)]
+    save_population: bool,
     /// Save only the SFS (when you dont want too many files to be saved)
     #[arg(long, action = ArgAction::SetTrue, default_value_t = false)]
     save_sfs_only: bool,
@@ -135,7 +138,7 @@ pub struct Cli {
     /// Run sequentially each run instead of using rayon for parallelisation
     #[arg(long, action = ArgAction::SetTrue, default_value_t = false, conflicts_with = "debug")]
     sequential: bool,
-    #[arg(long, requires = "subsamples", num_args = 1..)]
+    #[arg(long, requires = "subsamples", num_args = 0..)]
     /// Snapshots to take to save the simulation, requires `subsamples`.
     ///
     /// The combination of `snapshots` with `subsamples` gives four different
@@ -155,7 +158,7 @@ pub struct Cli {
     /// will also be saved.
     ///
     /// See help for `snapshots` for more details.
-    #[arg(long, requires = "snapshots", num_args = 1..)]
+    #[arg(long, requires = "snapshots", num_args = 0..)]
     subsamples: Option<Vec<usize>>,
 }
 
@@ -236,7 +239,7 @@ impl Cli {
                 }
             }
             (None, None) => VecDeque::from_iter(
-                Cli::build_snapshots_from_time(10usize, years as f32)
+                Cli::build_snapshots_from_time(10usize, years as f32 - 1.)
                     .into_iter()
                     .map(|t| Snapshot {
                         cells2sample: cli.cells as usize,
@@ -259,8 +262,8 @@ impl Cli {
         ensure!(
             snapshots
                 .iter()
-                .all(|s| s.cells2sample < cli.cells as usize),
-            "the cells to subsample must be smaller than the total population size"
+                .all(|s| s.cells2sample <= cli.cells as usize),
+            "the cells to subsample must be smaller or equal than the total population size"
         );
 
         // Moran
@@ -280,6 +283,7 @@ impl Cli {
                 verbosity,
             },
             save_sfs_only: cli.save_sfs_only,
+            save_population: cli.save_population,
         };
 
         // Exp
@@ -301,6 +305,7 @@ impl Cli {
                     verbosity,
                 },
                 save_sfs_only: cli.save_sfs_only,
+                save_population: cli.save_population,
             }
         });
 
