@@ -1,6 +1,9 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 2.2.12
+- increase fitness range up to 4
+
 ## 2.2.11
 ### BugFix
 - when subsampling save the whole population as well with new flag `--save-population`
