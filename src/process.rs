@@ -319,20 +319,26 @@ impl Moran {
         let cells: Vec<&StemCell> = cells_with_idx.iter().map(|ele| ele.0).collect();
         let nb_cells = cells.len();
 
-        if self.verbosity > 1 {
+        if self.verbosity > 0 {
             println!("saving {} cells", nb_cells);
         }
 
         Sfs::from_cells(&cells, self.verbosity)
             .unwrap_or_else(|_| panic!("cannot create SFS for timepoint at time {}", time))
-            .save(&self.make_path(Stats2Save::Sfs, nb_cells, time)?)?;
+            .save(
+                &self.make_path(Stats2Save::Sfs, nb_cells, time)?,
+                self.verbosity,
+            )?;
 
         if !save_sfs_only {
             MutationalBurden::from_cells(&cells, self.verbosity)
                 .unwrap_or_else(|_| {
                     panic!("cannot create burden for the timepoint at time {}", time)
                 })
-                .save(&self.make_path(Stats2Save::Burden, nb_cells, time)?)?;
+                .save(
+                    &self.make_path(Stats2Save::Burden, nb_cells, time)?,
+                    self.verbosity,
+                )?;
             save_variant_fraction(
                 &SubClones::from(
                     cells_with_idx
@@ -362,6 +368,9 @@ impl Moran {
         rng: &mut impl Rng,
     ) -> anyhow::Result<()> {
         let population = self.subclones.get_cells_with_clones_idx();
+        if self.verbosity > 0 {
+            println!("saving {:#?}", saving_cells);
+        }
         match saving_cells {
             SavingCells::WholePopulation => self
                 .save_it(time, population, save_sfs_only)

@@ -519,6 +519,15 @@
 <a href="#519" id="519">519</a>
 <a href="#520" id="520">520</a>
 <a href="#521" id="521">521</a>
+<a href="#522" id="522">522</a>
+<a href="#523" id="523">523</a>
+<a href="#524" id="524">524</a>
+<a href="#525" id="525">525</a>
+<a href="#526" id="526">526</a>
+<a href="#527" id="527">527</a>
+<a href="#528" id="528">528</a>
+<a href="#529" id="529">529</a>
+<a href="#530" id="530">530</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::genotype::{MutationalBurden, Sfs, Variant};
 <span class="kw">use </span><span class="kw">crate</span>::stemcell::{assign_background_mutations, mutate, StemCell};
 <span class="kw">use </span><span class="kw">crate</span>::subclone::{
@@ -840,20 +849,26 @@
         <span class="kw">let </span>cells: Vec&lt;<span class="kw-2">&amp;</span>StemCell&gt; = cells_with_idx.iter().map(|ele| ele.<span class="number">0</span>).collect();
         <span class="kw">let </span>nb_cells = cells.len();
 
-        <span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">1 </span>{
+        <span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">0 </span>{
             <span class="macro">println!</span>(<span class="string">&quot;saving {} cells&quot;</span>, nb_cells);
         }
 
         Sfs::from_cells(<span class="kw-2">&amp;</span>cells, <span class="self">self</span>.verbosity)
             .unwrap_or_else(|<span class="kw">_</span>| <span class="macro">panic!</span>(<span class="string">&quot;cannot create SFS for timepoint at time {}&quot;</span>, time))
-            .save(<span class="kw-2">&amp;</span><span class="self">self</span>.make_path(Stats2Save::Sfs, nb_cells, time)<span class="question-mark">?</span>)<span class="question-mark">?</span>;
+            .save(
+                <span class="kw-2">&amp;</span><span class="self">self</span>.make_path(Stats2Save::Sfs, nb_cells, time)<span class="question-mark">?</span>,
+                <span class="self">self</span>.verbosity,
+            )<span class="question-mark">?</span>;
 
         <span class="kw">if </span>!save_sfs_only {
             MutationalBurden::from_cells(<span class="kw-2">&amp;</span>cells, <span class="self">self</span>.verbosity)
                 .unwrap_or_else(|<span class="kw">_</span>| {
                     <span class="macro">panic!</span>(<span class="string">&quot;cannot create burden for the timepoint at time {}&quot;</span>, time)
                 })
-                .save(<span class="kw-2">&amp;</span><span class="self">self</span>.make_path(Stats2Save::Burden, nb_cells, time)<span class="question-mark">?</span>)<span class="question-mark">?</span>;
+                .save(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.make_path(Stats2Save::Burden, nb_cells, time)<span class="question-mark">?</span>,
+                    <span class="self">self</span>.verbosity,
+                )<span class="question-mark">?</span>;
             save_variant_fraction(
                 <span class="kw-2">&amp;</span>SubClones::from(
                     cells_with_idx
@@ -883,6 +898,9 @@
         rng: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>Rng,
     ) -&gt; anyhow::Result&lt;()&gt; {
         <span class="kw">let </span>population = <span class="self">self</span>.subclones.get_cells_with_clones_idx();
+        <span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">0 </span>{
+            <span class="macro">println!</span>(<span class="string">&quot;saving {:#?}&quot;</span>, saving_cells);
+        }
         <span class="kw">match </span>saving_cells {
             SavingCells::WholePopulation =&gt; <span class="self">self
                 </span>.save_it(time, population, save_sfs_only)

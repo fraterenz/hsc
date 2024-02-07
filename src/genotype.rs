@@ -110,6 +110,12 @@ pub struct Sfs(pub FxHashMap<u64, u64>);
 impl Sfs {
     pub fn from_cells(cells: &[&StemCell], verbosity: u8) -> anyhow::Result<Self> {
         //! Compute the SFS from the stem cell population.
+        if verbosity > 0 {
+            println!("computing the SFS from {} cells", cells.len());
+            if verbosity > 0 {
+                println!("computing the SFS from {:#?}", &cells);
+            }
+        }
         let mut sfs_variants = FxHashMap::default();
         for cell in cells.iter() {
             for variant in cell.variants.iter() {
@@ -132,9 +138,12 @@ impl Sfs {
         Ok(Sfs(sfs))
     }
 
-    pub fn save(&self, path2file: &Path) -> anyhow::Result<()> {
+    pub fn save(&self, path2file: &Path, verbosity: u8) -> anyhow::Result<()> {
         let path2file = path2file.with_extension("json");
         let sfs = serde_json::to_string(&self.0).with_context(|| "cannot serialize the SFS")?;
+        if verbosity > 0 {
+            println!("SFS in {:#?}", path2file)
+        }
         fs::write(path2file, sfs).with_context(|| "Cannot save the SFS ".to_string())?;
 
         Ok(())
@@ -166,10 +175,13 @@ impl MutationalBurden {
         Ok(MutationalBurden(burden))
     }
 
-    pub fn save(&self, path2file: &Path) -> anyhow::Result<()> {
+    pub fn save(&self, path2file: &Path, verbosity: u8) -> anyhow::Result<()> {
         let path2file = path2file.with_extension("json");
         let burden =
             serde_json::to_string(&self.0).with_context(|| "cannot serialize the burden")?;
+        if verbosity > 0 {
+            println!("saving burden in {:#?}", path2file);
+        }
         fs::write(path2file, burden)
             .with_context(|| "Cannot save the total single cel burden".to_string())?;
 

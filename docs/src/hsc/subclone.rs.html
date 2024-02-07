@@ -955,7 +955,7 @@
 ) -&gt; anyhow::Result&lt;()&gt; {
     <span class="kw">let </span>path2file = path2file.with_extension(<span class="string">&quot;csv&quot;</span>);
     <span class="kw">let </span>total_variant_frac = Variants::variant_fractions(subclones);
-    <span class="kw">if </span>verbosity &gt; <span class="number">1 </span>{
+    <span class="kw">if </span>verbosity &gt; <span class="number">0 </span>{
         <span class="macro">println!</span>(<span class="string">&quot;total variant fraction in {:#?}&quot;</span>, path2file)
     }
     write2file(<span class="kw-2">&amp;</span>total_variant_frac, <span class="kw-2">&amp;</span>path2file, <span class="prelude-val">None</span>, <span class="bool-val">false</span>)<span class="question-mark">?</span>;

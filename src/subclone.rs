@@ -410,7 +410,7 @@ pub fn save_variant_fraction(
 ) -> anyhow::Result<()> {
     let path2file = path2file.with_extension("csv");
     let total_variant_frac = Variants::variant_fractions(subclones);
-    if verbosity > 1 {
+    if verbosity > 0 {
         println!("total variant fraction in {:#?}", path2file)
     }
     write2file(&total_variant_frac, &path2file, None, false)?;

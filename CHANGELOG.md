@@ -1,6 +1,9 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 2.2.13
+- in the first exponential phase, start with one cell with one neutral mutation
+
 ## 2.2.12
 - increase fitness range up to 4
 

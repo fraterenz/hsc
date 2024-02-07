@@ -14,6 +14,7 @@ use rand_chacha::ChaCha8Rng;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use sosa::{simulate, CurrentState, Options, StopReason};
 use std::collections::VecDeque;
+use uuid::Uuid;
 
 pub mod clap_app;
 
@@ -68,7 +69,9 @@ fn main() {
 
         // initial state
         let cells = if app.options_exponential.is_some() {
-            vec![StemCell::new()]
+            // add a neutral mutation such that we have a clonal variant
+            let mutation = Uuid::new_v4();
+            vec![StemCell::with_mutations(vec![mutation])]
         } else {
             vec![StemCell::new(); app.options_moran.gillespie_options.max_cells as usize - 1]
         };
