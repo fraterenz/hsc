@@ -1,6 +1,9 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 2.2.14
+- increase the range of sigma up to 1
+
 ## 2.2.13
 - in the first exponential phase, start with one cell with one neutral mutation
 
