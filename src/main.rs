@@ -4,6 +4,10 @@ use chrono::Utc;
 use clap_app::{NeutralMutationRate, Parallel};
 use hsc::{
     process::{Exponential, Moran, ProcessOptions, SavingCells, SavingOptions, Snapshot},
+    proliferation::{
+        DivisionAndBackgroundMutationsProliferation, DivisionMutationsProliferation,
+        MutateUponDivision,
+    },
     stemcell::StemCell,
     subclone::{Distributions, Fitness, SubClones, Variants},
     write2file,
@@ -40,6 +44,7 @@ pub struct AppOptions {
     pub mu0: f32,
     pub verbosity: u8,
     pub neutral_rate: NeutralMutationRate,
+    pub background: bool,
 }
 
 fn main() {
@@ -110,6 +115,14 @@ fn main() {
         .replace('.', "dot")
         .into();
 
+        let prolfieration = if app.background {
+            MutateUponDivision::DivisionAndBackgroundMutations(
+                DivisionAndBackgroundMutationsProliferation,
+            )
+        } else {
+            MutateUponDivision::DivisionMutations(DivisionMutationsProliferation)
+        };
+
         let mut moran = if let Some(options) = app.options_exponential.as_ref() {
             let rate = app
                 .neutral_rate
@@ -121,6 +134,7 @@ fn main() {
             let mut exp = Exponential::new(
                 subclones,
                 Distributions::new(u, rate, rate, app.options_moran.gillespie_options.verbosity),
+                prolfieration,
                 options.gillespie_options.verbosity,
             );
 
@@ -151,6 +165,7 @@ fn main() {
                 filename,
                 app.options_moran.save_sfs_only,
                 app.options_moran.save_population,
+                rng,
             )
         } else {
             Moran::new(
@@ -163,6 +178,7 @@ fn main() {
                     save_population: app.options_moran.save_population,
                 },
                 distributions,
+                prolfieration,
                 app.options_moran.gillespie_options.verbosity,
             )
         };

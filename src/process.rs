@@ -1,8 +1,7 @@
-use crate::genotype::{MutationalBurden, Sfs, Variant};
-use crate::stemcell::{assign_background_mutations, mutate, StemCell};
-use crate::subclone::{
-    assign, proliferating_cell, save_variant_fraction, CloneId, Distributions, SubClones, Variants,
-};
+use crate::genotype::{MutationalBurden, Sfs};
+use crate::proliferation::{MutateUponDivision, Proliferation};
+use crate::stemcell::{assign_background_mutations, StemCell};
+use crate::subclone::{save_variant_fraction, CloneId, Distributions, SubClones, Variants};
 use crate::MAX_SUBCLONES;
 use anyhow::Context;
 use rand::Rng;
@@ -51,7 +50,6 @@ pub enum Stats2Save {
 
 #[derive(Debug, Clone)]
 pub struct CellDivisionProbabilities {
-    pub p_asymmetric: f64,
     /// Rate of neutral mutations per cell-division
     pub lambda_poisson: f32,
     /// Probability of getting a fit mutant upon cell division
@@ -67,19 +65,24 @@ pub struct Exponential {
     pub counter_divisions: usize,
     pub verbosity: u8,
     pub distributions: Distributions,
+    pub proliferation: MutateUponDivision,
+    pub time: f32,
 }
 
 impl Exponential {
     pub fn new(
         initial_subclones: SubClones,
         distributions: Distributions,
+        proliferation: MutateUponDivision,
         verbosity: u8,
     ) -> Exponential {
         let hsc = Exponential {
             subclones: initial_subclones,
             distributions,
             counter_divisions: 0,
+            proliferation,
             verbosity,
+            time: 0f32,
         };
         if verbosity > 1 {
             println!("process created: {:#?}", hsc);
@@ -94,11 +97,12 @@ impl Exponential {
         filename: PathBuf,
         save_sfs_only: bool,
         save_population: bool,
+        rng: &mut impl Rng,
     ) -> Moran {
-        Moran {
+        let mut moran = Moran {
             subclones: self.subclones,
             counter_divisions: self.counter_divisions,
-            time: 0.,
+            time: self.time,
             snapshots: process_options.snapshots,
             path2dir: process_options.path,
             verbosity: self.verbosity,
@@ -106,7 +110,38 @@ impl Exponential {
             distributions,
             save_sfs_only,
             save_population,
+            proliferation: self.proliferation,
+        };
+        match moran.proliferation {
+            MutateUponDivision::DivisionAndBackgroundMutations(_) => {
+                // this is important: we update all background mutations at this
+                // time such that all cells are all on the same page.
+                // Since background mutations are implemented at each division, and
+                // cells do not proliferate at the same rate, we need to correct and
+                // update the background mutations at the timepoint corresponding
+                // to sampling step, i.e. before saving.
+                for stem_cell in moran.subclones.get_mut_cells() {
+                    assign_background_mutations(
+                        stem_cell,
+                        self.time,
+                        &self.distributions.neutral_poisson,
+                        rng,
+                        self.verbosity,
+                    );
+                }
+            }
+            MutateUponDivision::DivisionMutations(_) => {}
         }
+        moran.time = 0.;
+        moran
+            .save(
+                moran.time,
+                &SavingCells::WholePopulation,
+                moran.save_sfs_only,
+                rng,
+            )
+            .expect("cannot save simulation at the end of the exponential phase");
+        moran
     }
 }
 
@@ -133,38 +168,17 @@ impl AdvanceStep<MAX_SUBCLONES> for Exponential {
         // that is the clone with id `reaction.event`.
         // Pick random proliferating cells from this clone. **Note that this
         // removes the cells from the clone with id `reaction.event`.**
-        let stem_cell =
-            proliferating_cell(&mut self.subclones, reaction.event, self.verbosity, rng);
         self.counter_divisions += 1;
-        for mut cell in [stem_cell.clone(), stem_cell] {
-            if self.verbosity > 1 {
-                println!("assigning mutations to cell {:#?}", cell)
-            }
-
-            let division = self
-                .distributions
-                .neutral_poisson
-                .new_muts_upon_division(rng);
-            if let Some(mutations) = division {
-                mutate(&mut cell, mutations);
-            }
-
-            // assign cell to clone. This can have two outcomes based on a
-            // Bernouilli trial see `assign` and `self.assign`:
-            // 1. the stem cell is re-assigned to the old clone with id
-            // `reaction.event` (remember that `self.proliferating_cells` has
-            // removed the cells from the clone)
-            // 2. the stem cell is assigned to a new clone with id different
-            // from `reaction.event`.
-            assign(
-                &mut self.subclones,
-                reaction.event,
-                cell,
-                &self.distributions,
-                rng,
-                self.verbosity,
-            );
-        }
+        self.time += reaction.time;
+        self.counter_divisions += 1;
+        self.proliferation.duplicate_cell_assign_mutations(
+            &mut self.subclones,
+            reaction.time,
+            reaction.event,
+            &self.distributions,
+            rng,
+            self.verbosity,
+        );
     }
 
     fn update_state(&self, state: &mut CurrentState<MAX_SUBCLONES>) {
@@ -189,6 +203,7 @@ pub struct Moran {
     pub filename: PathBuf,
     pub save_sfs_only: bool,
     pub save_population: bool,
+    pub proliferation: MutateUponDivision,
 }
 
 impl Default for Moran {
@@ -208,6 +223,7 @@ impl Default for Moran {
                 save_population: true,
             },
             Distributions::default(),
+            MutateUponDivision::default(),
             1,
         )
     }
@@ -222,6 +238,7 @@ impl Moran {
         time: f32,
         saving_options: SavingOptions,
         distributions: Distributions,
+        proliferation: MutateUponDivision,
         verbosity: u8,
     ) -> Moran {
         let hsc = Moran {
@@ -235,22 +252,12 @@ impl Moran {
             verbosity,
             save_sfs_only: saving_options.save_sfs_only,
             save_population: saving_options.save_population,
+            proliferation,
         };
         if verbosity > 1 {
             println!("process created: {:#?}", hsc);
         }
         hsc
-    }
-
-    fn assign_mutations(&self, stem_cell: &mut StemCell, mutations: Option<Vec<Variant>>) {
-        if let Some(mutations) = mutations {
-            if self.verbosity > 2 {
-                println!("assigning {:#?} to cell {:#?}", mutations, stem_cell);
-            }
-            mutate(stem_cell, mutations);
-        } else if self.verbosity > 2 {
-            println!("no mutations to assign to cell {:#?}", stem_cell);
-        }
     }
 
     fn keep_const_population_upon_symmetric_division(&mut self, rng: &mut impl Rng) {
@@ -361,12 +368,32 @@ impl Moran {
     }
 
     pub fn save(
-        &self,
+        &mut self,
         time: f32,
         saving_cells: &SavingCells,
         save_sfs_only: bool,
         rng: &mut impl Rng,
     ) -> anyhow::Result<()> {
+        match self.proliferation {
+            MutateUponDivision::DivisionAndBackgroundMutations(_) => {
+                // this is important: we update all background mutations at this
+                // time such that all cells are all on the same page.
+                // Since background mutations are implemented at each division, and
+                // cells do not proliferate at the same rate, we need to correct and
+                // update the background mutations at the timepoint corresponding
+                // to sampling step, i.e. before saving.
+                for stem_cell in self.subclones.get_mut_cells() {
+                    assign_background_mutations(
+                        stem_cell,
+                        self.time,
+                        &self.distributions.neutral_poisson,
+                        rng,
+                        self.verbosity,
+                    );
+                }
+            }
+            MutateUponDivision::DivisionMutations(_) => {}
+        }
         let population = self.subclones.get_cells_with_clones_idx();
         if self.verbosity > 0 {
             println!("saving {:#?}", saving_cells);
@@ -413,43 +440,9 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
         //! waiting time and the non-empty clone that will proliferate.
         //! From the proliferating clone selected, we sample a random cell to
         //! which we assign neutral and fit mutations.
-        //!
-        //! The proliferation step is implemented as following:
-        //!
-        //! 1. select the cell `c` that will proliferate next from the clone
-        //! with id `reaction` determined by the Gillespie algorithm
-        //!
-        //! 2. draw and assign mb neutral background mutations to `c` from
-        //! Poisson(DeltaT * mub), where mub is the backgound mutation rate
-        //!
-        //! 3. draw and assign md neutral division mutations to `c` from
-        //! Poisson(mud), where mud is the division mutation rate
-        //!
-        //! 4. draw from a Bernoulli trial a fit mutation and in case assign
-        //! `c` to a new clone. This clone must be empty and different from the
-        //! old clone which `c` belonged to.
-        //!
-        //! 5. (optional) if that was a symmetric division, clone the
-        //! proliferating cell `c` into `c1` and repeat step 3, 4 with `c1`.
-
         // take snapshot
         while !self.snapshots.is_empty() && self.snapshots.iter().any(|s| self.time >= s.time) {
             let snapshot = self.snapshots.pop_front().unwrap();
-            // this is important: we update all background mutations at this
-            // time such that all cells are all on the same page.
-            // Since background mutations are implemented at each division, and
-            // cells do not proliferate at the same rate, we need to correct and
-            // update the background mutations at the timepoint corresponding
-            // to sampling step, i.e. before saving.
-            for stem_cell in self.subclones.get_mut_cells() {
-                assign_background_mutations(
-                    stem_cell,
-                    self.time,
-                    &self.distributions.neutral_poisson,
-                    rng,
-                    self.verbosity,
-                );
-            }
             if self.verbosity > 0 {
                 println!(
                     "saving state for timepoint at time {:#?} at simulation's time {} with {} cells",
@@ -475,46 +468,15 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
         // this clone. **Note that this removes the cells from the clone with
         // id `reaction.event`.**
         self.time += reaction.time;
-        let mut stem_cell =
-            proliferating_cell(&mut self.subclones, reaction.event, self.verbosity, rng);
         self.counter_divisions += 1;
-
-        // 2. draw background mutations and assign them to `c`
-        assign_background_mutations(
-            &mut stem_cell,
-            self.time,
-            &self.distributions.neutral_poisson,
+        self.proliferation.duplicate_cell_assign_mutations(
+            &mut self.subclones,
+            reaction.time,
+            reaction.event,
+            &self.distributions,
             rng,
             self.verbosity,
         );
-        if self.verbosity > 1 {
-            println!("cell {:#?} is dividing", stem_cell);
-            println!("at time {}", self.time);
-        }
-
-        // 3., 4. and 5.
-        for mut cell in [stem_cell.clone(), stem_cell] {
-            let division = self
-                .distributions
-                .neutral_poisson
-                .new_muts_upon_division(rng);
-            if self.verbosity > 2 {
-                println!(
-                    "assigning {} mutations upon cell division to cell {:#?}",
-                    division.as_ref().unwrap_or(&vec![]).len(),
-                    cell
-                );
-            }
-            self.assign_mutations(&mut cell, division);
-            assign(
-                &mut self.subclones,
-                reaction.event,
-                cell,
-                &self.distributions,
-                rng,
-                self.verbosity,
-            );
-        }
 
         // remove a cell from the population
         self.keep_const_population_upon_symmetric_division(rng);

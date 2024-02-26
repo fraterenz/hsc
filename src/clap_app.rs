@@ -10,22 +10,6 @@ use std::{collections::VecDeque, ops::RangeInclusive, path::PathBuf};
 
 use crate::{AppOptions, SimulationOptions};
 
-#[derive(Clone, Copy, Debug)]
-pub enum ProcessType {
-    MoranSymmetric,
-    MoranAsymmetric,
-}
-
-impl ProcessType {
-    pub fn new(p_asymmetric: f64) -> Self {
-        if (p_asymmetric - 0.).abs() < f64::EPSILON {
-            ProcessType::MoranSymmetric
-        } else {
-            ProcessType::MoranAsymmetric
-        }
-    }
-}
-
 #[derive(Clone, Debug)]
 pub enum Parallel {
     False,
@@ -135,6 +119,9 @@ pub struct Cli {
     /// Path to store the results of the simulations
     #[arg(value_name = "DIR")]
     path: PathBuf,
+    /// Do not simulate background mutations
+    #[arg(long, action = ArgAction::SetTrue, default_value_t = false)]
+    no_background: bool,
     /// Run sequentially each run instead of using rayon for parallelisation
     #[arg(long, action = ArgAction::SetTrue, default_value_t = false, conflicts_with = "debug")]
     sequential: bool,
@@ -175,11 +162,8 @@ impl Cli {
         x
     }
 
-    pub fn normalise_mutation_rate<F: Float>(rate: F, process_type: ProcessType) -> F {
-        match process_type {
-            ProcessType::MoranAsymmetric => rate,
-            ProcessType::MoranSymmetric => rate / NumCast::from(2).unwrap(),
-        }
+    pub fn normalise_mutation_rate<F: Float>(rate: F) -> F {
+        rate / NumCast::from(2).unwrap()
     }
 
     pub fn build() -> anyhow::Result<AppOptions> {
@@ -343,6 +327,7 @@ impl Cli {
             options_exponential,
             mu0: cli.mu0,
             neutral_rate: cli.neutral_rate,
+            background: !cli.no_background,
             verbosity: cli.verbosity,
         })
     }

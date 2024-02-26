@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":["MutationalBurden","NeutralMutationPoisson","Sfs"],"type":["Variant"]};

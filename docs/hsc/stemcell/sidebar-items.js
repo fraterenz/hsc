@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["assign_background_mutations","mutate"],"struct":["StemCell"]};

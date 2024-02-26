@@ -1,6 +1,13 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 3.0.0
+- implement the background mutations for the exponential growing phase, by default it's on now.
+- remove all the remaining symmetric stuff
+
+### BugFix
+- update all the background mutations while saving (even without taking a snapshot)
+
 ## 2.2.14
 - increase the range of sigma up to 1
 

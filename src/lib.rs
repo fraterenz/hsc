@@ -1,12 +1,6 @@
 //! Simulate the dynamics of a stem cell population undergoing proliferation
 //! and differentiation according to a Moran process (fixed population size).
 //!
-//! At every cell division, a stem cell can undergo one of the following events
-//! (see [`process::Moran`]):
-//!
-//! 1. a symmetric division,
-//! 2. an asymmetric division
-//!
 //! Whenever a cell divides, it acquires a Poisson number of passenger
 //! mutations, which do not give any proliferative advantage.
 //!
@@ -28,6 +22,8 @@ use anyhow::Context;
 pub mod genotype;
 /// The events to simulate for this Markov process.
 pub mod process;
+/// The proliferation of cells with the simulation of neutral and fit mutations.
+pub mod proliferation;
 /// The agents whose state defines the system simulated by the process.
 pub mod stemcell;
 /// The classes defining the proliferative advantage.
