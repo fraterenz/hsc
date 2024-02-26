@@ -354,7 +354,7 @@
                 interdivison_time, <span class="self">self</span>.background
             );
         }
-        <span class="kw">if </span>interdivison_time &gt; <span class="number">0. </span>{
+        <span class="kw">if </span>interdivison_time &gt; <span class="number">0.01 </span>{
             <span class="kw">let </span>background = Poisson::new(<span class="self">self</span>.background * interdivison_time).unwrap();
             <span class="kw">let </span>nb_mutations = nb_neutral_mutations(<span class="kw-2">&amp;</span>background, rng);
             <span class="kw">if </span>verbosity &gt; <span class="number">1 </span>{

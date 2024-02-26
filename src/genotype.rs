@@ -76,7 +76,7 @@ impl NeutralMutationPoisson {
                 interdivison_time, self.background
             );
         }
-        if interdivison_time > 0. {
+        if interdivison_time > 0.01 {
             let background = Poisson::new(self.background * interdivison_time).unwrap();
             let nb_mutations = nb_neutral_mutations(&background, rng);
             if verbosity > 1 {

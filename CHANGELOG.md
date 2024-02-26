@@ -1,6 +1,10 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 3.0.2
+### BugFix
+- Fix bug for background mutations, when the interdivision time is small (<0.01) returns `None`
+
 ## 3.0.1
 ### BugFix
 - forgot to commit new module `src/proliferation.rs`
