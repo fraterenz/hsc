@@ -1,6 +1,10 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 3.0.1
+### BugFix
+- forgot to commit new module `src/proliferation.rs`
+
 ## 3.0.0
 - implement the background mutations for the exponential growing phase, by default it's on now.
 - remove all the remaining symmetric stuff

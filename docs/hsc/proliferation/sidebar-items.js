@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["MutateUponDivision"],"struct":["DivisionAndBackgroundMutationsProliferation","DivisionMutationsProliferation"],"trait":["Proliferation"]};
