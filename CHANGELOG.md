@@ -1,6 +1,12 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 3.0.3
+### BugFix
+- Fix bug with times and background mutations
+- When cloning a cell upon division, set `last_division_t` of the daughter cell to 0
+- Fix when restarting, set timer to 0 and set all `last_division_t` to 0
+
 ## 3.0.2
 ### BugFix
 - Fix bug for background mutations, when the interdivision time is small (<0.01) returns `None`

@@ -99,6 +99,9 @@ impl Exponential {
         save_population: bool,
         rng: &mut impl Rng,
     ) -> Moran {
+        if self.verbosity > 1 {
+            println!("switching to Moran");
+        }
         let mut moran = Moran {
             subclones: self.subclones,
             counter_divisions: self.counter_divisions,
@@ -128,10 +131,13 @@ impl Exponential {
                         rng,
                         self.verbosity,
                     );
+                    // this is required as we are restarting the time
+                    stem_cell.last_division_t = 0f32;
                 }
             }
             MutateUponDivision::DivisionMutations(_) => {}
         }
+        // restart the time
         moran.time = 0.;
         moran
             .save(
@@ -170,10 +176,9 @@ impl AdvanceStep<MAX_SUBCLONES> for Exponential {
         // removes the cells from the clone with id `reaction.event`.**
         self.counter_divisions += 1;
         self.time += reaction.time;
-        self.counter_divisions += 1;
         self.proliferation.duplicate_cell_assign_mutations(
             &mut self.subclones,
-            reaction.time,
+            self.time,
             reaction.event,
             &self.distributions,
             rng,
@@ -471,7 +476,7 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
         self.counter_divisions += 1;
         self.proliferation.duplicate_cell_assign_mutations(
             &mut self.subclones,
-            reaction.time,
+            self.time,
             reaction.event,
             &self.distributions,
             rng,

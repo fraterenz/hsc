@@ -19,7 +19,7 @@ fn assign_mutations(stem_cell: &mut StemCell, mutations: Option<Vec<Variant>>, v
 }
 
 fn proliferation(
-    stem_cell: &mut StemCell,
+    stem_cell: StemCell,
     subclones: &mut SubClones,
     proliferating_subclone: CloneId,
     distributions: &Distributions,
@@ -30,8 +30,10 @@ fn proliferation(
         println!("cell {:#?} is dividing", stem_cell);
     }
 
-    // 3., 4. and 5.
-    for mut cell in [stem_cell.clone(), stem_cell.to_owned()] {
+    let mut new_cell = stem_cell.clone();
+    // the new cell hasn't divided yet
+    new_cell.last_division_t = 0f32;
+    for mut cell in [new_cell, stem_cell] {
         let division = distributions.neutral_poisson.new_muts_upon_division(rng);
         if verbosity > 2 {
             println!(
@@ -122,12 +124,12 @@ impl Proliferation for DivisionMutationsProliferation {
         rng: &mut impl Rng,
         verbosity: u8,
     ) {
-        let mut stem_cell = proliferating_cell(subclones, proliferating_subclone, verbosity, rng);
+        let stem_cell = proliferating_cell(subclones, proliferating_subclone, verbosity, rng);
         if verbosity > 1 {
             println!("proliferation at time {}", time);
         }
         proliferation(
-            &mut stem_cell,
+            stem_cell,
             subclones,
             proliferating_subclone,
             distributions,
@@ -151,7 +153,6 @@ impl Proliferation for DivisionAndBackgroundMutationsProliferation {
         if verbosity > 1 {
             println!("proliferation at time {}", time);
         }
-        // 2. draw background mutations and assign them to `c`
         assign_background_mutations(
             &mut stem_cell,
             time,
@@ -160,7 +161,7 @@ impl Proliferation for DivisionAndBackgroundMutationsProliferation {
             verbosity,
         );
         proliferation(
-            &mut stem_cell,
+            stem_cell,
             subclones,
             proliferating_subclone,
             distributions,
