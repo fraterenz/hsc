@@ -490,6 +490,11 @@
 <a href="#490" id="490">490</a>
 <a href="#491" id="491">491</a>
 <a href="#492" id="492">492</a>
+<a href="#493" id="493">493</a>
+<a href="#494" id="494">494</a>
+<a href="#495" id="495">495</a>
+<a href="#496" id="496">496</a>
+<a href="#497" id="497">497</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::genotype::{MutationalBurden, Sfs};
 <span class="kw">use </span><span class="kw">crate</span>::proliferation::{MutateUponDivision, Proliferation};
 <span class="kw">use </span><span class="kw">crate</span>::stemcell::{assign_background_mutations, StemCell};
@@ -591,6 +596,9 @@
         save_population: bool,
         rng: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>Rng,
     ) -&gt; Moran {
+        <span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">1 </span>{
+            <span class="macro">println!</span>(<span class="string">&quot;switching to Moran&quot;</span>);
+        }
         <span class="kw">let </span><span class="kw-2">mut </span>moran = Moran {
             subclones: <span class="self">self</span>.subclones,
             counter_divisions: <span class="self">self</span>.counter_divisions,
@@ -620,11 +628,14 @@
                         rng,
                         <span class="self">self</span>.verbosity,
                     );
+                    <span class="comment">// this is required as we are restarting the time
+                    </span>stem_cell.last_division_t = <span class="number">0f32</span>;
                 }
             }
             MutateUponDivision::DivisionMutations(<span class="kw">_</span>) =&gt; {}
         }
-        moran.time = <span class="number">0.</span>;
+        <span class="comment">// restart the time
+        </span>moran.time = <span class="number">0.</span>;
         moran
             .save(
                 moran.time,
@@ -662,10 +673,9 @@
         // removes the cells from the clone with id `reaction.event`.**
         </span><span class="self">self</span>.counter_divisions += <span class="number">1</span>;
         <span class="self">self</span>.time += reaction.time;
-        <span class="self">self</span>.counter_divisions += <span class="number">1</span>;
         <span class="self">self</span>.proliferation.duplicate_cell_assign_mutations(
             <span class="kw-2">&amp;mut </span><span class="self">self</span>.subclones,
-            reaction.time,
+            <span class="self">self</span>.time,
             reaction.event,
             <span class="kw-2">&amp;</span><span class="self">self</span>.distributions,
             rng,
@@ -963,7 +973,7 @@
         <span class="self">self</span>.counter_divisions += <span class="number">1</span>;
         <span class="self">self</span>.proliferation.duplicate_cell_assign_mutations(
             <span class="kw-2">&amp;mut </span><span class="self">self</span>.subclones,
-            reaction.time,
+            <span class="self">self</span>.time,
             reaction.event,
             <span class="kw-2">&amp;</span><span class="self">self</span>.distributions,
             rng,

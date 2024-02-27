@@ -168,7 +168,6 @@
 <a href="#168" id="168">168</a>
 <a href="#169" id="169">169</a>
 <a href="#170" id="170">170</a>
-<a href="#171" id="171">171</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>enum_dispatch::enum_dispatch;
 <span class="kw">use </span>rand::Rng;
 
@@ -190,7 +189,7 @@
 }
 
 <span class="kw">fn </span>proliferation(
-    stem_cell: <span class="kw-2">&amp;mut </span>StemCell,
+    stem_cell: StemCell,
     subclones: <span class="kw-2">&amp;mut </span>SubClones,
     proliferating_subclone: CloneId,
     distributions: <span class="kw-2">&amp;</span>Distributions,
@@ -201,8 +200,8 @@
         <span class="macro">println!</span>(<span class="string">&quot;cell {:#?} is dividing&quot;</span>, stem_cell);
     }
 
-    <span class="comment">// 3., 4. and 5.
-    </span><span class="kw">for </span><span class="kw-2">mut </span>cell <span class="kw">in </span>[stem_cell.clone(), stem_cell.to_owned()] {
+    <span class="kw">let </span>new_cell = stem_cell.clone();
+    <span class="kw">for </span><span class="kw-2">mut </span>cell <span class="kw">in </span>[new_cell, stem_cell] {
         <span class="kw">let </span>division = distributions.neutral_poisson.new_muts_upon_division(rng);
         <span class="kw">if </span>verbosity &gt; <span class="number">2 </span>{
             <span class="macro">println!</span>(
@@ -293,12 +292,12 @@
         rng: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>Rng,
         verbosity: u8,
     ) {
-        <span class="kw">let </span><span class="kw-2">mut </span>stem_cell = proliferating_cell(subclones, proliferating_subclone, verbosity, rng);
+        <span class="kw">let </span>stem_cell = proliferating_cell(subclones, proliferating_subclone, verbosity, rng);
         <span class="kw">if </span>verbosity &gt; <span class="number">1 </span>{
             <span class="macro">println!</span>(<span class="string">&quot;proliferation at time {}&quot;</span>, time);
         }
         proliferation(
-            <span class="kw-2">&amp;mut </span>stem_cell,
+            stem_cell,
             subclones,
             proliferating_subclone,
             distributions,
@@ -322,8 +321,7 @@
         <span class="kw">if </span>verbosity &gt; <span class="number">1 </span>{
             <span class="macro">println!</span>(<span class="string">&quot;proliferation at time {}&quot;</span>, time);
         }
-        <span class="comment">// 2. draw background mutations and assign them to `c`
-        </span>assign_background_mutations(
+        assign_background_mutations(
             <span class="kw-2">&amp;mut </span>stem_cell,
             time,
             <span class="kw-2">&amp;</span>distributions.neutral_poisson,
@@ -331,7 +329,7 @@
             verbosity,
         );
         proliferation(
-            <span class="kw-2">&amp;mut </span>stem_cell,
+            stem_cell,
             subclones,
             proliferating_subclone,
             distributions,

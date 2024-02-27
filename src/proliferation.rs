@@ -30,9 +30,7 @@ fn proliferation(
         println!("cell {:#?} is dividing", stem_cell);
     }
 
-    let mut new_cell = stem_cell.clone();
-    // the new cell hasn't divided yet
-    new_cell.last_division_t = 0f32;
+    let new_cell = stem_cell.clone();
     for mut cell in [new_cell, stem_cell] {
         let division = distributions.neutral_poisson.new_muts_upon_division(rng);
         if verbosity > 2 {
