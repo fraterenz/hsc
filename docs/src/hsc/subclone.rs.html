@@ -543,6 +543,10 @@
 <a href="#543" id="543">543</a>
 <a href="#544" id="544">544</a>
 <a href="#545" id="545">545</a>
+<a href="#546" id="546">546</a>
+<a href="#547" id="547">547</a>
+<a href="#548" id="548">548</a>
+<a href="#549" id="549">549</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::genotype::NeutralMutationPoisson;
 <span class="kw">use crate</span>::{stemcell::StemCell, write2file, MAX_SUBCLONES};
 <span class="kw">use </span>anyhow::{ensure, Context};
@@ -793,6 +797,10 @@
 
     <span class="kw">pub fn </span>get_clone(<span class="kw-2">&amp;</span><span class="self">self</span>, id: usize) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>SubClone&gt; {
         <span class="self">self</span>.<span class="number">0</span>.get(id)
+    }
+
+    <span class="kw">pub fn </span>get_clone_unchecked(<span class="kw-2">&amp;</span><span class="self">self</span>, id: usize) -&gt; <span class="kw-2">&amp;</span>SubClone {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>[id]
     }
 
     <span class="kw">pub fn </span>get_mut_clone_unchecked(<span class="kw-2">&amp;mut </span><span class="self">self</span>, id: usize) -&gt; <span class="kw-2">&amp;mut </span>SubClone {
