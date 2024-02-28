@@ -60,10 +60,15 @@ fn fitness_in_range(s: &str) -> Result<f32, String> {
 #[derive(Args, Debug, Clone)]
 #[group(required = false, multiple = true)]
 pub struct NeutralMutationRate {
+    /// Poisson rate for the exponential growing phase for the background
+    /// mutations, leave empty to simulate just a Moran process with fixed
+    /// population size
+    #[arg(long, requires = "mu_division_exp")]
+    pub mu_background_exp: Option<f32>,
     /// Poisson rate for the exponential growing phase, leave empty to simulate
     /// just a Moran process with fixed population size
     #[arg(long)]
-    pub mu_exp: Option<f32>,
+    pub mu_division_exp: Option<f32>,
     /// Background mutation rate (all neutral mutations **not** occuring in the
     /// mitotic phase) for for the constant population phase
     /// units: [mut/year]
@@ -271,8 +276,8 @@ impl Cli {
         };
 
         // Exp
-        let options_exponential = cli.neutral_rate.mu_exp.map(|_| {
-            assert!(cli.neutral_rate.mu_exp.is_some());
+        let options_exponential = cli.neutral_rate.mu_division_exp.map(|_| {
+            assert!(cli.neutral_rate.mu_division_exp.is_some());
             let process_options = ProcessOptions {
                 path: cli.path,
                 snapshots: snapshots.clone(),

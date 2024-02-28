@@ -5,7 +5,10 @@ use rustc_hash::FxHashMap;
 use std::{fs, path::Path};
 use uuid::Uuid;
 
-use crate::stemcell::StemCell;
+use crate::{
+    process::{Exponential, Moran},
+    stemcell::StemCell,
+};
 
 pub type Variant = Uuid;
 
@@ -39,7 +42,8 @@ impl NeutralMutationPoisson {
         //! mutations acquired upon cell-division and the other modelling the
         //! acquisition of neutral background mutations, i.e. all mutations
         //! occuring not during cell-division.
-        ensure!(lambda_division > 0., "invalid value of lambda_background");
+        ensure!(lambda_division > 0., "invalid value of lambda_division");
+        ensure!(lambda_background > 0., "invalid value of lambda_background");
         Ok(Self {
             background: lambda_background,
             division: Poisson::new(lambda_division)
@@ -154,7 +158,7 @@ impl Sfs {
 /// mutations.
 ///
 /// To plot it, plot on the x-axis the keys (number of mutations) and on the
-/// y-axis the keys (the number of cells with those mutations).
+/// y-axis the values (the number of cells with those mutations).
 pub struct MutationalBurden(pub FxHashMap<u16, u64>);
 
 impl MutationalBurden {
@@ -173,6 +177,30 @@ impl MutationalBurden {
             println!("burden: {:#?}", burden);
         }
         Ok(MutationalBurden(burden))
+    }
+
+    pub fn from_moran(moran: &Moran, verbosity: u8) -> anyhow::Result<Self> {
+        //! Create the single-cell mutational burden from all cells in the Moran
+        //! process
+        let cells: Vec<&StemCell> = moran
+            .subclones
+            .get_cells_with_clones_idx()
+            .iter()
+            .map(|ele| ele.0)
+            .collect();
+        MutationalBurden::from_cells(&cells, verbosity)
+    }
+
+    pub fn from_exp(exp: &Exponential, verbosity: u8) -> anyhow::Result<Self> {
+        //! Create the single-cell mutational burden from all cells in the Moran
+        //! process
+        let cells: Vec<&StemCell> = exp
+            .subclones
+            .get_cells_with_clones_idx()
+            .iter()
+            .map(|ele| ele.0)
+            .collect();
+        MutationalBurden::from_cells(&cells, verbosity)
     }
 
     pub fn save(&self, path2file: &Path, verbosity: u8) -> anyhow::Result<()> {

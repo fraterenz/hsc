@@ -250,6 +250,10 @@ impl SubClones {
         self.0.get(id)
     }
 
+    pub fn get_clone_unchecked(&self, id: usize) -> &SubClone {
+        &self.0[id]
+    }
+
     pub fn get_mut_clone_unchecked(&mut self, id: usize) -> &mut SubClone {
         &mut self.0[id]
     }

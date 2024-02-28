@@ -495,3 +495,201 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
         state.population = Variants::variant_counts(&self.subclones);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::num::{NonZeroU64, NonZeroU8};
+
+    use quickcheck_macros::quickcheck;
+    use rand::SeedableRng;
+    use rand_chacha::ChaCha8Rng;
+
+    use crate::{genotype, proliferation::DivisionAndBackgroundMutationsProliferation};
+
+    use super::*;
+
+    struct MoranFitVariant {
+        tot_cells: u64,
+        process: Moran,
+    }
+
+    struct MoranNoFitVariant {
+        tot_cells: u64,
+        process: Moran,
+    }
+
+    fn create_moran_fit_variants(cells: NonZeroU64) -> MoranFitVariant {
+        MoranFitVariant {
+            tot_cells: cells.get(),
+            process: create_moran(true, cells),
+        }
+    }
+
+    fn create_moran_no_fit_variants(cells: NonZeroU64) -> MoranNoFitVariant {
+        MoranNoFitVariant {
+            tot_cells: cells.get(),
+            process: create_moran(false, cells),
+        }
+    }
+
+    fn create_moran(fit_variants: bool, cells: NonZeroU64) -> Moran {
+        let u = if fit_variants { 1. } else { 0. };
+        Moran::new(
+            ProcessOptions {
+                path: PathBuf::default(),
+                snapshots: VecDeque::from([Snapshot {
+                    cells2sample: 2,
+                    time: 10.,
+                }]),
+            },
+            SubClones::new(vec![StemCell::new(); cells.get() as usize], 3),
+            0f32,
+            SavingOptions {
+                filename: PathBuf::default(),
+                save_sfs_only: true,
+                save_population: true,
+            },
+            Distributions::new(u, 10f32, 1f32, 0),
+            MutateUponDivision::DivisionAndBackgroundMutations(
+                DivisionAndBackgroundMutationsProliferation,
+            ),
+            0,
+        )
+    }
+
+    fn assert_pop_const(moran: &Moran, cells: u64) {
+        assert_eq!(moran.subclones.compute_tot_cells(), cells);
+    }
+
+    fn assert_not_all_cells_in_wild_type(moran: &Moran, cells: u64) {
+        assert_ne!(moran.subclones.get_clone_unchecked(0).cell_count(), cells);
+    }
+
+    fn assert_all_cells_in_wild_type(moran: &Moran, cells: u64) {
+        assert_eq!(moran.subclones.get_clone_unchecked(0).cell_count(), cells);
+        assert_eq!(moran.subclones.the_only_one_subclone_present().unwrap(), 0);
+    }
+
+    #[quickcheck]
+    fn advance_moran_no_fit_variant_test(cells: NonZeroU8, seed: u64) {
+        let mut moran = create_moran_no_fit_variants(NonZeroU64::new(cells.get() as u64).unwrap());
+        let reaction = NextReaction {
+            time: 12.2,
+            event: 0,
+        };
+        let burden_before = genotype::MutationalBurden::from_moran(&moran.process, 0).unwrap();
+        assert_pop_const(&moran.process, moran.tot_cells);
+        assert_all_cells_in_wild_type(&moran.process, moran.tot_cells);
+        let rng = &mut ChaCha8Rng::seed_from_u64(seed);
+
+        moran.process.advance_step(reaction, rng);
+
+        assert_pop_const(&moran.process, moran.tot_cells);
+        assert_all_cells_in_wild_type(&moran.process, moran.tot_cells);
+        let burden_after = genotype::MutationalBurden::from_moran(&moran.process, 0).unwrap();
+        assert!(burden_before.0.keys().sum::<u16>() < burden_after.0.keys().sum::<u16>());
+    }
+
+    #[quickcheck]
+    fn advance_moran_test(cells: NonZeroU8, seed: u64) {
+        let mut moran = create_moran_fit_variants(NonZeroU64::new(cells.get() as u64).unwrap());
+        let reaction = NextReaction {
+            time: 12.2,
+            event: 0,
+        };
+        let burden_before = genotype::MutationalBurden::from_moran(&moran.process, 0).unwrap();
+        assert_pop_const(&moran.process, moran.tot_cells);
+        assert_all_cells_in_wild_type(&moran.process, moran.tot_cells);
+        let rng = &mut ChaCha8Rng::seed_from_u64(seed);
+
+        moran.process.advance_step(reaction, rng);
+
+        assert_pop_const(&moran.process, moran.tot_cells);
+        assert_not_all_cells_in_wild_type(&moran.process, moran.tot_cells);
+        let burden_after = genotype::MutationalBurden::from_moran(&moran.process, 0).unwrap();
+        assert!(burden_before.0.keys().sum::<u16>() < burden_after.0.keys().sum::<u16>());
+    }
+    struct ExpFitVariant {
+        tot_cells: u64,
+        process: Exponential,
+    }
+
+    struct ExpNoFitVariant {
+        tot_cells: u64,
+        process: Exponential,
+    }
+
+    fn create_exp_fit_variants(cells: NonZeroU64) -> ExpFitVariant {
+        ExpFitVariant {
+            tot_cells: cells.get(),
+            process: create_exp(true, cells),
+        }
+    }
+
+    fn create_exp_no_fit_variants(cells: NonZeroU64) -> ExpNoFitVariant {
+        ExpNoFitVariant {
+            tot_cells: cells.get(),
+            process: create_exp(false, cells),
+        }
+    }
+
+    fn create_exp(fit_variants: bool, cells: NonZeroU64) -> Exponential {
+        let u = if fit_variants { 1. } else { 0. };
+        Exponential::new(
+            SubClones::new(vec![StemCell::new(); cells.get() as usize], 3),
+            Distributions::new(u, 10f32, 1f32, 0),
+            MutateUponDivision::DivisionAndBackgroundMutations(
+                DivisionAndBackgroundMutationsProliferation,
+            ),
+            0,
+        )
+    }
+
+    fn assert_not_all_cells_in_wild_type_exp(exp: &Exponential, cells: u64) {
+        assert_ne!(exp.subclones.get_clone_unchecked(0).cell_count(), cells);
+    }
+
+    fn assert_all_cells_in_wild_type_exp(exp: &Exponential, cells: u64) {
+        assert_eq!(exp.subclones.get_clone_unchecked(0).cell_count(), cells);
+        assert_eq!(exp.subclones.the_only_one_subclone_present().unwrap(), 0);
+    }
+
+    #[quickcheck]
+    fn advance_exp_no_fit_variant_test(cells: NonZeroU8, seed: u64) {
+        let mut exp = create_exp_no_fit_variants(NonZeroU64::new(cells.get() as u64).unwrap());
+        let reaction = NextReaction {
+            time: 12.2,
+            event: 0,
+        };
+        let burden_before = genotype::MutationalBurden::from_exp(&exp.process, 0).unwrap();
+        let old_cells = exp.process.subclones.compute_tot_cells();
+        assert_all_cells_in_wild_type_exp(&exp.process, exp.tot_cells);
+        let rng = &mut ChaCha8Rng::seed_from_u64(seed);
+
+        exp.process.advance_step(reaction, rng);
+
+        assert_eq!(exp.process.subclones.compute_tot_cells(), old_cells + 1);
+        let burden_after = genotype::MutationalBurden::from_exp(&exp.process, 0).unwrap();
+        assert!(burden_before.0.keys().sum::<u16>() < burden_after.0.keys().sum::<u16>());
+    }
+
+    #[quickcheck]
+    fn advance_exp_test(cells: NonZeroU8, seed: u64) {
+        let mut exp = create_exp_fit_variants(NonZeroU64::new(cells.get() as u64).unwrap());
+        let reaction = NextReaction {
+            time: 12.2,
+            event: 0,
+        };
+        let burden_before = genotype::MutationalBurden::from_exp(&exp.process, 0).unwrap();
+        let old_cells = exp.process.subclones.compute_tot_cells();
+        assert_all_cells_in_wild_type_exp(&exp.process, exp.tot_cells);
+        let rng = &mut ChaCha8Rng::seed_from_u64(seed);
+
+        exp.process.advance_step(reaction, rng);
+
+        assert_eq!(exp.process.subclones.compute_tot_cells(), old_cells + 1);
+        assert_not_all_cells_in_wild_type_exp(&exp.process, exp.tot_cells);
+        let burden_after = genotype::MutationalBurden::from_exp(&exp.process, 0).unwrap();
+        assert!(burden_before.0.keys().sum::<u16>() < burden_after.0.keys().sum::<u16>());
+    }
+}

@@ -1,6 +1,9 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 3.0.5
+- specfify the neutral background mutation rate for the exponential phase
+
 ## 3.0.4
 ### BugFix
 - When cloning a cell upon division, **do not** set `last_division_t` of the daughter cell to 0
