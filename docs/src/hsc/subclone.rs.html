@@ -547,6 +547,21 @@
 <a href="#547" id="547">547</a>
 <a href="#548" id="548">548</a>
 <a href="#549" id="549">549</a>
+<a href="#550" id="550">550</a>
+<a href="#551" id="551">551</a>
+<a href="#552" id="552">552</a>
+<a href="#553" id="553">553</a>
+<a href="#554" id="554">554</a>
+<a href="#555" id="555">555</a>
+<a href="#556" id="556">556</a>
+<a href="#557" id="557">557</a>
+<a href="#558" id="558">558</a>
+<a href="#559" id="559">559</a>
+<a href="#560" id="560">560</a>
+<a href="#561" id="561">561</a>
+<a href="#562" id="562">562</a>
+<a href="#563" id="563">563</a>
+<a href="#564" id="564">564</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::genotype::NeutralMutationPoisson;
 <span class="kw">use crate</span>::{stemcell::StemCell, write2file, MAX_SUBCLONES};
 <span class="kw">use </span>anyhow::{ensure, Context};
@@ -569,7 +584,7 @@
 <span class="kw">impl </span>Distributions {
     <span class="kw">pub fn </span>new(u: f64, background: f32, division: f32, verbosity: u8) -&gt; <span class="self">Self </span>{
         <span class="kw">if </span>verbosity &gt; <span class="number">1 </span>{
-            <span class="macro">println!</span>(<span class="string">&quot;creating distributions with p_fitness: {}&quot;</span>, u);
+            <span class="macro">println!</span>(<span class="string">&quot;creating distributions with p_fitness: {}, lambda_background: {}, lambda_division: {}&quot;</span>, u, background, division);
         }
         <span class="self">Self </span>{
             bern: Bernoulli::new(u).expect(<span class="string">&quot;Invalid p: p&lt;0 or p&gt;1&quot;</span>),
@@ -994,6 +1009,8 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
+    <span class="kw">use </span><span class="kw">crate</span>::tests::LambdaFromNonZeroU8;
+
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span>quickcheck_macros::quickcheck;
     <span class="kw">use </span>rand::SeedableRng;
@@ -1094,6 +1111,19 @@
     #[test]
     </span><span class="kw">fn </span>new_distribution_wrong_p_neg_test() {
         Distributions::new(-<span class="number">0.9</span>, <span class="number">1.1</span>, <span class="number">1.1</span>, <span class="number">0</span>);
+    }
+
+    <span class="attr">#[quickcheck]
+    </span><span class="kw">fn </span>new_distribution_test(
+        lambda_division: LambdaFromNonZeroU8,
+        lambda_background: LambdaFromNonZeroU8,
+    ) -&gt; bool {
+        <span class="kw">let </span>distrs = Distributions::new(<span class="number">0.1</span>, lambda_background.<span class="number">0</span>, lambda_division.<span class="number">0</span>, <span class="number">0</span>);
+        distrs.neutral_poisson.eq(<span class="kw-2">&amp;</span>NeutralMutationPoisson::new(
+            lambda_division.<span class="number">0</span>,
+            lambda_background.<span class="number">0</span>,
+        )
+        .unwrap())
     }
 }
 </code></pre></div></section></main></body></html>

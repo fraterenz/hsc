@@ -1,6 +1,11 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 3.0.6
+- tune verbosity
+### BugFix
+- Fix exponential phase background lambda
+
 ## 3.0.5
 - specfify the neutral background mutation rate for the exponential phase
 

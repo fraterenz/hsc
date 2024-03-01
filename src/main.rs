@@ -130,7 +130,7 @@ fn main() {
                 .expect("find no exp neutral rate but options_exp");
             let mu_back_exp = app
                 .neutral_rate
-                .mu_division_exp
+                .mu_background_exp
                 .expect("find no exp neutral rate but options_exp");
             // use 1 as we dont care about time during the exp growth phase
             let rates = subclones.gillespie_rates(&app.fitness, 1.0, rng);

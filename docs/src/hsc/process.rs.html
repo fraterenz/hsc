@@ -693,6 +693,18 @@
 <a href="#693" id="693">693</a>
 <a href="#694" id="694">694</a>
 <a href="#695" id="695">695</a>
+<a href="#696" id="696">696</a>
+<a href="#697" id="697">697</a>
+<a href="#698" id="698">698</a>
+<a href="#699" id="699">699</a>
+<a href="#700" id="700">700</a>
+<a href="#701" id="701">701</a>
+<a href="#702" id="702">702</a>
+<a href="#703" id="703">703</a>
+<a href="#704" id="704">704</a>
+<a href="#705" id="705">705</a>
+<a href="#706" id="706">706</a>
+<a href="#707" id="707">707</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::genotype::{MutationalBurden, Sfs};
 <span class="kw">use </span><span class="kw">crate</span>::proliferation::{MutateUponDivision, Proliferation};
 <span class="kw">use </span><span class="kw">crate</span>::stemcell::{assign_background_mutations, StemCell};
@@ -794,8 +806,8 @@
         save_population: bool,
         rng: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>Rng,
     ) -&gt; Moran {
-        <span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">1 </span>{
-            <span class="macro">println!</span>(<span class="string">&quot;switching to Moran&quot;</span>);
+        <span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">0 </span>{
+            <span class="macro">println!</span>(<span class="string">&quot;switching to Moran at time {}&quot;</span>, <span class="self">self</span>.time);
         }
         <span class="kw">let </span><span class="kw-2">mut </span>moran = Moran {
             subclones: <span class="self">self</span>.subclones,
@@ -818,7 +830,10 @@
                 // cells do not proliferate at the same rate, we need to correct and
                 // update the background mutations at the timepoint corresponding
                 // to sampling step, i.e. before saving.
-                </span><span class="kw">for </span>stem_cell <span class="kw">in </span>moran.subclones.get_mut_cells() {
+                </span><span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">0 </span>{
+                    <span class="macro">println!</span>(<span class="string">&quot;updating the neutral background mutations for all cells&quot;</span>);
+                }
+                <span class="kw">for </span>stem_cell <span class="kw">in </span>moran.subclones.get_mut_cells() {
                     assign_background_mutations(
                         stem_cell,
                         <span class="self">self</span>.time,
@@ -1023,6 +1038,9 @@
         cells_with_idx: Vec&lt;(<span class="kw-2">&amp;</span>StemCell, usize)&gt;,
         save_sfs_only: bool,
     ) -&gt; anyhow::Result&lt;()&gt; {
+        <span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">0 </span>{
+            <span class="macro">println!</span>(<span class="string">&quot;saving data at time {}&quot;</span>, time);
+        }
         <span class="kw">let </span>cells: Vec&lt;<span class="kw-2">&amp;</span>StemCell&gt; = cells_with_idx.iter().map(|ele| ele.<span class="number">0</span>).collect();
         <span class="kw">let </span>nb_cells = cells.len();
 
@@ -1060,7 +1078,7 @@
 
         <span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">0 </span>{
             <span class="macro">println!</span>(
-                <span class="string">&quot;saving measurements after {} mutational events&quot;</span>,
+                <span class="string">&quot;saved measurements after {} mutational events&quot;</span>,
                 <span class="self">self</span>.counter_divisions
             );
         }
@@ -1074,6 +1092,9 @@
         save_sfs_only: bool,
         rng: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>Rng,
     ) -&gt; anyhow::Result&lt;()&gt; {
+        <span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">0 </span>{
+            <span class="macro">println!</span>(<span class="string">&quot;saving process at time {}&quot;</span>, time);
+        }
         <span class="kw">match </span><span class="self">self</span>.proliferation {
             MutateUponDivision::DivisionAndBackgroundMutations(<span class="kw">_</span>) =&gt; {
                 <span class="comment">// this is important: we update all background mutations at this
@@ -1082,7 +1103,10 @@
                 // cells do not proliferate at the same rate, we need to correct and
                 // update the background mutations at the timepoint corresponding
                 // to sampling step, i.e. before saving.
-                </span><span class="kw">for </span>stem_cell <span class="kw">in </span><span class="self">self</span>.subclones.get_mut_cells() {
+                </span><span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">0 </span>{
+                    <span class="macro">println!</span>(<span class="string">&quot;updating the neutral background mutations for all cells&quot;</span>);
+                }
+                <span class="kw">for </span>stem_cell <span class="kw">in </span><span class="self">self</span>.subclones.get_mut_cells() {
                     assign_background_mutations(
                         stem_cell,
                         <span class="self">self</span>.time,

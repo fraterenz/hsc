@@ -59,6 +59,8 @@ pub fn assign_background_mutations(
 ) {
     //! Assign background mutations to all cells in the system based on the
     //! current simulation time.
+    //!
+    //! This updates also the time of the last division for the cell.
     let interdivison_time = time - stem_cell.last_division_t;
     // 2. draw background mutations and assign them to `c`
     if let Some(background) = neutral_poisson.new_muts_background(interdivison_time, rng, verbosity)
@@ -79,6 +81,8 @@ pub fn assign_background_mutations(
 mod tests {
     use super::*;
     use quickcheck_macros::quickcheck;
+    use rand::SeedableRng;
+    use rand_chacha::ChaCha8Rng;
     use std::num::NonZeroU8;
     use uuid::Uuid;
 
@@ -101,5 +105,19 @@ mod tests {
         let mutations = (0..nb_mutations.get()).map(|_| Uuid::new_v4()).collect();
         mutate(&mut cell, mutations);
         nb_mutations.get() as usize == cell.burden()
+    }
+
+    #[quickcheck]
+    fn assign_background_mutations_test(seed: u64) -> bool {
+        let rng = &mut ChaCha8Rng::seed_from_u64(seed);
+        let mutations = vec![Variant::new_v4()];
+        let time = 9.1;
+        let mut stem_cell = StemCell::with_mutations(mutations.clone());
+        let poissons = NeutralMutationPoisson::new(1.1, 12f32).unwrap();
+
+        assign_background_mutations(&mut stem_cell, time, &poissons, rng, 0);
+        mutations != stem_cell.variants
+            && mutations.len() < stem_cell.variants.len()
+            && (stem_cell.last_division_t - time).abs() < f32::EPSILON
     }
 }

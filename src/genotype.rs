@@ -26,8 +26,16 @@ fn nb_neutral_mutations(poisson: &Poisson<f32>, rng: &mut impl Rng) -> NbPoisson
 /// [Poisson point process](https://en.wikipedia.org/wiki/Poisson_point_process).
 #[derive(Debug, Clone)]
 pub struct NeutralMutationPoisson {
-    background: f32,
+    pub lambda_background: f32,
+    pub lambda_division: f32,
     division: Poisson<f32>,
+}
+
+impl PartialEq for NeutralMutationPoisson {
+    fn eq(&self, other: &Self) -> bool {
+        (self.lambda_division - other.lambda_division).abs() < f32::EPSILON
+            && (self.lambda_background - other.lambda_background).abs() < f32::EPSILON
+    }
 }
 
 impl Default for NeutralMutationPoisson {
@@ -45,7 +53,8 @@ impl NeutralMutationPoisson {
         ensure!(lambda_division > 0., "invalid value of lambda_division");
         ensure!(lambda_background > 0., "invalid value of lambda_background");
         Ok(Self {
-            background: lambda_background,
+            lambda_background,
+            lambda_division,
             division: Poisson::new(lambda_division)
                 .with_context(|| {
                     format!(
@@ -77,11 +86,11 @@ impl NeutralMutationPoisson {
         if verbosity > 1 {
             println!(
                 "interdivison_time = {} and background lambda {}",
-                interdivison_time, self.background
+                interdivison_time, self.lambda_background
             );
         }
-        if interdivison_time > 0.01 {
-            let background = Poisson::new(self.background * interdivison_time).unwrap();
+        if interdivison_time > 0.001 {
+            let background = Poisson::new(self.lambda_background * interdivison_time).unwrap();
             let nb_mutations = nb_neutral_mutations(&background, rng);
             if verbosity > 1 {
                 println!("{} background mutations", nb_mutations);
@@ -116,7 +125,7 @@ impl Sfs {
         //! Compute the SFS from the stem cell population.
         if verbosity > 0 {
             println!("computing the SFS from {} cells", cells.len());
-            if verbosity > 0 {
+            if verbosity > 1 {
                 println!("computing the SFS from {:#?}", &cells);
             }
         }
@@ -224,6 +233,8 @@ mod tests {
     use rand_chacha::ChaCha8Rng;
     use rand_distr::Poisson;
 
+    use crate::tests::LambdaFromNonZeroU8;
+
     use super::*;
 
     #[quickcheck]
@@ -231,7 +242,8 @@ mod tests {
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
         let poisson = Poisson::new(0.0001).unwrap();
         NeutralMutationPoisson {
-            background: 0.0001,
+            lambda_background: 0.0001,
+            lambda_division: 0.0001,
             division: poisson,
         }
         .new_muts_upon_division(&mut rng)
@@ -302,5 +314,14 @@ mod tests {
 
         assert_eq!(jcells, [1, 2, 3, 4]);
         assert_eq!(jmuts, [3, 1, 1, 1]);
+    }
+
+    #[quickcheck]
+    fn partial_eq_neutral_poisson_test(
+        lambda_division: LambdaFromNonZeroU8,
+        lambda_background: LambdaFromNonZeroU8,
+    ) -> bool {
+        let poissons = NeutralMutationPoisson::new(lambda_division.0, lambda_background.0).unwrap();
+        poissons == NeutralMutationPoisson::new(lambda_division.0, lambda_background.0).unwrap()
     }
 }

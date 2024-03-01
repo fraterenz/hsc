@@ -99,8 +99,8 @@ impl Exponential {
         save_population: bool,
         rng: &mut impl Rng,
     ) -> Moran {
-        if self.verbosity > 1 {
-            println!("switching to Moran");
+        if self.verbosity > 0 {
+            println!("switching to Moran at time {}", self.time);
         }
         let mut moran = Moran {
             subclones: self.subclones,
@@ -123,6 +123,9 @@ impl Exponential {
                 // cells do not proliferate at the same rate, we need to correct and
                 // update the background mutations at the timepoint corresponding
                 // to sampling step, i.e. before saving.
+                if self.verbosity > 0 {
+                    println!("updating the neutral background mutations for all cells");
+                }
                 for stem_cell in moran.subclones.get_mut_cells() {
                     assign_background_mutations(
                         stem_cell,
@@ -328,6 +331,9 @@ impl Moran {
         cells_with_idx: Vec<(&StemCell, usize)>,
         save_sfs_only: bool,
     ) -> anyhow::Result<()> {
+        if self.verbosity > 0 {
+            println!("saving data at time {}", time);
+        }
         let cells: Vec<&StemCell> = cells_with_idx.iter().map(|ele| ele.0).collect();
         let nb_cells = cells.len();
 
@@ -365,7 +371,7 @@ impl Moran {
 
         if self.verbosity > 0 {
             println!(
-                "saving measurements after {} mutational events",
+                "saved measurements after {} mutational events",
                 self.counter_divisions
             );
         }
@@ -379,6 +385,9 @@ impl Moran {
         save_sfs_only: bool,
         rng: &mut impl Rng,
     ) -> anyhow::Result<()> {
+        if self.verbosity > 0 {
+            println!("saving process at time {}", time);
+        }
         match self.proliferation {
             MutateUponDivision::DivisionAndBackgroundMutations(_) => {
                 // this is important: we update all background mutations at this
@@ -387,6 +396,9 @@ impl Moran {
                 // cells do not proliferate at the same rate, we need to correct and
                 // update the background mutations at the timepoint corresponding
                 // to sampling step, i.e. before saving.
+                if self.verbosity > 0 {
+                    println!("updating the neutral background mutations for all cells");
+                }
                 for stem_cell in self.subclones.get_mut_cells() {
                     assign_background_mutations(
                         stem_cell,

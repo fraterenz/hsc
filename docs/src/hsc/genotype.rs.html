@@ -304,6 +304,27 @@
 <a href="#304" id="304">304</a>
 <a href="#305" id="305">305</a>
 <a href="#306" id="306">306</a>
+<a href="#307" id="307">307</a>
+<a href="#308" id="308">308</a>
+<a href="#309" id="309">309</a>
+<a href="#310" id="310">310</a>
+<a href="#311" id="311">311</a>
+<a href="#312" id="312">312</a>
+<a href="#313" id="313">313</a>
+<a href="#314" id="314">314</a>
+<a href="#315" id="315">315</a>
+<a href="#316" id="316">316</a>
+<a href="#317" id="317">317</a>
+<a href="#318" id="318">318</a>
+<a href="#319" id="319">319</a>
+<a href="#320" id="320">320</a>
+<a href="#321" id="321">321</a>
+<a href="#322" id="322">322</a>
+<a href="#323" id="323">323</a>
+<a href="#324" id="324">324</a>
+<a href="#325" id="325">325</a>
+<a href="#326" id="326">326</a>
+<a href="#327" id="327">327</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>anyhow::{ensure, Context};
 <span class="kw">use </span>rand::Rng;
 <span class="kw">use </span>rand_distr::{Distribution, Poisson};
@@ -332,8 +353,16 @@
 /// [Poisson point process](https://en.wikipedia.org/wiki/Poisson_point_process).
 </span><span class="attr">#[derive(Debug, Clone)]
 </span><span class="kw">pub struct </span>NeutralMutationPoisson {
-    background: f32,
+    <span class="kw">pub </span>lambda_background: f32,
+    <span class="kw">pub </span>lambda_division: f32,
     division: Poisson&lt;f32&gt;,
+}
+
+<span class="kw">impl </span>PartialEq <span class="kw">for </span>NeutralMutationPoisson {
+    <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
+        (<span class="self">self</span>.lambda_division - other.lambda_division).abs() &lt; f32::EPSILON
+            &amp;&amp; (<span class="self">self</span>.lambda_background - other.lambda_background).abs() &lt; f32::EPSILON
+    }
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>NeutralMutationPoisson {
@@ -351,7 +380,8 @@
         </span><span class="macro">ensure!</span>(lambda_division &gt; <span class="number">0.</span>, <span class="string">&quot;invalid value of lambda_division&quot;</span>);
         <span class="macro">ensure!</span>(lambda_background &gt; <span class="number">0.</span>, <span class="string">&quot;invalid value of lambda_background&quot;</span>);
         <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
-            background: lambda_background,
+            lambda_background,
+            lambda_division,
             division: Poisson::new(lambda_division)
                 .with_context(|| {
                     <span class="macro">format!</span>(
@@ -383,11 +413,11 @@
         </span><span class="kw">if </span>verbosity &gt; <span class="number">1 </span>{
             <span class="macro">println!</span>(
                 <span class="string">&quot;interdivison_time = {} and background lambda {}&quot;</span>,
-                interdivison_time, <span class="self">self</span>.background
+                interdivison_time, <span class="self">self</span>.lambda_background
             );
         }
-        <span class="kw">if </span>interdivison_time &gt; <span class="number">0.01 </span>{
-            <span class="kw">let </span>background = Poisson::new(<span class="self">self</span>.background * interdivison_time).unwrap();
+        <span class="kw">if </span>interdivison_time &gt; <span class="number">0.001 </span>{
+            <span class="kw">let </span>background = Poisson::new(<span class="self">self</span>.lambda_background * interdivison_time).unwrap();
             <span class="kw">let </span>nb_mutations = nb_neutral_mutations(<span class="kw-2">&amp;</span>background, rng);
             <span class="kw">if </span>verbosity &gt; <span class="number">1 </span>{
                 <span class="macro">println!</span>(<span class="string">&quot;{} background mutations&quot;</span>, nb_mutations);
@@ -422,7 +452,7 @@
         <span class="doccomment">//! Compute the SFS from the stem cell population.
         </span><span class="kw">if </span>verbosity &gt; <span class="number">0 </span>{
             <span class="macro">println!</span>(<span class="string">&quot;computing the SFS from {} cells&quot;</span>, cells.len());
-            <span class="kw">if </span>verbosity &gt; <span class="number">0 </span>{
+            <span class="kw">if </span>verbosity &gt; <span class="number">1 </span>{
                 <span class="macro">println!</span>(<span class="string">&quot;computing the SFS from {:#?}&quot;</span>, <span class="kw-2">&amp;</span>cells);
             }
         }
@@ -530,6 +560,8 @@
     <span class="kw">use </span>rand_chacha::ChaCha8Rng;
     <span class="kw">use </span>rand_distr::Poisson;
 
+    <span class="kw">use </span><span class="kw">crate</span>::tests::LambdaFromNonZeroU8;
+
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="attr">#[quickcheck]
@@ -537,7 +569,8 @@
         <span class="kw">let </span><span class="kw-2">mut </span>rng = ChaCha8Rng::seed_from_u64(seed);
         <span class="kw">let </span>poisson = Poisson::new(<span class="number">0.0001</span>).unwrap();
         NeutralMutationPoisson {
-            background: <span class="number">0.0001</span>,
+            lambda_background: <span class="number">0.0001</span>,
+            lambda_division: <span class="number">0.0001</span>,
             division: poisson,
         }
         .new_muts_upon_division(<span class="kw-2">&amp;mut </span>rng)
@@ -608,6 +641,15 @@
 
         <span class="macro">assert_eq!</span>(jcells, [<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>]);
         <span class="macro">assert_eq!</span>(jmuts, [<span class="number">3</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>]);
+    }
+
+    <span class="attr">#[quickcheck]
+    </span><span class="kw">fn </span>partial_eq_neutral_poisson_test(
+        lambda_division: LambdaFromNonZeroU8,
+        lambda_background: LambdaFromNonZeroU8,
+    ) -&gt; bool {
+        <span class="kw">let </span>poissons = NeutralMutationPoisson::new(lambda_division.<span class="number">0</span>, lambda_background.<span class="number">0</span>).unwrap();
+        poissons == NeutralMutationPoisson::new(lambda_division.<span class="number">0</span>, lambda_background.<span class="number">0</span>).unwrap()
     }
 }
 </code></pre></div></section></main></body></html>

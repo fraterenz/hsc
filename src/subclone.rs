@@ -20,7 +20,7 @@ pub struct Distributions {
 impl Distributions {
     pub fn new(u: f64, background: f32, division: f32, verbosity: u8) -> Self {
         if verbosity > 1 {
-            println!("creating distributions with p_fitness: {}", u);
+            println!("creating distributions with p_fitness: {}, lambda_background: {}, lambda_division: {}", u, background, division);
         }
         Self {
             bern: Bernoulli::new(u).expect("Invalid p: p<0 or p>1"),
@@ -445,6 +445,8 @@ pub fn proliferating_cell(
 
 #[cfg(test)]
 mod tests {
+    use crate::tests::LambdaFromNonZeroU8;
+
     use super::*;
     use quickcheck_macros::quickcheck;
     use rand::SeedableRng;
@@ -545,5 +547,18 @@ mod tests {
     #[test]
     fn new_distribution_wrong_p_neg_test() {
         Distributions::new(-0.9, 1.1, 1.1, 0);
+    }
+
+    #[quickcheck]
+    fn new_distribution_test(
+        lambda_division: LambdaFromNonZeroU8,
+        lambda_background: LambdaFromNonZeroU8,
+    ) -> bool {
+        let distrs = Distributions::new(0.1, lambda_background.0, lambda_division.0, 0);
+        distrs.neutral_poisson.eq(&NeutralMutationPoisson::new(
+            lambda_division.0,
+            lambda_background.0,
+        )
+        .unwrap())
     }
 }
