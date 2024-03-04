@@ -1,6 +1,9 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 4.0.0
+- Add new clap app cmds and organisation
+
 ## 3.0.6
 - tune verbosity
 ### BugFix

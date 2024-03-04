@@ -1,5 +1,5 @@
 use anyhow::{bail, ensure};
-use clap::{ArgAction, Args, Parser};
+use clap::{ArgAction, Args, Parser, Subcommand};
 use hsc::{
     process::{ProcessOptions, Snapshot},
     subclone::{from_mean_std_to_shape_scale, Fitness},
@@ -8,7 +8,7 @@ use num_traits::{Float, NumCast};
 use sosa::{IterTime, NbIndividuals, Options};
 use std::{collections::VecDeque, ops::RangeInclusive, path::PathBuf};
 
-use crate::{AppOptions, SimulationOptions};
+use crate::{AppOptions, SimulationOptionsExp, SimulationOptionsMoran};
 
 #[derive(Clone, Debug)]
 pub enum Parallel {
@@ -24,7 +24,7 @@ pub struct FitnessArg {
     /// 0
     #[arg(long, action = ArgAction::SetTrue, default_value_t = false)]
     pub neutral: bool,
-    /// proliferative advantage conferred by fit mutations assuming all clones
+    /// Proliferative advantage conferred by fit mutations assuming all clones
     /// have the same advantange, units: mutation / cell
     ///
     /// s cannot be greater than 1.
@@ -57,33 +57,58 @@ fn fitness_in_range(s: &str) -> Result<f32, String> {
     }
 }
 
+#[derive(Debug, Subcommand)]
+enum Commands {
+    /// The dynamics in a fixed-size population
+    Moran(MoranPhase),
+    /// The dynamics in an exponential growing population followed by a fixed-size population
+    ExpMoran(ExponentialThenMoran),
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct ExponentialThenMoran {
+    #[command(flatten)]
+    exponential: ExponentialPhase,
+    #[command(flatten)]
+    moran: MoranPhase,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct MoranPhase {
+    /// Rate of accumulation of neutral background mutations per year
+    #[arg(long, default_value_t = 14.)]
+    pub mu_background: f32,
+    /// Rate of accumulation of neutral mutations upon division per year
+    #[arg(long, default_value_t = 1.14)]
+    pub mu_division: f32,
+    /// Inter-division time for the wild-type cells
+    #[arg(long, default_value_t = 1.)]
+    pub tau: f32,
+}
+
 #[derive(Args, Debug, Clone)]
 #[group(required = false, multiple = true)]
-pub struct NeutralMutationRate {
-    /// Poisson rate for the exponential growing phase for the background
-    /// mutations, leave empty to simulate just a Moran process with fixed
-    /// population size
-    #[arg(long, requires = "mu_division_exp")]
-    pub mu_background_exp: Option<f32>,
-    /// Poisson rate for the exponential growing phase, leave empty to simulate
-    /// just a Moran process with fixed population size
-    #[arg(long)]
-    pub mu_division_exp: Option<f32>,
-    /// Background mutation rate (all neutral mutations **not** occuring in the
-    /// mitotic phase) for for the constant population phase
-    /// units: [mut/year]
-    #[arg(long, default_value_t = 12.)]
-    pub mu_background: f32,
-    /// Division mutation rate (all neutral mutations occuring upon
-    /// cell-division, mitotic phase) for for the constant population phase
-    /// units: [mut/division]
-    #[arg(long, default_value_t = 1.2)]
-    pub mu_division: f32,
+pub struct ExponentialPhase {
+    /// Rate of accumulation of neutral background mutations per year
+    #[arg(long, default_value_t = 33.)]
+    pub mu_background_exp: f32,
+    /// Rate of accumulation of neutral mutations upon division per year
+    #[arg(long, default_value_t = 1.14)]
+    pub mu_division_exp: f32,
+    /// Inter-division time for the wild-type cells
+    #[arg(long, default_value_t = 0.065)]
+    pub tau_exp: f32,
 }
 
 #[derive(Debug, Parser)] // requires `derive` feature
-#[command(name = "hsc", version, about = "TODO")]
+#[command(
+    name = "hsc",
+    version,
+    about = "Simulate heamatopoietic stem-cell dynamics"
+)]
 pub struct Cli {
+    #[command(subcommand)]
+    command: Commands,
     /// The years simulated will be `years + 1`, that is simulations start at
     /// year zero and the end at year `year + 1`
     #[arg(short, long, default_value_t = 9)]
@@ -93,17 +118,9 @@ pub struct Cli {
     cells: NbIndividuals,
     #[arg(short, long, default_value_t = 1)]
     runs: usize,
-    /// time between wild-type stem cells divisions in years, units: year / (division * cell)
-    #[arg(long, default_value_t = 1.)]
-    tau: f32,
-    /// avg fit mutations arising in 1 year, units: division / year. If not passed
-    /// generated a random value between 1 and 14
+    /// Average fit mutations arising in 1 year, units: division / year.
     #[arg(long, default_value_t = 4.)]
     mu0: f32,
-    /// avg number of neutral mutations per each proliferative event assuming a
-    /// Poisson distribution, units: mutation / (cell * year)
-    #[command(flatten)]
-    neutral_rate: NeutralMutationRate,
     #[command(flatten)]
     /// If not present, use a constant fitness of 0.11
     fitness: FitnessArg,
@@ -130,7 +147,7 @@ pub struct Cli {
     /// Run sequentially each run instead of using rayon for parallelisation
     #[arg(long, action = ArgAction::SetTrue, default_value_t = false, conflicts_with = "debug")]
     sequential: bool,
-    #[arg(long, requires = "subsamples", num_args = 0..)]
+    #[arg(long, requires = "subsamples", value_delimiter = ',', require_equals = true, num_args = 0..)]
     /// Snapshots to take to save the simulation, requires `subsamples`.
     ///
     /// The combination of `snapshots` with `subsamples` gives four different
@@ -150,7 +167,7 @@ pub struct Cli {
     /// will also be saved.
     ///
     /// See help for `snapshots` for more details.
-    #[arg(long, requires = "snapshots", num_args = 0..)]
+    #[arg(long, requires = "snapshots", num_args = 0.., value_delimiter = ',', require_equals = true)]
     subsamples: Option<Vec<usize>>,
 }
 
@@ -260,43 +277,62 @@ impl Cli {
             path: cli.path.clone(),
             snapshots: snapshots.clone(),
         };
-        let options_moran = SimulationOptions {
-            process_options,
-            gillespie_options: Options {
-                max_iter_time: IterTime {
-                    iter: max_iter,
-                    time: years as f32,
-                },
-                max_cells,
-                init_iter: 0,
-                verbosity,
-            },
-            save_sfs_only: cli.save_sfs_only,
-            save_population: cli.save_population,
-        };
-
-        // Exp
-        let options_exponential = cli.neutral_rate.mu_division_exp.map(|_| {
-            assert!(cli.neutral_rate.mu_division_exp.is_some());
-            let process_options = ProcessOptions {
-                path: cli.path,
-                snapshots: snapshots.clone(),
-            };
-            SimulationOptions {
-                process_options,
-                gillespie_options: Options {
-                    max_iter_time: IterTime {
-                        iter: usize::MAX,
-                        time: f32::INFINITY,
+        let (options_moran, options_exponential) = match &cli.command {
+            Commands::Moran(moran) => {
+                let options_moran = SimulationOptionsMoran {
+                    process_options,
+                    gillespie_options: Options {
+                        max_iter_time: IterTime {
+                            iter: max_iter,
+                            time: years as f32,
+                        },
+                        max_cells,
+                        init_iter: 0,
+                        verbosity,
                     },
-                    max_cells: max_cells - 1,
-                    init_iter: 0,
-                    verbosity,
-                },
-                save_sfs_only: cli.save_sfs_only,
-                save_population: cli.save_population,
+                    save_sfs_only: cli.save_sfs_only,
+                    save_population: cli.save_population,
+                    tau: moran.tau,
+                    mu_background: moran.mu_background,
+                    mu_division: moran.mu_division,
+                };
+                (options_moran, None)
             }
-        });
+            Commands::ExpMoran(exp_moran) => {
+                let options_moran = SimulationOptionsMoran {
+                    process_options,
+                    gillespie_options: Options {
+                        max_iter_time: IterTime {
+                            iter: max_iter,
+                            time: years as f32,
+                        },
+                        max_cells,
+                        init_iter: 0,
+                        verbosity,
+                    },
+                    save_sfs_only: cli.save_sfs_only,
+                    save_population: cli.save_population,
+                    tau: exp_moran.moran.tau,
+                    mu_background: exp_moran.moran.mu_background,
+                    mu_division: exp_moran.moran.mu_division,
+                };
+                let options_exponential = SimulationOptionsExp {
+                    gillespie_options: Options {
+                        max_iter_time: IterTime {
+                            iter: usize::MAX,
+                            time: f32::INFINITY,
+                        },
+                        max_cells: max_cells - 1,
+                        init_iter: 0,
+                        verbosity,
+                    },
+                    tau: exp_moran.exponential.tau_exp,
+                    mu_background: exp_moran.exponential.mu_background_exp,
+                    mu_division: exp_moran.exponential.mu_division_exp,
+                };
+                (options_moran, Some(options_exponential))
+            }
+        };
 
         let fitness = if let Some(mean_std) = cli.fitness.mean_std {
             if !MEAN_RANGE.contains(&mean_std[0]) {
@@ -325,13 +361,11 @@ impl Cli {
             parallel,
             fitness,
             runs,
-            tau: cli.tau,
             seed: cli.seed,
             snapshots,
             options_moran,
             options_exponential,
             mu0: cli.mu0,
-            neutral_rate: cli.neutral_rate,
             background: !cli.no_background,
             verbosity: cli.verbosity,
         })

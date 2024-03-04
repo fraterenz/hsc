@@ -1,7 +1,7 @@
 use crate::clap_app::Cli;
 use anyhow::Context;
 use chrono::Utc;
-use clap_app::{NeutralMutationRate, Parallel};
+use clap_app::Parallel;
 use hsc::{
     process::{Exponential, Moran, ProcessOptions, SavingCells, SavingOptions, Snapshot},
     proliferation::{
@@ -23,7 +23,10 @@ use uuid::Uuid;
 pub mod clap_app;
 
 #[derive(Clone, Debug)]
-pub struct SimulationOptions {
+pub struct SimulationOptionsMoran {
+    tau: f32,
+    mu_background: f32,
+    mu_division: f32,
     process_options: ProcessOptions,
     gillespie_options: Options,
     save_sfs_only: bool,
@@ -31,20 +34,25 @@ pub struct SimulationOptions {
 }
 
 #[derive(Clone, Debug)]
+pub struct SimulationOptionsExp {
+    tau: f32,
+    gillespie_options: Options,
+    mu_background: f32,
+    mu_division: f32,
+}
+
+#[derive(Clone, Debug)]
 pub struct AppOptions {
     fitness: Fitness,
     runs: usize,
-    /// intertime division rate for the wild-type measured in years
-    pub tau: f32,
     seed: u64,
     parallel: Parallel,
-    options_moran: SimulationOptions,
-    options_exponential: Option<SimulationOptions>,
+    options_moran: SimulationOptionsMoran,
+    options_exponential: Option<SimulationOptionsExp>,
     pub snapshots: VecDeque<Snapshot>,
     pub mu0: f32,
     pub verbosity: u8,
-    pub neutral_rate: NeutralMutationRate,
-    pub background: bool,
+    background: bool,
 }
 
 fn main() {
@@ -67,11 +75,6 @@ fn main() {
         let rng = &mut ChaCha8Rng::seed_from_u64(app.seed);
         rng.set_stream(idx as u64);
 
-        // units: [mut/year]
-        let m_background = app.neutral_rate.mu_background;
-        // units: [mut/div]
-        let m_division = app.neutral_rate.mu_division;
-
         // initial state
         let cells = if app.options_exponential.is_some() {
             // add a neutral mutation such that we have a clonal variant
@@ -90,15 +93,16 @@ fn main() {
         let possible_reactions = subclones.gillespie_set_of_reactions();
 
         // convert into rates per division
-        let u = (app.tau * app.mu0 / (app.options_moran.gillespie_options.max_cells as f32)) as f64;
+        let u = (app.options_moran.tau * app.mu0
+            / (app.options_moran.gillespie_options.max_cells as f32)) as f64;
         let distributions = Distributions::new(
             u,
-            m_background,
-            m_division,
+            app.options_moran.mu_background,
+            app.options_moran.mu_division,
             app.options_moran.gillespie_options.verbosity,
         );
 
-        let rates = subclones.gillespie_rates(&app.fitness, 1. / app.tau, rng);
+        let rates = subclones.gillespie_rates(&app.fitness, 1. / app.options_moran.tau, rng);
         let snapshots = app.snapshots.clone();
 
         let (mean, std) = app.fitness.get_mean_std();
@@ -108,7 +112,7 @@ fn main() {
             u,
             mean,
             std,
-            app.tau,
+            app.options_moran.tau,
             app.options_moran.gillespie_options.max_cells - 1,
             idx
         )
@@ -124,23 +128,16 @@ fn main() {
         };
 
         let mut moran = if let Some(options) = app.options_exponential.as_ref() {
-            let mu_div_exp = app
-                .neutral_rate
-                .mu_division_exp
-                .expect("find no exp neutral rate but options_exp");
-            let mu_back_exp = app
-                .neutral_rate
-                .mu_background_exp
-                .expect("find no exp neutral rate but options_exp");
             // use 1 as we dont care about time during the exp growth phase
-            let rates = subclones.gillespie_rates(&app.fitness, 1.0, rng);
-            // we assume no background mutation for the exponential growing phase
+            let rates = subclones.gillespie_rates(&app.fitness, 1.0 / options.tau, rng);
             let mut exp = Exponential::new(
                 subclones,
                 Distributions::new(
-                    u,
-                    mu_back_exp,
-                    mu_div_exp,
+                    u, // technically we should use another u norm. by options.tau
+                    // but we dont care too much about clone exp. in the exp.
+                    // phase for now
+                    options.mu_background,
+                    options.mu_division,
                     app.options_moran.gillespie_options.verbosity,
                 ),
                 prolfieration,
