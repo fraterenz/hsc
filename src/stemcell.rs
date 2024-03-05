@@ -46,8 +46,25 @@ impl StemCell {
     }
 }
 
-pub fn mutate(cell: &mut StemCell, mut mutations: Vec<Variant>) {
+fn mutate(cell: &mut StemCell, mut mutations: Vec<Variant>) {
     cell.variants.append(&mut mutations);
+}
+
+pub fn assign_divisional_mutations(
+    stem_cell: &mut StemCell,
+    neutral_poisson: &NeutralMutationPoisson,
+    rng: &mut impl Rng,
+    verbosity: u8,
+) {
+    let mutations = neutral_poisson.new_muts_upon_division(rng);
+    if let Some(mutations) = mutations {
+        if verbosity > 2 {
+            println!("assigning {:#?} to cell {:#?}", mutations, stem_cell);
+        }
+        mutate(stem_cell, mutations);
+    } else if verbosity > 2 {
+        println!("no mutations to assign to cell {:#?}", stem_cell);
+    }
 }
 
 pub fn assign_background_mutations(
@@ -61,6 +78,9 @@ pub fn assign_background_mutations(
     //! current simulation time.
     //!
     //! This updates also the time of the last division for the cell.
+    if verbosity > 1 {
+        println!("assigning background mutations");
+    }
     let interdivison_time = time - stem_cell.last_division_t;
     // 2. draw background mutations and assign them to `c`
     if let Some(background) = neutral_poisson.new_muts_background(interdivison_time, rng, verbosity)

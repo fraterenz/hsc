@@ -1,5 +1,5 @@
 use crate::genotype::{MutationalBurden, Sfs};
-use crate::proliferation::{MutateUponDivision, Proliferation};
+use crate::proliferation::{NeutralMutations, Proliferation};
 use crate::stemcell::{assign_background_mutations, StemCell};
 use crate::subclone::{save_variant_fraction, CloneId, Distributions, SubClones, Variants};
 use crate::MAX_SUBCLONES;
@@ -65,7 +65,7 @@ pub struct Exponential {
     pub counter_divisions: usize,
     pub verbosity: u8,
     pub distributions: Distributions,
-    pub proliferation: MutateUponDivision,
+    pub proliferation: Proliferation,
     pub time: f32,
 }
 
@@ -73,7 +73,7 @@ impl Exponential {
     pub fn new(
         initial_subclones: SubClones,
         distributions: Distributions,
-        proliferation: MutateUponDivision,
+        proliferation: Proliferation,
         verbosity: u8,
     ) -> Exponential {
         let hsc = Exponential {
@@ -115,30 +115,27 @@ impl Exponential {
             save_population,
             proliferation: self.proliferation,
         };
-        match moran.proliferation {
-            MutateUponDivision::DivisionAndBackgroundMutations(_) => {
-                // this is important: we update all background mutations at this
-                // time such that all cells are all on the same page.
-                // Since background mutations are implemented at each division, and
-                // cells do not proliferate at the same rate, we need to correct and
-                // update the background mutations at the timepoint corresponding
-                // to sampling step, i.e. before saving.
-                if self.verbosity > 0 {
-                    println!("updating the neutral background mutations for all cells");
-                }
-                for stem_cell in moran.subclones.get_mut_cells() {
-                    assign_background_mutations(
-                        stem_cell,
-                        self.time,
-                        &self.distributions.neutral_poisson,
-                        rng,
-                        self.verbosity,
-                    );
-                    // this is required as we are restarting the time
-                    stem_cell.last_division_t = 0f32;
-                }
+        if let NeutralMutations::UponDivisionAndBackground = moran.proliferation.neutral_mutation {
+            // this is important: we update all background mutations at this
+            // time such that all cells are all on the same page.
+            // Since background mutations are implemented at each division, and
+            // cells do not proliferate at the same rate, we need to correct and
+            // update the background mutations at the timepoint corresponding
+            // to sampling step, i.e. before saving.
+            if self.verbosity > 0 {
+                println!("updating the neutral background mutations for all cells");
             }
-            MutateUponDivision::DivisionMutations(_) => {}
+            for stem_cell in moran.subclones.get_mut_cells() {
+                assign_background_mutations(
+                    stem_cell,
+                    self.time,
+                    &self.distributions.neutral_poisson,
+                    rng,
+                    self.verbosity,
+                );
+                // this is required as we are restarting the time
+                stem_cell.last_division_t = 0f32;
+            }
         }
         // restart the time
         moran.time = 0.;
@@ -179,7 +176,7 @@ impl AdvanceStep<MAX_SUBCLONES> for Exponential {
         // removes the cells from the clone with id `reaction.event`.**
         self.counter_divisions += 1;
         self.time += reaction.time;
-        self.proliferation.duplicate_cell_assign_mutations(
+        self.proliferation.proliferate(
             &mut self.subclones,
             self.time,
             reaction.event,
@@ -211,7 +208,7 @@ pub struct Moran {
     pub filename: PathBuf,
     pub save_sfs_only: bool,
     pub save_population: bool,
-    pub proliferation: MutateUponDivision,
+    pub proliferation: Proliferation,
 }
 
 impl Default for Moran {
@@ -231,7 +228,7 @@ impl Default for Moran {
                 save_population: true,
             },
             Distributions::default(),
-            MutateUponDivision::default(),
+            Proliferation::default(),
             1,
         )
     }
@@ -246,7 +243,7 @@ impl Moran {
         time: f32,
         saving_options: SavingOptions,
         distributions: Distributions,
-        proliferation: MutateUponDivision,
+        proliferation: Proliferation,
         verbosity: u8,
     ) -> Moran {
         let hsc = Moran {
@@ -388,28 +385,25 @@ impl Moran {
         if self.verbosity > 0 {
             println!("saving process at time {}", time);
         }
-        match self.proliferation {
-            MutateUponDivision::DivisionAndBackgroundMutations(_) => {
-                // this is important: we update all background mutations at this
-                // time such that all cells are all on the same page.
-                // Since background mutations are implemented at each division, and
-                // cells do not proliferate at the same rate, we need to correct and
-                // update the background mutations at the timepoint corresponding
-                // to sampling step, i.e. before saving.
-                if self.verbosity > 0 {
-                    println!("updating the neutral background mutations for all cells");
-                }
-                for stem_cell in self.subclones.get_mut_cells() {
-                    assign_background_mutations(
-                        stem_cell,
-                        self.time,
-                        &self.distributions.neutral_poisson,
-                        rng,
-                        self.verbosity,
-                    );
-                }
+        if let NeutralMutations::UponDivisionAndBackground = self.proliferation.neutral_mutation {
+            // this is important: we update all background mutations at this
+            // time such that all cells are all on the same page.
+            // Since background mutations are implemented at each division, and
+            // cells do not proliferate at the same rate, we need to correct and
+            // update the background mutations at the timepoint corresponding
+            // to sampling step, i.e. before saving.
+            if self.verbosity > 0 {
+                println!("updating the neutral background mutations for all cells");
             }
-            MutateUponDivision::DivisionMutations(_) => {}
+            for stem_cell in self.subclones.get_mut_cells() {
+                assign_background_mutations(
+                    stem_cell,
+                    self.time,
+                    &self.distributions.neutral_poisson,
+                    rng,
+                    self.verbosity,
+                );
+            }
         }
         let population = self.subclones.get_cells_with_clones_idx();
         if self.verbosity > 0 {
@@ -486,7 +480,7 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
         // id `reaction.event`.**
         self.time += reaction.time;
         self.counter_divisions += 1;
-        self.proliferation.duplicate_cell_assign_mutations(
+        self.proliferation.proliferate(
             &mut self.subclones,
             self.time,
             reaction.event,
@@ -516,7 +510,7 @@ mod tests {
     use rand::SeedableRng;
     use rand_chacha::ChaCha8Rng;
 
-    use crate::{genotype, proliferation::DivisionAndBackgroundMutationsProliferation};
+    use crate::genotype;
 
     use super::*;
 
@@ -562,9 +556,7 @@ mod tests {
                 save_population: true,
             },
             Distributions::new(u, 10f32, 1f32, 0),
-            MutateUponDivision::DivisionAndBackgroundMutations(
-                DivisionAndBackgroundMutationsProliferation,
-            ),
+            Proliferation::default(),
             0,
         )
     }
@@ -650,9 +642,7 @@ mod tests {
         Exponential::new(
             SubClones::new(vec![StemCell::new(); cells.get() as usize], 3),
             Distributions::new(u, 10f32, 1f32, 0),
-            MutateUponDivision::DivisionAndBackgroundMutations(
-                DivisionAndBackgroundMutationsProliferation,
-            ),
+            Proliferation::default(),
             0,
         )
     }

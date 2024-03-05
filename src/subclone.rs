@@ -155,7 +155,7 @@ impl SubClone {
     }
 }
 
-pub fn assign(
+pub fn assign_fit_mutations(
     subclones: &mut SubClones,
     old_subclone_id: CloneId,
     cell: StemCell,
@@ -501,7 +501,7 @@ mod tests {
         let cell2assign = StemCell::new();
         let mut subclones = SubClones::new(cells, cells_present as usize + 1);
 
-        assign(&mut subclones, 0, cell2assign, &distr, &mut rng, 0);
+        assign_fit_mutations(&mut subclones, 0, cell2assign, &distr, &mut rng, 0);
         subclones.0[0].cell_count() as usize == before_assignment + 1
     }
 
@@ -515,7 +515,7 @@ mod tests {
         let cell2assign = StemCell::new();
         let mut subclones = SubClones::new(cells, cells_present as usize + 1);
 
-        assign(&mut subclones, 0, cell2assign, &distr, &mut rng, 0);
+        assign_fit_mutations(&mut subclones, 0, cell2assign, &distr, &mut rng, 0);
         subclones.0[0].cell_count() as usize == before_assignment
     }
 
@@ -528,7 +528,7 @@ mod tests {
         let mut subclones = SubClones::default();
         let cell = StemCell::new();
 
-        assign(&mut subclones, 0, cell, &distr, &mut rng, 0);
+        assign_fit_mutations(&mut subclones, 0, cell, &distr, &mut rng, 0);
     }
 
     #[should_panic]

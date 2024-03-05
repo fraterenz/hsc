@@ -1,6 +1,9 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 4.1.0
+- introduce asymmetric divisions and refactor the neutral mutations
+
 ## 4.0.0
 - Add new clap app cmds and organisation
 

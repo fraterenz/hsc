@@ -4,10 +4,7 @@ use chrono::Utc;
 use clap_app::Parallel;
 use hsc::{
     process::{Exponential, Moran, ProcessOptions, SavingCells, SavingOptions, Snapshot},
-    proliferation::{
-        DivisionAndBackgroundMutationsProliferation, DivisionMutationsProliferation,
-        MutateUponDivision,
-    },
+    proliferation::{Division, NeutralMutations, Proliferation},
     stemcell::StemCell,
     subclone::{Distributions, Fitness, SubClones, Variants},
     write2file,
@@ -15,6 +12,7 @@ use hsc::{
 use indicatif::ParallelProgressIterator;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
+use rand_distr::Bernoulli;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use sosa::{simulate, CurrentState, Options, StopReason};
 use std::collections::VecDeque;
@@ -27,6 +25,7 @@ pub struct SimulationOptionsMoran {
     tau: f32,
     mu_background: f32,
     mu_division: f32,
+    asymmetric_prob: f32,
     process_options: ProcessOptions,
     gillespie_options: Options,
     save_sfs_only: bool,
@@ -39,6 +38,7 @@ pub struct SimulationOptionsExp {
     gillespie_options: Options,
     mu_background: f32,
     mu_division: f32,
+    asymmetric_prob: f32,
 }
 
 #[derive(Clone, Debug)]
@@ -118,18 +118,21 @@ fn main() {
         )
         .replace('.', "dot")
         .into();
-
-        let prolfieration = if app.background {
-            MutateUponDivision::DivisionAndBackgroundMutations(
-                DivisionAndBackgroundMutationsProliferation,
-            )
+        let neutral_mutation = if app.background {
+            NeutralMutations::UponDivisionAndBackground
         } else {
-            MutateUponDivision::DivisionMutations(DivisionMutationsProliferation)
+            NeutralMutations::UponDivision
         };
 
         let mut moran = if let Some(options) = app.options_exponential.as_ref() {
             // use 1 as we dont care about time during the exp growth phase
             let rates = subclones.gillespie_rates(&app.fitness, 1.0 / options.tau, rng);
+            let division = if (options.asymmetric_prob - 0f32).abs() > f32::EPSILON {
+                Division::Asymmetric(Bernoulli::new(options.asymmetric_prob as f64).unwrap())
+            } else {
+                Division::Symmetric
+            };
+            let proliferation = Proliferation::new(neutral_mutation, division);
             let mut exp = Exponential::new(
                 subclones,
                 Distributions::new(
@@ -140,7 +143,7 @@ fn main() {
                     options.mu_division,
                     app.options_moran.gillespie_options.verbosity,
                 ),
-                prolfieration,
+                proliferation,
                 options.gillespie_options.verbosity,
             );
 
@@ -174,6 +177,14 @@ fn main() {
                 rng,
             )
         } else {
+            let division = if (app.options_moran.asymmetric_prob - 0f32).abs() > f32::EPSILON {
+                Division::Asymmetric(
+                    Bernoulli::new(app.options_moran.asymmetric_prob as f64).unwrap(),
+                )
+            } else {
+                Division::Symmetric
+            };
+            let proliferation = Proliferation::new(neutral_mutation, division);
             Moran::new(
                 app.options_moran.process_options.clone(),
                 subclones,
@@ -184,7 +195,7 @@ fn main() {
                     save_population: app.options_moran.save_population,
                 },
                 distributions,
-                prolfieration,
+                proliferation,
                 app.options_moran.gillespie_options.verbosity,
             )
         };

@@ -125,7 +125,7 @@ impl Sfs {
         //! Compute the SFS from the stem cell population.
         if verbosity > 0 {
             println!("computing the SFS from {} cells", cells.len());
-            if verbosity > 1 {
+            if verbosity > 2 {
                 println!("computing the SFS from {:#?}", &cells);
             }
         }
