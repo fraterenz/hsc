@@ -1,6 +1,10 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 4.1.1
+- Split the exp. growing phase into two: 1. in phase `t_N` we have the growth phase, and `Theta*t_N` mutations from the bg 2. in phase `t_birth - t_N`cells stop dividing, and we only have `(t_birth-t_N)*Theta` mutations from the bg.
+- update dependencies: rayon, uuid and others
+
 ## 4.1.0
 - introduce asymmetric divisions and refactor the neutral mutations
 

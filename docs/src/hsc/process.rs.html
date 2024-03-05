@@ -704,12 +704,11 @@
 <a href="#704" id="704">704</a>
 <a href="#705" id="705">705</a>
 <a href="#706" id="706">706</a>
-<a href="#707" id="707">707</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::genotype::{MutationalBurden, Sfs};
-<span class="kw">use </span><span class="kw">crate</span>::proliferation::{MutateUponDivision, Proliferation};
+<span class="kw">use </span><span class="kw">crate</span>::proliferation::{NeutralMutations, Proliferation};
 <span class="kw">use </span><span class="kw">crate</span>::stemcell::{assign_background_mutations, StemCell};
 <span class="kw">use </span><span class="kw">crate</span>::subclone::{save_variant_fraction, CloneId, Distributions, SubClones, Variants};
-<span class="kw">use </span><span class="kw">crate</span>::MAX_SUBCLONES;
+<span class="kw">use crate</span>::{MAX_SUBCLONES, TIME_AT_BIRTH};
 <span class="kw">use </span>anyhow::Context;
 <span class="kw">use </span>rand::Rng;
 <span class="kw">use </span>rand_distr::{Distribution, WeightedIndex};
@@ -772,7 +771,7 @@
     </span><span class="kw">pub </span>counter_divisions: usize,
     <span class="kw">pub </span>verbosity: u8,
     <span class="kw">pub </span>distributions: Distributions,
-    <span class="kw">pub </span>proliferation: MutateUponDivision,
+    <span class="kw">pub </span>proliferation: Proliferation,
     <span class="kw">pub </span>time: f32,
 }
 
@@ -780,7 +779,7 @@
     <span class="kw">pub fn </span>new(
         initial_subclones: SubClones,
         distributions: Distributions,
-        proliferation: MutateUponDivision,
+        proliferation: Proliferation,
         verbosity: u8,
     ) -&gt; Exponential {
         <span class="kw">let </span>hsc = Exponential {
@@ -798,7 +797,7 @@
     }
 
     <span class="kw">pub fn </span>switch_to_moran(
-        <span class="self">self</span>,
+        <span class="kw-2">mut </span><span class="self">self</span>,
         process_options: ProcessOptions,
         distributions: Distributions,
         filename: PathBuf,
@@ -806,13 +805,46 @@
         save_population: bool,
         rng: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>Rng,
     ) -&gt; Moran {
-        <span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">0 </span>{
+        <span class="doccomment">//! End the exponential growing phase and switch to a fixed-size
+        //! population phase.
+        //!
+        //! There is a delay between birth and the end of the exponential phase,
+        //! since stem cells stop dividing exponentially before birth.
+        //! We add background mutations in this interval of time between the
+        //! end of the exponentially growing phase and the Moran process.
+        </span><span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">0 </span>{
             <span class="macro">println!</span>(<span class="string">&quot;switching to Moran at time {}&quot;</span>, <span class="self">self</span>.time);
+        }
+        <span class="kw">if let </span>NeutralMutations::UponDivisionAndBackground = <span class="self">self</span>.proliferation.neutral_mutation {
+            <span class="comment">// this is important: we update all background mutations at this
+            // time such that all cells are all on the same page.
+            // Since background mutations are implemented at each division, and
+            // cells do not proliferate at the same rate, we need to correct and
+            // update the background mutations at the timepoint corresponding
+            // to sampling step, i.e. before saving.
+            //
+            // Moreover there is delay between the end of the exp. growing phase
+            // and birth, hence `time_at_birth - self.time`.
+            </span><span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">0 </span>{
+                <span class="macro">println!</span>(<span class="string">&quot;updating the neutral background mutations for all cells&quot;</span>);
+            }
+            <span class="kw">for </span>stem_cell <span class="kw">in </span><span class="self">self</span>.subclones.get_mut_cells() {
+                assign_background_mutations(
+                    stem_cell,
+                    TIME_AT_BIRTH - <span class="self">self</span>.time,
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.distributions.neutral_poisson,
+                    rng,
+                    <span class="self">self</span>.verbosity,
+                );
+                <span class="comment">// this is required as we are restarting the time
+                </span>stem_cell.last_division_t = <span class="number">0f32</span>;
+            }
         }
         <span class="kw">let </span><span class="kw-2">mut </span>moran = Moran {
             subclones: <span class="self">self</span>.subclones,
             counter_divisions: <span class="self">self</span>.counter_divisions,
-            time: <span class="self">self</span>.time,
+            <span class="comment">// restart the time
+            </span>time: <span class="number">0.</span>,
             snapshots: process_options.snapshots,
             path2dir: process_options.path,
             verbosity: <span class="self">self</span>.verbosity,
@@ -822,33 +854,6 @@
             save_population,
             proliferation: <span class="self">self</span>.proliferation,
         };
-        <span class="kw">match </span>moran.proliferation {
-            MutateUponDivision::DivisionAndBackgroundMutations(<span class="kw">_</span>) =&gt; {
-                <span class="comment">// this is important: we update all background mutations at this
-                // time such that all cells are all on the same page.
-                // Since background mutations are implemented at each division, and
-                // cells do not proliferate at the same rate, we need to correct and
-                // update the background mutations at the timepoint corresponding
-                // to sampling step, i.e. before saving.
-                </span><span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">0 </span>{
-                    <span class="macro">println!</span>(<span class="string">&quot;updating the neutral background mutations for all cells&quot;</span>);
-                }
-                <span class="kw">for </span>stem_cell <span class="kw">in </span>moran.subclones.get_mut_cells() {
-                    assign_background_mutations(
-                        stem_cell,
-                        <span class="self">self</span>.time,
-                        <span class="kw-2">&amp;</span><span class="self">self</span>.distributions.neutral_poisson,
-                        rng,
-                        <span class="self">self</span>.verbosity,
-                    );
-                    <span class="comment">// this is required as we are restarting the time
-                    </span>stem_cell.last_division_t = <span class="number">0f32</span>;
-                }
-            }
-            MutateUponDivision::DivisionMutations(<span class="kw">_</span>) =&gt; {}
-        }
-        <span class="comment">// restart the time
-        </span>moran.time = <span class="number">0.</span>;
         moran
             .save(
                 moran.time,
@@ -886,7 +891,7 @@
         // removes the cells from the clone with id `reaction.event`.**
         </span><span class="self">self</span>.counter_divisions += <span class="number">1</span>;
         <span class="self">self</span>.time += reaction.time;
-        <span class="self">self</span>.proliferation.duplicate_cell_assign_mutations(
+        <span class="self">self</span>.proliferation.proliferate(
             <span class="kw-2">&amp;mut </span><span class="self">self</span>.subclones,
             <span class="self">self</span>.time,
             reaction.event,
@@ -918,7 +923,7 @@
     <span class="kw">pub </span>filename: PathBuf,
     <span class="kw">pub </span>save_sfs_only: bool,
     <span class="kw">pub </span>save_population: bool,
-    <span class="kw">pub </span>proliferation: MutateUponDivision,
+    <span class="kw">pub </span>proliferation: Proliferation,
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>Moran {
@@ -938,7 +943,7 @@
                 save_population: <span class="bool-val">true</span>,
             },
             Distributions::default(),
-            MutateUponDivision::default(),
+            Proliferation::default(),
             <span class="number">1</span>,
         )
     }
@@ -953,7 +958,7 @@
         time: f32,
         saving_options: SavingOptions,
         distributions: Distributions,
-        proliferation: MutateUponDivision,
+        proliferation: Proliferation,
         verbosity: u8,
     ) -&gt; Moran {
         <span class="kw">let </span>hsc = Moran {
@@ -1095,28 +1100,25 @@
         <span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">0 </span>{
             <span class="macro">println!</span>(<span class="string">&quot;saving process at time {}&quot;</span>, time);
         }
-        <span class="kw">match </span><span class="self">self</span>.proliferation {
-            MutateUponDivision::DivisionAndBackgroundMutations(<span class="kw">_</span>) =&gt; {
-                <span class="comment">// this is important: we update all background mutations at this
-                // time such that all cells are all on the same page.
-                // Since background mutations are implemented at each division, and
-                // cells do not proliferate at the same rate, we need to correct and
-                // update the background mutations at the timepoint corresponding
-                // to sampling step, i.e. before saving.
-                </span><span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">0 </span>{
-                    <span class="macro">println!</span>(<span class="string">&quot;updating the neutral background mutations for all cells&quot;</span>);
-                }
-                <span class="kw">for </span>stem_cell <span class="kw">in </span><span class="self">self</span>.subclones.get_mut_cells() {
-                    assign_background_mutations(
-                        stem_cell,
-                        <span class="self">self</span>.time,
-                        <span class="kw-2">&amp;</span><span class="self">self</span>.distributions.neutral_poisson,
-                        rng,
-                        <span class="self">self</span>.verbosity,
-                    );
-                }
+        <span class="kw">if let </span>NeutralMutations::UponDivisionAndBackground = <span class="self">self</span>.proliferation.neutral_mutation {
+            <span class="comment">// this is important: we update all background mutations at this
+            // time such that all cells are all on the same page.
+            // Since background mutations are implemented at each division, and
+            // cells do not proliferate at the same rate, we need to correct and
+            // update the background mutations at the timepoint corresponding
+            // to sampling step, i.e. before saving.
+            </span><span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">0 </span>{
+                <span class="macro">println!</span>(<span class="string">&quot;updating the neutral background mutations for all cells&quot;</span>);
             }
-            MutateUponDivision::DivisionMutations(<span class="kw">_</span>) =&gt; {}
+            <span class="kw">for </span>stem_cell <span class="kw">in </span><span class="self">self</span>.subclones.get_mut_cells() {
+                assign_background_mutations(
+                    stem_cell,
+                    <span class="self">self</span>.time,
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.distributions.neutral_poisson,
+                    rng,
+                    <span class="self">self</span>.verbosity,
+                );
+            }
         }
         <span class="kw">let </span>population = <span class="self">self</span>.subclones.get_cells_with_clones_idx();
         <span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">0 </span>{
@@ -1193,7 +1195,7 @@
         // id `reaction.event`.**
         </span><span class="self">self</span>.time += reaction.time;
         <span class="self">self</span>.counter_divisions += <span class="number">1</span>;
-        <span class="self">self</span>.proliferation.duplicate_cell_assign_mutations(
+        <span class="self">self</span>.proliferation.proliferate(
             <span class="kw-2">&amp;mut </span><span class="self">self</span>.subclones,
             <span class="self">self</span>.time,
             reaction.event,
@@ -1223,7 +1225,7 @@
     <span class="kw">use </span>rand::SeedableRng;
     <span class="kw">use </span>rand_chacha::ChaCha8Rng;
 
-    <span class="kw">use crate</span>::{genotype, proliferation::DivisionAndBackgroundMutationsProliferation};
+    <span class="kw">use </span><span class="kw">crate</span>::genotype;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
@@ -1269,9 +1271,7 @@
                 save_population: <span class="bool-val">true</span>,
             },
             Distributions::new(u, <span class="number">10f32</span>, <span class="number">1f32</span>, <span class="number">0</span>),
-            MutateUponDivision::DivisionAndBackgroundMutations(
-                DivisionAndBackgroundMutationsProliferation,
-            ),
+            Proliferation::default(),
             <span class="number">0</span>,
         )
     }
@@ -1357,9 +1357,7 @@
         Exponential::new(
             SubClones::new(<span class="macro">vec!</span>[StemCell::new(); cells.get() <span class="kw">as </span>usize], <span class="number">3</span>),
             Distributions::new(u, <span class="number">10f32</span>, <span class="number">1f32</span>, <span class="number">0</span>),
-            MutateUponDivision::DivisionAndBackgroundMutations(
-                DivisionAndBackgroundMutationsProliferation,
-            ),
+            Proliferation::default(),
             <span class="number">0</span>,
         )
     }

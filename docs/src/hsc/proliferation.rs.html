@@ -125,114 +125,29 @@
 <a href="#125" id="125">125</a>
 <a href="#126" id="126">126</a>
 <a href="#127" id="127">127</a>
-<a href="#128" id="128">128</a>
-<a href="#129" id="129">129</a>
-<a href="#130" id="130">130</a>
-<a href="#131" id="131">131</a>
-<a href="#132" id="132">132</a>
-<a href="#133" id="133">133</a>
-<a href="#134" id="134">134</a>
-<a href="#135" id="135">135</a>
-<a href="#136" id="136">136</a>
-<a href="#137" id="137">137</a>
-<a href="#138" id="138">138</a>
-<a href="#139" id="139">139</a>
-<a href="#140" id="140">140</a>
-<a href="#141" id="141">141</a>
-<a href="#142" id="142">142</a>
-<a href="#143" id="143">143</a>
-<a href="#144" id="144">144</a>
-<a href="#145" id="145">145</a>
-<a href="#146" id="146">146</a>
-<a href="#147" id="147">147</a>
-<a href="#148" id="148">148</a>
-<a href="#149" id="149">149</a>
-<a href="#150" id="150">150</a>
-<a href="#151" id="151">151</a>
-<a href="#152" id="152">152</a>
-<a href="#153" id="153">153</a>
-<a href="#154" id="154">154</a>
-<a href="#155" id="155">155</a>
-<a href="#156" id="156">156</a>
-<a href="#157" id="157">157</a>
-<a href="#158" id="158">158</a>
-<a href="#159" id="159">159</a>
-<a href="#160" id="160">160</a>
-<a href="#161" id="161">161</a>
-<a href="#162" id="162">162</a>
-<a href="#163" id="163">163</a>
-<a href="#164" id="164">164</a>
-<a href="#165" id="165">165</a>
-<a href="#166" id="166">166</a>
-<a href="#167" id="167">167</a>
-<a href="#168" id="168">168</a>
-<a href="#169" id="169">169</a>
-<a href="#170" id="170">170</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>enum_dispatch::enum_dispatch;
-<span class="kw">use </span>rand::Rng;
+</pre></div><pre class="rust"><code><span class="kw">use </span>rand::Rng;
+<span class="kw">use </span>rand_distr::{Bernoulli, Distribution};
 
 <span class="kw">use crate</span>::{
-    genotype::Variant,
-    stemcell::{assign_background_mutations, mutate, StemCell},
-    subclone::{assign, proliferating_cell, CloneId, Distributions, SubClones},
+    stemcell::{assign_background_mutations, assign_divisional_mutations},
+    subclone::{assign_fit_mutations, proliferating_cell, CloneId, Distributions, SubClones},
 };
 
-<span class="kw">fn </span>assign_mutations(stem_cell: <span class="kw-2">&amp;mut </span>StemCell, mutations: <span class="prelude-ty">Option</span>&lt;Vec&lt;Variant&gt;&gt;, verbosity: u8) {
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(mutations) = mutations {
-        <span class="kw">if </span>verbosity &gt; <span class="number">2 </span>{
-            <span class="macro">println!</span>(<span class="string">&quot;assigning {:#?} to cell {:#?}&quot;</span>, mutations, stem_cell);
-        }
-        mutate(stem_cell, mutations);
-    } <span class="kw">else if </span>verbosity &gt; <span class="number">2 </span>{
-        <span class="macro">println!</span>(<span class="string">&quot;no mutations to assign to cell {:#?}&quot;</span>, stem_cell);
-    }
+<span class="attr">#[derive(Debug, Clone, Default)]
+</span><span class="doccomment">/// Stem cells can either self-renew by symmetric division or differentiate by
+/// asymmetric division.
+</span><span class="kw">pub enum </span>Division {
+    <span class="doccomment">/// A stem cell proliferates and gives rise to a differentiate cell (which
+    /// we discard in our simulations)
+    </span>Asymmetric(Bernoulli),
+    <span class="doccomment">/// A stem cell proliferates and gives to a new stem cell with the same
+    /// genetic material as the mother cell plus some additional mutations
+    /// acquired upon division (fit divisions and neutral ones)
+    </span><span class="attr">#[default]
+    </span>Symmetric,
 }
 
-<span class="kw">fn </span>proliferation(
-    stem_cell: StemCell,
-    subclones: <span class="kw-2">&amp;mut </span>SubClones,
-    proliferating_subclone: CloneId,
-    distributions: <span class="kw-2">&amp;</span>Distributions,
-    rng: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>Rng,
-    verbosity: u8,
-) {
-    <span class="kw">if </span>verbosity &gt; <span class="number">1 </span>{
-        <span class="macro">println!</span>(<span class="string">&quot;cell {:#?} is dividing&quot;</span>, stem_cell);
-    }
-
-    <span class="kw">let </span>new_cell = stem_cell.clone();
-    <span class="kw">for </span><span class="kw-2">mut </span>cell <span class="kw">in </span>[new_cell, stem_cell] {
-        <span class="kw">let </span>division = distributions.neutral_poisson.new_muts_upon_division(rng);
-        <span class="kw">if </span>verbosity &gt; <span class="number">2 </span>{
-            <span class="macro">println!</span>(
-                <span class="string">&quot;assigning {} mutations upon cell division to cell {:#?}&quot;</span>,
-                division.as_ref().unwrap_or(<span class="kw-2">&amp;</span><span class="macro">vec!</span>[]).len(),
-                cell
-            );
-        }
-        assign_mutations(<span class="kw-2">&amp;mut </span>cell, division, verbosity);
-        assign(
-            subclones,
-            proliferating_subclone,
-            cell,
-            distributions,
-            rng,
-            verbosity,
-        );
-    }
-}
-
-<span class="attr">#[derive(Clone, Debug)]
-</span><span class="doccomment">/// Simulate fit mutations, neutral background mutations and neutral mutations
-/// upon division.
-</span><span class="kw">pub struct </span>DivisionAndBackgroundMutationsProliferation;
-
-<span class="attr">#[derive(Clone, Debug)]
-</span><span class="doccomment">/// Do not simulate neutral background mutations but only neutral mutations
-/// and fit mutations upon division
-</span><span class="kw">pub struct </span>DivisionMutationsProliferation;
-
-<span class="attr">#[enum_dispatch]
+<span class="attr">#[derive(Clone, Debug, Default)]
 </span><span class="doccomment">/// All the updates and changes in the system upon proliferation.
 ///
 /// The proliferation step is implemented as following:
@@ -251,64 +166,21 @@
 /// old clone which `c` belonged to.
 ///
 /// 5. clone the proliferating cell `c` into `c1` and repeat step 3, 4
-/// with `c1`.
-</span><span class="kw">pub trait </span>Proliferation {
-    <span class="kw">fn </span>duplicate_cell_assign_mutations(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        subclones: <span class="kw-2">&amp;mut </span>SubClones,
-        time: f32,
-        proliferating_subclone: CloneId,
-        distributions: <span class="kw-2">&amp;</span>Distributions,
-        rng: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>Rng,
-        verbosity: u8,
-    );
+/// with `c1` only if we simulated a symmetric division, see [`Division`].
+</span><span class="kw">pub struct </span>Proliferation {
+    <span class="kw">pub </span>neutral_mutation: NeutralMutations,
+    <span class="kw">pub </span>division: Division,
 }
 
-<span class="attr">#[derive(Clone, Debug)]
-#[enum_dispatch(Proliferation)]
-</span><span class="doccomment">/// Duplicate cells and deal with subclones.
-/// Also specifies whether to simulate background neutral mutations or only
-/// mutations upon divisions, see [`Proliferation`].
-</span><span class="kw">pub enum </span>MutateUponDivision {
-    DivisionAndBackgroundMutations(DivisionAndBackgroundMutationsProliferation),
-    DivisionMutations(DivisionMutationsProliferation),
-}
-
-<span class="kw">impl </span>Default <span class="kw">for </span>MutateUponDivision {
-    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
-        MutateUponDivision::DivisionAndBackgroundMutations(
-            DivisionAndBackgroundMutationsProliferation,
-        )
-    }
-}
-
-<span class="kw">impl </span>Proliferation <span class="kw">for </span>DivisionMutationsProliferation {
-    <span class="kw">fn </span>duplicate_cell_assign_mutations(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        subclones: <span class="kw-2">&amp;mut </span>SubClones,
-        time: f32,
-        proliferating_subclone: CloneId,
-        distributions: <span class="kw-2">&amp;</span>Distributions,
-        rng: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>Rng,
-        verbosity: u8,
-    ) {
-        <span class="kw">let </span>stem_cell = proliferating_cell(subclones, proliferating_subclone, verbosity, rng);
-        <span class="kw">if </span>verbosity &gt; <span class="number">1 </span>{
-            <span class="macro">println!</span>(<span class="string">&quot;proliferation at time {}&quot;</span>, time);
+<span class="kw">impl </span>Proliferation {
+    <span class="kw">pub fn </span>new(neutral_mutation: NeutralMutations, division: Division) -&gt; <span class="self">Self </span>{
+        Proliferation {
+            neutral_mutation,
+            division,
         }
-        proliferation(
-            stem_cell,
-            subclones,
-            proliferating_subclone,
-            distributions,
-            rng,
-            verbosity,
-        )
     }
-}
 
-<span class="kw">impl </span>Proliferation <span class="kw">for </span>DivisionAndBackgroundMutationsProliferation {
-    <span class="kw">fn </span>duplicate_cell_assign_mutations(
+    <span class="kw">pub fn </span>proliferate(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         subclones: <span class="kw-2">&amp;mut </span>SubClones,
         time: f32,
@@ -320,22 +192,64 @@
         <span class="kw">let </span><span class="kw-2">mut </span>stem_cell = proliferating_cell(subclones, proliferating_subclone, verbosity, rng);
         <span class="kw">if </span>verbosity &gt; <span class="number">1 </span>{
             <span class="macro">println!</span>(<span class="string">&quot;proliferation at time {}&quot;</span>, time);
+            <span class="macro">println!</span>(
+                <span class="string">&quot;cell with last division time {} is dividing&quot;</span>,
+                stem_cell.last_division_t
+            );
+            <span class="kw">if </span>verbosity &gt; <span class="number">2 </span>{
+                <span class="macro">println!</span>(<span class="string">&quot;cell {:#?} is dividing&quot;</span>, stem_cell);
+            }
         }
-        assign_background_mutations(
-            <span class="kw-2">&amp;mut </span>stem_cell,
-            time,
-            <span class="kw-2">&amp;</span>distributions.neutral_poisson,
-            rng,
-            verbosity,
-        );
-        proliferation(
-            stem_cell,
-            subclones,
-            proliferating_subclone,
-            distributions,
-            rng,
-            verbosity,
-        )
+        <span class="kw">if let </span>NeutralMutations::UponDivisionAndBackground = <span class="self">self</span>.neutral_mutation {
+            assign_background_mutations(
+                <span class="kw-2">&amp;mut </span>stem_cell,
+                time,
+                <span class="kw-2">&amp;</span>distributions.neutral_poisson,
+                rng,
+                verbosity,
+            );
+        }
+        <span class="kw">let </span>cells = <span class="kw">match </span><span class="self">self</span>.division {
+            Division::Asymmetric(p) =&gt; {
+                <span class="comment">// true means asymmetric
+                </span><span class="kw">if </span>p.sample(rng) {
+                    <span class="kw">if </span>verbosity &gt; <span class="number">1 </span>{
+                        <span class="macro">println!</span>(<span class="string">&quot;asymmetric division&quot;</span>);
+                    }
+                    <span class="macro">vec!</span>[stem_cell]
+                } <span class="kw">else </span>{
+                    <span class="macro">vec!</span>[stem_cell.clone(), stem_cell]
+                }
+            }
+            Division::Symmetric =&gt; <span class="macro">vec!</span>[stem_cell.clone(), stem_cell],
+        };
+        <span class="kw">for </span><span class="kw-2">mut </span>stem_cell <span class="kw">in </span>cells {
+            assign_divisional_mutations(
+                <span class="kw-2">&amp;mut </span>stem_cell,
+                <span class="kw-2">&amp;</span>distributions.neutral_poisson,
+                rng,
+                verbosity,
+            );
+            assign_fit_mutations(
+                subclones,
+                proliferating_subclone,
+                stem_cell,
+                distributions,
+                rng,
+                verbosity,
+            );
+        }
     }
+}
+
+<span class="attr">#[derive(Clone, Debug, Default)]
+</span><span class="doccomment">/// Specifies the kind of neutral mutations to simulate.
+</span><span class="kw">pub enum </span>NeutralMutations {
+    <span class="doccomment">/// Neutral mutations upon division due to errors in the DNA duplication
+    </span>UponDivision,
+    <span class="doccomment">/// Neutral mutations upon division and background mutations (mutations
+    /// appearing during the lifetime of the cell)
+    </span><span class="attr">#[default]
+    </span>UponDivisionAndBackground,
 }
 </code></pre></div></section></main></body></html>

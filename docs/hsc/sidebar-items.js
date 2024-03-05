@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["MAX_SUBCLONES"],"fn":["write2file"],"mod":["genotype","process","proliferation","stemcell","subclone"]};
+window.SIDEBAR_ITEMS = {"constant":["MAX_SUBCLONES","TIME_AT_BIRTH"],"fn":["write2file"],"mod":["genotype","process","proliferation","stemcell","subclone"]};

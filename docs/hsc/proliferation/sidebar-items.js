@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["MutateUponDivision"],"struct":["DivisionAndBackgroundMutationsProliferation","DivisionMutationsProliferation"],"trait":["Proliferation"]};
+window.SIDEBAR_ITEMS = {"enum":["Division","NeutralMutations"],"struct":["Proliferation"]};

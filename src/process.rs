@@ -2,7 +2,7 @@ use crate::genotype::{MutationalBurden, Sfs};
 use crate::proliferation::{NeutralMutations, Proliferation};
 use crate::stemcell::{assign_background_mutations, StemCell};
 use crate::subclone::{save_variant_fraction, CloneId, Distributions, SubClones, Variants};
-use crate::MAX_SUBCLONES;
+use crate::{MAX_SUBCLONES, TIME_AT_BIRTH};
 use anyhow::Context;
 use rand::Rng;
 use rand_distr::{Distribution, WeightedIndex};
@@ -91,7 +91,7 @@ impl Exponential {
     }
 
     pub fn switch_to_moran(
-        self,
+        mut self,
         process_options: ProcessOptions,
         distributions: Distributions,
         filename: PathBuf,
@@ -99,13 +99,46 @@ impl Exponential {
         save_population: bool,
         rng: &mut impl Rng,
     ) -> Moran {
+        //! End the exponential growing phase and switch to a fixed-size
+        //! population phase.
+        //!
+        //! There is a delay between birth and the end of the exponential phase,
+        //! since stem cells stop dividing exponentially before birth.
+        //! We add background mutations in this interval of time between the
+        //! end of the exponentially growing phase and the Moran process.
         if self.verbosity > 0 {
             println!("switching to Moran at time {}", self.time);
+        }
+        if let NeutralMutations::UponDivisionAndBackground = self.proliferation.neutral_mutation {
+            // this is important: we update all background mutations at this
+            // time such that all cells are all on the same page.
+            // Since background mutations are implemented at each division, and
+            // cells do not proliferate at the same rate, we need to correct and
+            // update the background mutations at the timepoint corresponding
+            // to sampling step, i.e. before saving.
+            //
+            // Moreover there is delay between the end of the exp. growing phase
+            // and birth, hence `time_at_birth - self.time`.
+            if self.verbosity > 0 {
+                println!("updating the neutral background mutations for all cells");
+            }
+            for stem_cell in self.subclones.get_mut_cells() {
+                assign_background_mutations(
+                    stem_cell,
+                    TIME_AT_BIRTH - self.time,
+                    &self.distributions.neutral_poisson,
+                    rng,
+                    self.verbosity,
+                );
+                // this is required as we are restarting the time
+                stem_cell.last_division_t = 0f32;
+            }
         }
         let mut moran = Moran {
             subclones: self.subclones,
             counter_divisions: self.counter_divisions,
-            time: self.time,
+            // restart the time
+            time: 0.,
             snapshots: process_options.snapshots,
             path2dir: process_options.path,
             verbosity: self.verbosity,
@@ -115,30 +148,6 @@ impl Exponential {
             save_population,
             proliferation: self.proliferation,
         };
-        if let NeutralMutations::UponDivisionAndBackground = moran.proliferation.neutral_mutation {
-            // this is important: we update all background mutations at this
-            // time such that all cells are all on the same page.
-            // Since background mutations are implemented at each division, and
-            // cells do not proliferate at the same rate, we need to correct and
-            // update the background mutations at the timepoint corresponding
-            // to sampling step, i.e. before saving.
-            if self.verbosity > 0 {
-                println!("updating the neutral background mutations for all cells");
-            }
-            for stem_cell in moran.subclones.get_mut_cells() {
-                assign_background_mutations(
-                    stem_cell,
-                    self.time,
-                    &self.distributions.neutral_poisson,
-                    rng,
-                    self.verbosity,
-                );
-                // this is required as we are restarting the time
-                stem_cell.last_division_t = 0f32;
-            }
-        }
-        // restart the time
-        moran.time = 0.;
         moran
             .save(
                 moran.time,

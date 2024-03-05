@@ -36,6 +36,10 @@ pub mod subclone;
 /// increase here the number of clones.
 pub const MAX_SUBCLONES: usize = 1200;
 
+/// The time at birth measured in years used for background mutations in the
+/// exponential growing phase.
+pub const TIME_AT_BIRTH: f32 = 9. / 12.;
+
 pub fn write2file<T: std::fmt::Display>(
     data: &[T],
     path: &Path,
