@@ -118,14 +118,14 @@ impl Exponential {
             // to sampling step, i.e. before saving.
             //
             // Moreover there is delay between the end of the exp. growing phase
-            // and birth, hence `time_at_birth - self.time`.
+            // and birth, hence we use `TIME_AT_BIRTH`.
             if self.verbosity > 0 {
                 println!("updating the neutral background mutations for all cells");
             }
             for stem_cell in self.subclones.get_mut_cells() {
                 assign_background_mutations(
                     stem_cell,
-                    TIME_AT_BIRTH - self.time,
+                    TIME_AT_BIRTH,
                     &self.distributions.neutral_poisson,
                     rng,
                     self.verbosity,

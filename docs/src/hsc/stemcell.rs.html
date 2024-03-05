@@ -141,6 +141,9 @@
 <a href="#141" id="141">141</a>
 <a href="#142" id="142">142</a>
 <a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>rand::Rng;
 
 <span class="kw">use </span><span class="kw">crate</span>::genotype::{NeutralMutationPoisson, Variant};
@@ -221,10 +224,13 @@
     //! current simulation time.
     //!
     //! This updates also the time of the last division for the cell.
-    </span><span class="kw">if </span>verbosity &gt; <span class="number">1 </span>{
-        <span class="macro">println!</span>(<span class="string">&quot;assigning background mutations&quot;</span>);
+    </span><span class="kw">let </span>interdivison_time = time - stem_cell.last_division_t;
+    <span class="kw">if </span>verbosity &gt; <span class="number">1 </span>{
+        <span class="macro">println!</span>(
+            <span class="string">&quot;assigning background mutations with interdivision time {}&quot;</span>,
+            interdivison_time
+        );
     }
-    <span class="kw">let </span>interdivison_time = time - stem_cell.last_division_t;
     <span class="comment">// 2. draw background mutations and assign them to `c`
     </span><span class="kw">if let </span><span class="prelude-val">Some</span>(background) = neutral_poisson.new_muts_background(interdivison_time, rng, verbosity)
     {

@@ -78,10 +78,13 @@ pub fn assign_background_mutations(
     //! current simulation time.
     //!
     //! This updates also the time of the last division for the cell.
-    if verbosity > 1 {
-        println!("assigning background mutations");
-    }
     let interdivison_time = time - stem_cell.last_division_t;
+    if verbosity > 1 {
+        println!(
+            "assigning background mutations with interdivision time {}",
+            interdivison_time
+        );
+    }
     // 2. draw background mutations and assign them to `c`
     if let Some(background) = neutral_poisson.new_muts_background(interdivison_time, rng, verbosity)
     {

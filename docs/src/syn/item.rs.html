@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/francesco/.cargo/registry/src/index.crates.io-6f17d22bba15001f/syn-2.0.28/src/item.rs`."><title>item.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="syn" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/francesco/.cargo/registry/src/index.crates.io-6f17d22bba15001f/syn-2.0.52/src/item.rs`."><title>item.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="syn" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -3323,11 +3323,147 @@
 <a href="#3323" id="3323">3323</a>
 <a href="#3324" id="3324">3324</a>
 <a href="#3325" id="3325">3325</a>
-</pre></div><pre class="rust"><code><span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href="#3326" id="3326">3326</a>
+<a href="#3327" id="3327">3327</a>
+<a href="#3328" id="3328">3328</a>
+<a href="#3329" id="3329">3329</a>
+<a href="#3330" id="3330">3330</a>
+<a href="#3331" id="3331">3331</a>
+<a href="#3332" id="3332">3332</a>
+<a href="#3333" id="3333">3333</a>
+<a href="#3334" id="3334">3334</a>
+<a href="#3335" id="3335">3335</a>
+<a href="#3336" id="3336">3336</a>
+<a href="#3337" id="3337">3337</a>
+<a href="#3338" id="3338">3338</a>
+<a href="#3339" id="3339">3339</a>
+<a href="#3340" id="3340">3340</a>
+<a href="#3341" id="3341">3341</a>
+<a href="#3342" id="3342">3342</a>
+<a href="#3343" id="3343">3343</a>
+<a href="#3344" id="3344">3344</a>
+<a href="#3345" id="3345">3345</a>
+<a href="#3346" id="3346">3346</a>
+<a href="#3347" id="3347">3347</a>
+<a href="#3348" id="3348">3348</a>
+<a href="#3349" id="3349">3349</a>
+<a href="#3350" id="3350">3350</a>
+<a href="#3351" id="3351">3351</a>
+<a href="#3352" id="3352">3352</a>
+<a href="#3353" id="3353">3353</a>
+<a href="#3354" id="3354">3354</a>
+<a href="#3355" id="3355">3355</a>
+<a href="#3356" id="3356">3356</a>
+<a href="#3357" id="3357">3357</a>
+<a href="#3358" id="3358">3358</a>
+<a href="#3359" id="3359">3359</a>
+<a href="#3360" id="3360">3360</a>
+<a href="#3361" id="3361">3361</a>
+<a href="#3362" id="3362">3362</a>
+<a href="#3363" id="3363">3363</a>
+<a href="#3364" id="3364">3364</a>
+<a href="#3365" id="3365">3365</a>
+<a href="#3366" id="3366">3366</a>
+<a href="#3367" id="3367">3367</a>
+<a href="#3368" id="3368">3368</a>
+<a href="#3369" id="3369">3369</a>
+<a href="#3370" id="3370">3370</a>
+<a href="#3371" id="3371">3371</a>
+<a href="#3372" id="3372">3372</a>
+<a href="#3373" id="3373">3373</a>
+<a href="#3374" id="3374">3374</a>
+<a href="#3375" id="3375">3375</a>
+<a href="#3376" id="3376">3376</a>
+<a href="#3377" id="3377">3377</a>
+<a href="#3378" id="3378">3378</a>
+<a href="#3379" id="3379">3379</a>
+<a href="#3380" id="3380">3380</a>
+<a href="#3381" id="3381">3381</a>
+<a href="#3382" id="3382">3382</a>
+<a href="#3383" id="3383">3383</a>
+<a href="#3384" id="3384">3384</a>
+<a href="#3385" id="3385">3385</a>
+<a href="#3386" id="3386">3386</a>
+<a href="#3387" id="3387">3387</a>
+<a href="#3388" id="3388">3388</a>
+<a href="#3389" id="3389">3389</a>
+<a href="#3390" id="3390">3390</a>
+<a href="#3391" id="3391">3391</a>
+<a href="#3392" id="3392">3392</a>
+<a href="#3393" id="3393">3393</a>
+<a href="#3394" id="3394">3394</a>
+<a href="#3395" id="3395">3395</a>
+<a href="#3396" id="3396">3396</a>
+<a href="#3397" id="3397">3397</a>
+<a href="#3398" id="3398">3398</a>
+<a href="#3399" id="3399">3399</a>
+<a href="#3400" id="3400">3400</a>
+<a href="#3401" id="3401">3401</a>
+<a href="#3402" id="3402">3402</a>
+<a href="#3403" id="3403">3403</a>
+<a href="#3404" id="3404">3404</a>
+<a href="#3405" id="3405">3405</a>
+<a href="#3406" id="3406">3406</a>
+<a href="#3407" id="3407">3407</a>
+<a href="#3408" id="3408">3408</a>
+<a href="#3409" id="3409">3409</a>
+<a href="#3410" id="3410">3410</a>
+<a href="#3411" id="3411">3411</a>
+<a href="#3412" id="3412">3412</a>
+<a href="#3413" id="3413">3413</a>
+<a href="#3414" id="3414">3414</a>
+<a href="#3415" id="3415">3415</a>
+<a href="#3416" id="3416">3416</a>
+<a href="#3417" id="3417">3417</a>
+<a href="#3418" id="3418">3418</a>
+<a href="#3419" id="3419">3419</a>
+<a href="#3420" id="3420">3420</a>
+<a href="#3421" id="3421">3421</a>
+<a href="#3422" id="3422">3422</a>
+<a href="#3423" id="3423">3423</a>
+<a href="#3424" id="3424">3424</a>
+<a href="#3425" id="3425">3425</a>
+<a href="#3426" id="3426">3426</a>
+<a href="#3427" id="3427">3427</a>
+<a href="#3428" id="3428">3428</a>
+<a href="#3429" id="3429">3429</a>
+<a href="#3430" id="3430">3430</a>
+<a href="#3431" id="3431">3431</a>
+<a href="#3432" id="3432">3432</a>
+<a href="#3433" id="3433">3433</a>
+<a href="#3434" id="3434">3434</a>
+<a href="#3435" id="3435">3435</a>
+<a href="#3436" id="3436">3436</a>
+<a href="#3437" id="3437">3437</a>
+<a href="#3438" id="3438">3438</a>
+<a href="#3439" id="3439">3439</a>
+<a href="#3440" id="3440">3440</a>
+<a href="#3441" id="3441">3441</a>
+<a href="#3442" id="3442">3442</a>
+<a href="#3443" id="3443">3443</a>
+<a href="#3444" id="3444">3444</a>
+<a href="#3445" id="3445">3445</a>
+<a href="#3446" id="3446">3446</a>
+<a href="#3447" id="3447">3447</a>
+<a href="#3448" id="3448">3448</a>
+<a href="#3449" id="3449">3449</a>
+<a href="#3450" id="3450">3450</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::attr::Attribute;
+<span class="kw">use </span><span class="kw">crate</span>::data::{Fields, FieldsNamed, Variant};
 <span class="kw">use </span><span class="kw">crate</span>::derive::{Data, DataEnum, DataStruct, DataUnion, DeriveInput};
+<span class="kw">use </span><span class="kw">crate</span>::expr::Expr;
+<span class="kw">use </span><span class="kw">crate</span>::generics::{Generics, TypeParamBound};
+<span class="kw">use </span><span class="kw">crate</span>::ident::Ident;
+<span class="kw">use </span><span class="kw">crate</span>::lifetime::Lifetime;
+<span class="kw">use </span><span class="kw">crate</span>::mac::Macro;
+<span class="kw">use </span><span class="kw">crate</span>::pat::{Pat, PatType};
+<span class="kw">use </span><span class="kw">crate</span>::path::Path;
 <span class="kw">use </span><span class="kw">crate</span>::punctuated::Punctuated;
+<span class="kw">use </span><span class="kw">crate</span>::restriction::Visibility;
+<span class="kw">use </span><span class="kw">crate</span>::stmt::Block;
+<span class="kw">use </span><span class="kw">crate</span>::token;
+<span class="kw">use </span><span class="kw">crate</span>::ty::{Abi, ReturnType, Type};
 <span class="kw">use </span>proc_macro2::TokenStream;
-
 <span class="attr">#[cfg(feature = <span class="string">&quot;parsing&quot;</span>)]
 </span><span class="kw">use </span>std::mem;
 
@@ -3338,7 +3474,7 @@
     ///
     /// This type is a [syntax tree enum].
     ///
-    /// [syntax tree enum]: Expr#syntax-tree-enums
+    /// [syntax tree enum]: crate::expr::Expr#syntax-tree-enums
     </span><span class="attr">#[cfg_attr(doc_cfg, doc(cfg(feature = <span class="string">&quot;full&quot;</span>)))]
     #[non_exhaustive]
     </span><span class="kw">pub enum </span>Item {
@@ -3395,12 +3531,13 @@
         <span class="comment">// For testing exhaustiveness in downstream code, use the following idiom:
         //
         //     match item {
+        //         #![cfg_attr(test, deny(non_exhaustive_omitted_patterns))]
+        //
         //         Item::Const(item) =&gt; {...}
         //         Item::Enum(item) =&gt; {...}
         //         ...
         //         Item::Verbatim(item) =&gt; {...}
         //
-        //         #[cfg_attr(test, deny(non_exhaustive_omitted_patterns))]
         //         _ =&gt; { /* some sane fallback */ }
         //     }
         //
@@ -3741,7 +3878,7 @@
     ///
     /// This type is a [syntax tree enum].
     ///
-    /// [syntax tree enum]: Expr#syntax-tree-enums
+    /// [syntax tree enum]: crate::expr::Expr#syntax-tree-enums
     </span><span class="attr">#[cfg_attr(doc_cfg, doc(cfg(feature = <span class="string">&quot;full&quot;</span>)))]
     </span><span class="kw">pub enum </span>UseTree {
         <span class="doccomment">/// A path prefix of imports in a `use` item: `std::...`.
@@ -3813,7 +3950,7 @@
     ///
     /// This type is a [syntax tree enum].
     ///
-    /// [syntax tree enum]: Expr#syntax-tree-enums
+    /// [syntax tree enum]: crate::expr::Expr#syntax-tree-enums
     </span><span class="attr">#[cfg_attr(doc_cfg, doc(cfg(feature = <span class="string">&quot;full&quot;</span>)))]
     #[non_exhaustive]
     </span><span class="kw">pub enum </span>ForeignItem {
@@ -3835,12 +3972,13 @@
         <span class="comment">// For testing exhaustiveness in downstream code, use the following idiom:
         //
         //     match item {
+        //         #![cfg_attr(test, deny(non_exhaustive_omitted_patterns))]
+        //
         //         ForeignItem::Fn(item) =&gt; {...}
         //         ForeignItem::Static(item) =&gt; {...}
         //         ...
         //         ForeignItem::Verbatim(item) =&gt; {...}
         //
-        //         #[cfg_attr(test, deny(non_exhaustive_omitted_patterns))]
         //         _ =&gt; { /* some sane fallback */ }
         //     }
         //
@@ -3907,7 +4045,7 @@
     ///
     /// This type is a [syntax tree enum].
     ///
-    /// [syntax tree enum]: Expr#syntax-tree-enums
+    /// [syntax tree enum]: crate::expr::Expr#syntax-tree-enums
     </span><span class="attr">#[cfg_attr(doc_cfg, doc(cfg(feature = <span class="string">&quot;full&quot;</span>)))]
     #[non_exhaustive]
     </span><span class="kw">pub enum </span>TraitItem {
@@ -3929,12 +4067,13 @@
         <span class="comment">// For testing exhaustiveness in downstream code, use the following idiom:
         //
         //     match item {
+        //         #![cfg_attr(test, deny(non_exhaustive_omitted_patterns))]
+        //
         //         TraitItem::Const(item) =&gt; {...}
         //         TraitItem::Fn(item) =&gt; {...}
         //         ...
         //         TraitItem::Verbatim(item) =&gt; {...}
         //
-        //         #[cfg_attr(test, deny(non_exhaustive_omitted_patterns))]
         //         _ =&gt; { /* some sane fallback */ }
         //     }
         //
@@ -4003,7 +4142,7 @@
     ///
     /// This type is a [syntax tree enum].
     ///
-    /// [syntax tree enum]: Expr#syntax-tree-enums
+    /// [syntax tree enum]: crate::expr::Expr#syntax-tree-enums
     </span><span class="attr">#[cfg_attr(doc_cfg, doc(cfg(feature = <span class="string">&quot;full&quot;</span>)))]
     #[non_exhaustive]
     </span><span class="kw">pub enum </span>ImplItem {
@@ -4025,12 +4164,13 @@
         <span class="comment">// For testing exhaustiveness in downstream code, use the following idiom:
         //
         //     match item {
+        //         #![cfg_attr(test, deny(non_exhaustive_omitted_patterns))]
+        //
         //         ImplItem::Const(item) =&gt; {...}
         //         ImplItem::Fn(item) =&gt; {...}
         //         ...
         //         ImplItem::Verbatim(item) =&gt; {...}
         //
-        //         #[cfg_attr(test, deny(non_exhaustive_omitted_patterns))]
         //         _ =&gt; { /* some sane fallback */ }
         //     }
         //
@@ -4214,10 +4354,35 @@
 
 <span class="attr">#[cfg(feature = <span class="string">&quot;parsing&quot;</span>)]
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>parsing {
-    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-    <span class="kw">use </span><span class="kw">crate</span>::ext::IdentExt;
-    <span class="kw">use </span><span class="kw">crate</span>::parse::discouraged::Speculative;
-    <span class="kw">use </span><span class="kw">crate</span>::parse::{Parse, ParseBuffer, ParseStream, <span class="prelude-ty">Result</span>};
+    <span class="kw">use </span><span class="kw">crate</span>::attr::{<span class="self">self</span>, Attribute};
+    <span class="kw">use </span><span class="kw">crate</span>::derive;
+    <span class="kw">use </span><span class="kw">crate</span>::error::{Error, <span class="prelude-ty">Result</span>};
+    <span class="kw">use </span><span class="kw">crate</span>::expr::Expr;
+    <span class="kw">use </span><span class="kw">crate</span>::ext::IdentExt <span class="kw">as _</span>;
+    <span class="kw">use </span><span class="kw">crate</span>::generics::{Generics, TypeParamBound};
+    <span class="kw">use </span><span class="kw">crate</span>::ident::Ident;
+    <span class="kw">use </span><span class="kw">crate</span>::item::{
+        FnArg, ForeignItem, ForeignItemFn, ForeignItemMacro, ForeignItemStatic, ForeignItemType,
+        ImplItem, ImplItemConst, ImplItemFn, ImplItemMacro, ImplItemType, Item, ItemConst,
+        ItemEnum, ItemExternCrate, ItemFn, ItemForeignMod, ItemImpl, ItemMacro, ItemMod,
+        ItemStatic, ItemStruct, ItemTrait, ItemTraitAlias, ItemType, ItemUnion, ItemUse, Receiver,
+        Signature, StaticMutability, TraitItem, TraitItemConst, TraitItemFn, TraitItemMacro,
+        TraitItemType, UseGlob, UseGroup, UseName, UsePath, UseRename, UseTree, Variadic,
+    };
+    <span class="kw">use </span><span class="kw">crate</span>::lifetime::Lifetime;
+    <span class="kw">use </span><span class="kw">crate</span>::lit::LitStr;
+    <span class="kw">use </span><span class="kw">crate</span>::mac::{<span class="self">self</span>, Macro, MacroDelimiter};
+    <span class="kw">use </span><span class="kw">crate</span>::parse::discouraged::Speculative <span class="kw">as _</span>;
+    <span class="kw">use </span><span class="kw">crate</span>::parse::{Parse, ParseBuffer, ParseStream};
+    <span class="kw">use </span><span class="kw">crate</span>::pat::{Pat, PatType, PatWild};
+    <span class="kw">use </span><span class="kw">crate</span>::path::Path;
+    <span class="kw">use </span><span class="kw">crate</span>::punctuated::Punctuated;
+    <span class="kw">use </span><span class="kw">crate</span>::restriction::Visibility;
+    <span class="kw">use </span><span class="kw">crate</span>::stmt::Block;
+    <span class="kw">use </span><span class="kw">crate</span>::token;
+    <span class="kw">use </span><span class="kw">crate</span>::ty::{Abi, ReturnType, Type, TypePath, TypeReference};
+    <span class="kw">use </span><span class="kw">crate</span>::verbatim;
+    <span class="kw">use </span>proc_macro2::TokenStream;
 
     <span class="attr">#[cfg_attr(doc_cfg, doc(cfg(feature = <span class="string">&quot;parsing&quot;</span>)))]
     </span><span class="kw">impl </span>Parse <span class="kw">for </span>Item {
@@ -4310,24 +4475,35 @@
             </span>} <span class="kw">else </span>{
                 <span class="kw">return </span><span class="prelude-val">Err</span>(lookahead.error());
             };
+            <span class="kw">let </span><span class="kw-2">mut </span>generics: Generics = input.parse()<span class="question-mark">?</span>;
             <span class="kw">let </span>colon_token = input.parse()<span class="question-mark">?</span>;
             <span class="kw">let </span>ty = input.parse()<span class="question-mark">?</span>;
-            <span class="kw">if </span>input.peek(<span class="macro">Token!</span>[;]) {
-                input.parse::&lt;<span class="macro">Token!</span>[;]&gt;()<span class="question-mark">?</span>;
-                <span class="prelude-val">Ok</span>(Item::Verbatim(verbatim::between(<span class="kw-2">&amp;</span>begin, input)))
+            <span class="kw">let </span>value = <span class="kw">if let </span><span class="prelude-val">Some</span>(eq_token) = input.parse::&lt;<span class="prelude-ty">Option</span>&lt;<span class="macro">Token!</span>[=]&gt;&gt;()<span class="question-mark">? </span>{
+                <span class="kw">let </span>expr: Expr = input.parse()<span class="question-mark">?</span>;
+                <span class="prelude-val">Some</span>((eq_token, expr))
             } <span class="kw">else </span>{
-                <span class="prelude-val">Ok</span>(Item::Const(ItemConst {
-                    attrs: Vec::new(),
-                    vis,
-                    const_token,
-                    ident,
-                    generics: Generics::default(),
-                    colon_token,
-                    ty,
-                    eq_token: input.parse()<span class="question-mark">?</span>,
-                    expr: input.parse()<span class="question-mark">?</span>,
-                    semi_token: input.parse()<span class="question-mark">?</span>,
-                }))
+                <span class="prelude-val">None
+            </span>};
+            generics.where_clause = input.parse()<span class="question-mark">?</span>;
+            <span class="kw">let </span>semi_token: <span class="macro">Token!</span>[;] = input.parse()<span class="question-mark">?</span>;
+            <span class="kw">match </span>value {
+                <span class="prelude-val">Some</span>((eq_token, expr))
+                    <span class="kw">if </span>generics.lt_token.is_none() &amp;&amp; generics.where_clause.is_none() =&gt;
+                {
+                    <span class="prelude-val">Ok</span>(Item::Const(ItemConst {
+                        attrs: Vec::new(),
+                        vis,
+                        const_token,
+                        ident,
+                        generics,
+                        colon_token,
+                        ty,
+                        eq_token,
+                        expr: Box::new(expr),
+                        semi_token,
+                    }))
+                }
+                <span class="kw">_ </span>=&gt; <span class="prelude-val">Ok</span>(Item::Verbatim(verbatim::between(<span class="kw-2">&amp;</span>begin, input))),
             }
         } <span class="kw">else if </span>lookahead.peek(<span class="macro">Token!</span>[<span class="kw">unsafe</span>]) {
             ahead.parse::&lt;<span class="macro">Token!</span>[<span class="kw">unsafe</span>]&gt;()<span class="question-mark">?</span>;
@@ -4725,24 +4901,34 @@
     <span class="attr">#[cfg_attr(doc_cfg, doc(cfg(feature = <span class="string">&quot;parsing&quot;</span>)))]
     </span><span class="kw">impl </span>Parse <span class="kw">for </span>ItemConst {
         <span class="kw">fn </span>parse(input: ParseStream) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
+            <span class="kw">let </span>attrs = input.call(Attribute::parse_outer)<span class="question-mark">?</span>;
+            <span class="kw">let </span>vis: Visibility = input.parse()<span class="question-mark">?</span>;
+            <span class="kw">let </span>const_token: <span class="macro">Token!</span>[<span class="kw">const</span>] = input.parse()<span class="question-mark">?</span>;
+
+            <span class="kw">let </span>lookahead = input.lookahead1();
+            <span class="kw">let </span>ident = <span class="kw">if </span>lookahead.peek(Ident) || lookahead.peek(<span class="macro">Token!</span>[<span class="kw">_</span>]) {
+                input.call(Ident::parse_any)<span class="question-mark">?
+            </span>} <span class="kw">else </span>{
+                <span class="kw">return </span><span class="prelude-val">Err</span>(lookahead.error());
+            };
+
+            <span class="kw">let </span>colon_token: <span class="macro">Token!</span>[:] = input.parse()<span class="question-mark">?</span>;
+            <span class="kw">let </span>ty: Type = input.parse()<span class="question-mark">?</span>;
+            <span class="kw">let </span>eq_token: <span class="macro">Token!</span>[=] = input.parse()<span class="question-mark">?</span>;
+            <span class="kw">let </span>expr: Expr = input.parse()<span class="question-mark">?</span>;
+            <span class="kw">let </span>semi_token: <span class="macro">Token!</span>[;] = input.parse()<span class="question-mark">?</span>;
+
             <span class="prelude-val">Ok</span>(ItemConst {
-                attrs: input.call(Attribute::parse_outer)<span class="question-mark">?</span>,
-                vis: input.parse()<span class="question-mark">?</span>,
-                const_token: input.parse()<span class="question-mark">?</span>,
-                ident: {
-                    <span class="kw">let </span>lookahead = input.lookahead1();
-                    <span class="kw">if </span>lookahead.peek(Ident) || lookahead.peek(<span class="macro">Token!</span>[<span class="kw">_</span>]) {
-                        input.call(Ident::parse_any)<span class="question-mark">?
-                    </span>} <span class="kw">else </span>{
-                        <span class="kw">return </span><span class="prelude-val">Err</span>(lookahead.error());
-                    }
-                },
+                attrs,
+                vis,
+                const_token,
+                ident,
                 generics: Generics::default(),
-                colon_token: input.parse()<span class="question-mark">?</span>,
-                ty: input.parse()<span class="question-mark">?</span>,
-                eq_token: input.parse()<span class="question-mark">?</span>,
-                expr: input.parse()<span class="question-mark">?</span>,
-                semi_token: input.parse()<span class="question-mark">?</span>,
+                colon_token,
+                ty: Box::new(ty),
+                eq_token,
+                expr: Box::new(expr),
+                semi_token,
             })
         }
     }
@@ -5549,10 +5735,36 @@
             <span class="kw">let </span><span class="kw-2">mut </span>item = <span class="kw">if </span>lookahead.peek(<span class="macro">Token!</span>[<span class="kw">fn</span>]) || peek_signature(<span class="kw-2">&amp;</span>ahead) {
                 input.parse().map(TraitItem::Fn)
             } <span class="kw">else if </span>lookahead.peek(<span class="macro">Token!</span>[<span class="kw">const</span>]) {
-                ahead.parse::&lt;<span class="macro">Token!</span>[<span class="kw">const</span>]&gt;()<span class="question-mark">?</span>;
+                <span class="kw">let </span>const_token: <span class="macro">Token!</span>[<span class="kw">const</span>] = ahead.parse()<span class="question-mark">?</span>;
                 <span class="kw">let </span>lookahead = ahead.lookahead1();
                 <span class="kw">if </span>lookahead.peek(Ident) || lookahead.peek(<span class="macro">Token!</span>[<span class="kw">_</span>]) {
-                    input.parse().map(TraitItem::Const)
+                    input.advance_to(<span class="kw-2">&amp;</span>ahead);
+                    <span class="kw">let </span>ident = input.call(Ident::parse_any)<span class="question-mark">?</span>;
+                    <span class="kw">let </span><span class="kw-2">mut </span>generics: Generics = input.parse()<span class="question-mark">?</span>;
+                    <span class="kw">let </span>colon_token: <span class="macro">Token!</span>[:] = input.parse()<span class="question-mark">?</span>;
+                    <span class="kw">let </span>ty: Type = input.parse()<span class="question-mark">?</span>;
+                    <span class="kw">let </span>default = <span class="kw">if let </span><span class="prelude-val">Some</span>(eq_token) = input.parse::&lt;<span class="prelude-ty">Option</span>&lt;<span class="macro">Token!</span>[=]&gt;&gt;()<span class="question-mark">? </span>{
+                        <span class="kw">let </span>expr: Expr = input.parse()<span class="question-mark">?</span>;
+                        <span class="prelude-val">Some</span>((eq_token, expr))
+                    } <span class="kw">else </span>{
+                        <span class="prelude-val">None
+                    </span>};
+                    generics.where_clause = input.parse()<span class="question-mark">?</span>;
+                    <span class="kw">let </span>semi_token: <span class="macro">Token!</span>[;] = input.parse()<span class="question-mark">?</span>;
+                    <span class="kw">if </span>generics.lt_token.is_none() &amp;&amp; generics.where_clause.is_none() {
+                        <span class="prelude-val">Ok</span>(TraitItem::Const(TraitItemConst {
+                            attrs: Vec::new(),
+                            const_token,
+                            ident,
+                            generics,
+                            colon_token,
+                            ty,
+                            default,
+                            semi_token,
+                        }))
+                    } <span class="kw">else </span>{
+                        <span class="kw">return </span><span class="prelude-val">Ok</span>(TraitItem::Verbatim(verbatim::between(<span class="kw-2">&amp;</span>begin, input)));
+                    }
                 } <span class="kw">else if </span>lookahead.peek(<span class="macro">Token!</span>[<span class="kw">async</span>])
                     || lookahead.peek(<span class="macro">Token!</span>[<span class="kw">unsafe</span>])
                     || lookahead.peek(<span class="macro">Token!</span>[<span class="kw">extern</span>])
@@ -5598,30 +5810,36 @@
     <span class="attr">#[cfg_attr(doc_cfg, doc(cfg(feature = <span class="string">&quot;parsing&quot;</span>)))]
     </span><span class="kw">impl </span>Parse <span class="kw">for </span>TraitItemConst {
         <span class="kw">fn </span>parse(input: ParseStream) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
+            <span class="kw">let </span>attrs = input.call(Attribute::parse_outer)<span class="question-mark">?</span>;
+            <span class="kw">let </span>const_token: <span class="macro">Token!</span>[<span class="kw">const</span>] = input.parse()<span class="question-mark">?</span>;
+
+            <span class="kw">let </span>lookahead = input.lookahead1();
+            <span class="kw">let </span>ident = <span class="kw">if </span>lookahead.peek(Ident) || lookahead.peek(<span class="macro">Token!</span>[<span class="kw">_</span>]) {
+                input.call(Ident::parse_any)<span class="question-mark">?
+            </span>} <span class="kw">else </span>{
+                <span class="kw">return </span><span class="prelude-val">Err</span>(lookahead.error());
+            };
+
+            <span class="kw">let </span>colon_token: <span class="macro">Token!</span>[:] = input.parse()<span class="question-mark">?</span>;
+            <span class="kw">let </span>ty: Type = input.parse()<span class="question-mark">?</span>;
+            <span class="kw">let </span>default = <span class="kw">if </span>input.peek(<span class="macro">Token!</span>[=]) {
+                <span class="kw">let </span>eq_token: <span class="macro">Token!</span>[=] = input.parse()<span class="question-mark">?</span>;
+                <span class="kw">let </span>default: Expr = input.parse()<span class="question-mark">?</span>;
+                <span class="prelude-val">Some</span>((eq_token, default))
+            } <span class="kw">else </span>{
+                <span class="prelude-val">None
+            </span>};
+            <span class="kw">let </span>semi_token: <span class="macro">Token!</span>[;] = input.parse()<span class="question-mark">?</span>;
+
             <span class="prelude-val">Ok</span>(TraitItemConst {
-                attrs: input.call(Attribute::parse_outer)<span class="question-mark">?</span>,
-                const_token: input.parse()<span class="question-mark">?</span>,
-                ident: {
-                    <span class="kw">let </span>lookahead = input.lookahead1();
-                    <span class="kw">if </span>lookahead.peek(Ident) || lookahead.peek(<span class="macro">Token!</span>[<span class="kw">_</span>]) {
-                        input.call(Ident::parse_any)<span class="question-mark">?
-                    </span>} <span class="kw">else </span>{
-                        <span class="kw">return </span><span class="prelude-val">Err</span>(lookahead.error());
-                    }
-                },
+                attrs,
+                const_token,
+                ident,
                 generics: Generics::default(),
-                colon_token: input.parse()<span class="question-mark">?</span>,
-                ty: input.parse()<span class="question-mark">?</span>,
-                default: {
-                    <span class="kw">if </span>input.peek(<span class="macro">Token!</span>[=]) {
-                        <span class="kw">let </span>eq_token: <span class="macro">Token!</span>[=] = input.parse()<span class="question-mark">?</span>;
-                        <span class="kw">let </span>default: Expr = input.parse()<span class="question-mark">?</span>;
-                        <span class="prelude-val">Some</span>((eq_token, default))
-                    } <span class="kw">else </span>{
-                        <span class="prelude-val">None
-                    </span>}
-                },
-                semi_token: input.parse()<span class="question-mark">?</span>,
+                colon_token,
+                ty,
+                default,
+                semi_token,
             })
         }
     }
@@ -5875,26 +6093,37 @@
                 </span>} <span class="kw">else </span>{
                     <span class="kw">return </span><span class="prelude-val">Err</span>(lookahead.error());
                 };
+                <span class="kw">let </span><span class="kw-2">mut </span>generics: Generics = input.parse()<span class="question-mark">?</span>;
                 <span class="kw">let </span>colon_token: <span class="macro">Token!</span>[:] = input.parse()<span class="question-mark">?</span>;
                 <span class="kw">let </span>ty: Type = input.parse()<span class="question-mark">?</span>;
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(eq_token) = input.parse()<span class="question-mark">? </span>{
-                    <span class="kw">return </span><span class="prelude-val">Ok</span>(ImplItem::Const(ImplItemConst {
-                        attrs,
-                        vis,
-                        defaultness,
-                        const_token,
-                        ident,
-                        generics: Generics::default(),
-                        colon_token,
-                        ty,
-                        eq_token,
-                        expr: input.parse()<span class="question-mark">?</span>,
-                        semi_token: input.parse()<span class="question-mark">?</span>,
-                    }));
+                <span class="kw">let </span>value = <span class="kw">if let </span><span class="prelude-val">Some</span>(eq_token) = input.parse::&lt;<span class="prelude-ty">Option</span>&lt;<span class="macro">Token!</span>[=]&gt;&gt;()<span class="question-mark">? </span>{
+                    <span class="kw">let </span>expr: Expr = input.parse()<span class="question-mark">?</span>;
+                    <span class="prelude-val">Some</span>((eq_token, expr))
                 } <span class="kw">else </span>{
-                    input.parse::&lt;<span class="macro">Token!</span>[;]&gt;()<span class="question-mark">?</span>;
-                    <span class="kw">return </span><span class="prelude-val">Ok</span>(ImplItem::Verbatim(verbatim::between(<span class="kw-2">&amp;</span>begin, input)));
-                }
+                    <span class="prelude-val">None
+                </span>};
+                generics.where_clause = input.parse()<span class="question-mark">?</span>;
+                <span class="kw">let </span>semi_token: <span class="macro">Token!</span>[;] = input.parse()<span class="question-mark">?</span>;
+                <span class="kw">return match </span>value {
+                    <span class="prelude-val">Some</span>((eq_token, expr))
+                        <span class="kw">if </span>generics.lt_token.is_none() &amp;&amp; generics.where_clause.is_none() =&gt;
+                    {
+                        <span class="prelude-val">Ok</span>(ImplItem::Const(ImplItemConst {
+                            attrs,
+                            vis,
+                            defaultness,
+                            const_token,
+                            ident,
+                            generics,
+                            colon_token,
+                            ty,
+                            eq_token,
+                            expr,
+                            semi_token,
+                        }))
+                    }
+                    <span class="kw">_ </span>=&gt; <span class="prelude-val">Ok</span>(ImplItem::Verbatim(verbatim::between(<span class="kw-2">&amp;</span>begin, input))),
+                };
             } <span class="kw">else if </span>lookahead.peek(<span class="macro">Token!</span>[<span class="kw">type</span>]) {
                 parse_impl_item_type(begin, input)
             } <span class="kw">else if </span>vis.is_inherited()
@@ -5929,25 +6158,36 @@
     <span class="attr">#[cfg_attr(doc_cfg, doc(cfg(feature = <span class="string">&quot;parsing&quot;</span>)))]
     </span><span class="kw">impl </span>Parse <span class="kw">for </span>ImplItemConst {
         <span class="kw">fn </span>parse(input: ParseStream) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
+            <span class="kw">let </span>attrs = input.call(Attribute::parse_outer)<span class="question-mark">?</span>;
+            <span class="kw">let </span>vis: Visibility = input.parse()<span class="question-mark">?</span>;
+            <span class="kw">let </span>defaultness: <span class="prelude-ty">Option</span>&lt;<span class="macro">Token!</span>[default]&gt; = input.parse()<span class="question-mark">?</span>;
+            <span class="kw">let </span>const_token: <span class="macro">Token!</span>[<span class="kw">const</span>] = input.parse()<span class="question-mark">?</span>;
+
+            <span class="kw">let </span>lookahead = input.lookahead1();
+            <span class="kw">let </span>ident = <span class="kw">if </span>lookahead.peek(Ident) || lookahead.peek(<span class="macro">Token!</span>[<span class="kw">_</span>]) {
+                input.call(Ident::parse_any)<span class="question-mark">?
+            </span>} <span class="kw">else </span>{
+                <span class="kw">return </span><span class="prelude-val">Err</span>(lookahead.error());
+            };
+
+            <span class="kw">let </span>colon_token: <span class="macro">Token!</span>[:] = input.parse()<span class="question-mark">?</span>;
+            <span class="kw">let </span>ty: Type = input.parse()<span class="question-mark">?</span>;
+            <span class="kw">let </span>eq_token: <span class="macro">Token!</span>[=] = input.parse()<span class="question-mark">?</span>;
+            <span class="kw">let </span>expr: Expr = input.parse()<span class="question-mark">?</span>;
+            <span class="kw">let </span>semi_token: <span class="macro">Token!</span>[;] = input.parse()<span class="question-mark">?</span>;
+
             <span class="prelude-val">Ok</span>(ImplItemConst {
-                attrs: input.call(Attribute::parse_outer)<span class="question-mark">?</span>,
-                vis: input.parse()<span class="question-mark">?</span>,
-                defaultness: input.parse()<span class="question-mark">?</span>,
-                const_token: input.parse()<span class="question-mark">?</span>,
-                ident: {
-                    <span class="kw">let </span>lookahead = input.lookahead1();
-                    <span class="kw">if </span>lookahead.peek(Ident) || lookahead.peek(<span class="macro">Token!</span>[<span class="kw">_</span>]) {
-                        input.call(Ident::parse_any)<span class="question-mark">?
-                    </span>} <span class="kw">else </span>{
-                        <span class="kw">return </span><span class="prelude-val">Err</span>(lookahead.error());
-                    }
-                },
+                attrs,
+                vis,
+                defaultness,
+                const_token,
+                ident,
                 generics: Generics::default(),
-                colon_token: input.parse()<span class="question-mark">?</span>,
-                ty: input.parse()<span class="question-mark">?</span>,
-                eq_token: input.parse()<span class="question-mark">?</span>,
-                expr: input.parse()<span class="question-mark">?</span>,
-                semi_token: input.parse()<span class="question-mark">?</span>,
+                colon_token,
+                ty,
+                eq_token,
+                expr,
+                semi_token,
             })
         }
     }
@@ -6102,9 +6342,19 @@
 
 <span class="attr">#[cfg(feature = <span class="string">&quot;printing&quot;</span>)]
 </span><span class="kw">mod </span>printing {
-    <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span><span class="kw">crate</span>::attr::FilterAttrs;
+    <span class="kw">use </span><span class="kw">crate</span>::data::Fields;
+    <span class="kw">use </span><span class="kw">crate</span>::item::{
+        ForeignItemFn, ForeignItemMacro, ForeignItemStatic, ForeignItemType, ImplItemConst,
+        ImplItemFn, ImplItemMacro, ImplItemType, ItemConst, ItemEnum, ItemExternCrate, ItemFn,
+        ItemForeignMod, ItemImpl, ItemMacro, ItemMod, ItemStatic, ItemStruct, ItemTrait,
+        ItemTraitAlias, ItemType, ItemUnion, ItemUse, Receiver, Signature, StaticMutability,
+        TraitItemConst, TraitItemFn, TraitItemMacro, TraitItemType, UseGlob, UseGroup, UseName,
+        UsePath, UseRename, Variadic,
+    };
+    <span class="kw">use </span><span class="kw">crate</span>::mac::MacroDelimiter;
     <span class="kw">use </span><span class="kw">crate</span>::print::TokensOrDefault;
+    <span class="kw">use </span><span class="kw">crate</span>::ty::Type;
     <span class="kw">use </span>proc_macro2::TokenStream;
     <span class="kw">use </span>quote::{ToTokens, TokenStreamExt};
 
