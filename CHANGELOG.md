@@ -1,6 +1,10 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 4.2.1
+### BugFix
+- `is_asymmetric` was actually symmetric
+
 ## 4.2.0
 - Add two mus: one for the exp. phase and the other for the Moran phase.
 ### BugFix

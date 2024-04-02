@@ -30,7 +30,7 @@ pub struct Probs {
 
 impl Probs {
     pub fn is_asymmetric(&self) -> bool {
-        (self.asymmetric - 0.).abs() < f32::EPSILON
+        (self.asymmetric - 0.).abs() > f32::EPSILON
     }
 }
 
@@ -287,4 +287,31 @@ fn main() {
         println!("{} End simulation", Utc::now());
         0
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn is_symmetric_test() {
+        let probs = Probs {
+            mu_background: 1.,
+            mu_division: 1.,
+            mu: 1.,
+            asymmetric: 0.,
+        };
+        assert!(!probs.is_asymmetric());
+    }
+
+    #[test]
+    fn is_asymmetric_test() {
+        let probs = Probs {
+            mu_background: 1.,
+            mu_division: 1.,
+            mu: 1.,
+            asymmetric: 1.,
+        };
+        assert!(probs.is_asymmetric());
+    }
 }
