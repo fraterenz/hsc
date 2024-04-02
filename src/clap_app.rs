@@ -8,7 +8,7 @@ use num_traits::{Float, NumCast};
 use sosa::{IterTime, NbIndividuals, Options};
 use std::{collections::VecDeque, ops::RangeInclusive, path::PathBuf};
 
-use crate::{AppOptions, SimulationOptionsExp, SimulationOptionsMoran};
+use crate::{AppOptions, Probs, SimulationOptionsExp, SimulationOptionsMoran};
 
 #[derive(Clone, Debug)]
 pub enum Parallel {
@@ -75,6 +75,9 @@ pub struct ExponentialThenMoran {
 
 #[derive(Args, Debug, Clone)]
 pub struct MoranPhase {
+    /// Average fit mutations arising in 1 year, units: division / year.
+    #[arg(long, default_value_t = 4.)]
+    pub mu: f32,
     /// Rate of accumulation of neutral background mutations per year in the fixed-size population phase
     #[arg(long, default_value_t = 14.)]
     pub mu_background: f32,
@@ -92,6 +95,9 @@ pub struct MoranPhase {
 #[derive(Args, Debug, Clone)]
 #[group(required = false, multiple = true)]
 pub struct ExponentialPhase {
+    /// Average fit mutations arising in 1 year, units: division / year.
+    #[arg(long, default_value_t = 4.)]
+    pub mu_exp: f32,
     /// Rate of accumulation of neutral background mutations per year
     #[arg(long, default_value_t = 33.)]
     pub mu_background_exp: f32,
@@ -124,9 +130,6 @@ pub struct Cli {
     cells: NbIndividuals,
     #[arg(short, long, default_value_t = 1)]
     runs: usize,
-    /// Average fit mutations arising in 1 year, units: division / year.
-    #[arg(long, default_value_t = 4.)]
-    mu0: f32,
     #[command(flatten)]
     /// If not present, use a constant fitness of 0.11
     fitness: FitnessArg,
@@ -299,9 +302,12 @@ impl Cli {
                     save_sfs_only: cli.save_sfs_only,
                     save_population: cli.save_population,
                     tau: moran.tau,
-                    mu_background: moran.mu_background,
-                    mu_division: moran.mu_division,
-                    asymmetric_prob: moran.asymmetric,
+                    probs: Probs {
+                        mu_background: moran.mu_background,
+                        mu_division: moran.mu_division,
+                        mu: moran.mu,
+                        asymmetric: moran.asymmetric,
+                    },
                 };
                 (options_moran, None)
             }
@@ -320,9 +326,12 @@ impl Cli {
                     save_sfs_only: cli.save_sfs_only,
                     save_population: cli.save_population,
                     tau: exp_moran.moran.tau,
-                    mu_background: exp_moran.moran.mu_background,
-                    mu_division: exp_moran.moran.mu_division,
-                    asymmetric_prob: exp_moran.moran.asymmetric,
+                    probs: Probs {
+                        mu_background: exp_moran.moran.mu_background,
+                        mu_division: exp_moran.moran.mu_division,
+                        mu: exp_moran.moran.mu,
+                        asymmetric: exp_moran.moran.asymmetric,
+                    },
                 };
                 let options_exponential = SimulationOptionsExp {
                     gillespie_options: Options {
@@ -335,9 +344,12 @@ impl Cli {
                         verbosity,
                     },
                     tau: exp_moran.exponential.tau_exp,
-                    mu_background: exp_moran.exponential.mu_background_exp,
-                    mu_division: exp_moran.exponential.mu_division_exp,
-                    asymmetric_prob: exp_moran.exponential.asymmetric_exp,
+                    probs: Probs {
+                        mu_background: exp_moran.exponential.mu_background_exp,
+                        mu_division: exp_moran.exponential.mu_division_exp,
+                        mu: exp_moran.exponential.mu_exp,
+                        asymmetric: exp_moran.exponential.asymmetric_exp,
+                    },
                 };
                 (options_moran, Some(options_exponential))
             }
@@ -374,7 +386,6 @@ impl Cli {
             snapshots,
             options_moran,
             options_exponential,
-            mu0: cli.mu0,
             background: !cli.no_background,
             verbosity: cli.verbosity,
         })

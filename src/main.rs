@@ -21,11 +21,23 @@ use uuid::Uuid;
 pub mod clap_app;
 
 #[derive(Clone, Debug)]
-pub struct SimulationOptionsMoran {
-    tau: f32,
+pub struct Probs {
     mu_background: f32,
     mu_division: f32,
-    asymmetric_prob: f32,
+    mu: f32,
+    asymmetric: f32,
+}
+
+impl Probs {
+    pub fn is_asymmetric(&self) -> bool {
+        (self.asymmetric - 0.).abs() < f32::EPSILON
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct SimulationOptionsMoran {
+    tau: f32,
+    probs: Probs,
     process_options: ProcessOptions,
     gillespie_options: Options,
     save_sfs_only: bool,
@@ -36,9 +48,7 @@ pub struct SimulationOptionsMoran {
 pub struct SimulationOptionsExp {
     tau: f32,
     gillespie_options: Options,
-    mu_background: f32,
-    mu_division: f32,
-    asymmetric_prob: f32,
+    probs: Probs,
 }
 
 #[derive(Clone, Debug)]
@@ -50,9 +60,16 @@ pub struct AppOptions {
     options_moran: SimulationOptionsMoran,
     options_exponential: Option<SimulationOptionsExp>,
     pub snapshots: VecDeque<Snapshot>,
-    pub mu0: f32,
     pub verbosity: u8,
     background: bool,
+}
+
+fn compute_mu_per_division_per_cell_from_probs(probs: &Probs, cells: u64, tau: f32) -> f32 {
+    let u = tau * probs.mu / (cells as f32);
+    if !probs.is_asymmetric() {
+        return u * 0.5;
+    }
+    u
 }
 
 fn main() {
@@ -92,24 +109,13 @@ fn main() {
         };
         let possible_reactions = subclones.gillespie_set_of_reactions();
 
-        // convert into rates per division
-        let u = (app.options_moran.tau * app.mu0
-            / (app.options_moran.gillespie_options.max_cells as f32)) as f64;
-        let distributions = Distributions::new(
-            u,
-            app.options_moran.mu_background,
-            app.options_moran.mu_division,
-            app.options_moran.gillespie_options.verbosity,
-        );
-
         let rates = subclones.gillespie_rates(&app.fitness, 1. / app.options_moran.tau, rng);
         let snapshots = app.snapshots.clone();
 
         let (mean, std) = app.fitness.get_mean_std();
         let filename = format!(
-            "{}mu0_{}u_{}mean_{}std_{}tau_{}cells_{}idx",
-            app.mu0,
-            u,
+            "{}mu_{}mean_{}std_{}tau_{}cells_{}idx",
+            app.options_moran.probs.mu,
             mean,
             std,
             app.options_moran.tau,
@@ -125,24 +131,28 @@ fn main() {
         };
 
         let mut moran = if let Some(options) = app.options_exponential.as_ref() {
-            // use 1 as we dont care about time during the exp growth phase
+            // convert into rates per division
+            let u = compute_mu_per_division_per_cell_from_probs(
+                &options.probs,
+                options.gillespie_options.max_cells,
+                options.tau,
+            ) as f64;
+            let distributions = Distributions::new(
+                u,
+                options.probs.mu_background,
+                options.probs.mu_division,
+                options.gillespie_options.verbosity,
+            );
             let rates = subclones.gillespie_rates(&app.fitness, 1.0 / options.tau, rng);
-            let division = if (options.asymmetric_prob - 0f32).abs() > f32::EPSILON {
-                Division::Asymmetric(Bernoulli::new(options.asymmetric_prob as f64).unwrap())
+            let division = if options.probs.is_asymmetric() {
+                Division::Asymmetric(Bernoulli::new(options.probs.asymmetric as f64).unwrap())
             } else {
                 Division::Symmetric
             };
             let proliferation = Proliferation::new(neutral_mutation, division);
             let mut exp = Exponential::new(
                 subclones,
-                Distributions::new(
-                    u, // technically we should use another u norm. by options.tau
-                    // but we dont care too much about clone exp. in the exp.
-                    // phase for now
-                    options.mu_background,
-                    options.mu_division,
-                    app.options_moran.gillespie_options.verbosity,
-                ),
+                distributions,
                 proliferation,
                 options.gillespie_options.verbosity,
             );
@@ -164,26 +174,50 @@ fn main() {
                 );
             }
 
+            // convert into rates per division
+            let u = compute_mu_per_division_per_cell_from_probs(
+                &app.options_moran.probs,
+                app.options_moran.gillespie_options.max_cells,
+                app.options_moran.tau,
+            ) as f64;
+            let moran_distributions = Distributions::new(
+                u,
+                app.options_moran.probs.mu_background,
+                app.options_moran.probs.mu_division,
+                app.options_moran.gillespie_options.verbosity,
+            );
             // switch_to_moran start with time 0
             exp.switch_to_moran(
                 ProcessOptions {
                     path: app.options_moran.process_options.path.clone(),
                     snapshots,
                 },
-                distributions,
+                moran_distributions,
                 filename,
                 app.options_moran.save_sfs_only,
                 app.options_moran.save_population,
                 rng,
             )
         } else {
-            let division = if (app.options_moran.asymmetric_prob - 0f32).abs() > f32::EPSILON {
+            let division = if app.options_moran.probs.is_asymmetric() {
                 Division::Asymmetric(
-                    Bernoulli::new(app.options_moran.asymmetric_prob as f64).unwrap(),
+                    Bernoulli::new(app.options_moran.probs.asymmetric as f64).unwrap(),
                 )
             } else {
                 Division::Symmetric
             };
+            // convert into rates per division
+            let u = compute_mu_per_division_per_cell_from_probs(
+                &app.options_moran.probs,
+                app.options_moran.gillespie_options.max_cells,
+                app.options_moran.tau,
+            ) as f64;
+            let distributions = Distributions::new(
+                u,
+                app.options_moran.probs.mu_background,
+                app.options_moran.probs.mu_division,
+                app.options_moran.gillespie_options.verbosity,
+            );
             let proliferation = Proliferation::new(neutral_mutation, division);
             Moran::new(
                 app.options_moran.process_options.clone(),

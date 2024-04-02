@@ -1,6 +1,11 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 4.2.0
+- Add two mus: one for the exp. phase and the other for the Moran phase.
+### BugFix
+- Add missing factor 2 for the fit variants
+
 ## 4.1.2
 ### BugFix
 - Fix the neutral background mutations
