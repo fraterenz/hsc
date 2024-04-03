@@ -1,6 +1,9 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 4.3.0
+- decouple the arrival of fit mutants from the division by implementing an interdivision time
+
 ## 4.2.2
 ### BugFix
 - fix the number of cells used to convert the arrival rate of fit mutatants per year to per division (was off by 1)

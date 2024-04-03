@@ -137,7 +137,7 @@ fn main() {
                 &options.probs,
                 options.gillespie_options.max_cells,
                 options.tau,
-            ) as f64;
+            );
             let distributions = Distributions::new(
                 u,
                 options.probs.mu_background,
@@ -180,7 +180,7 @@ fn main() {
                 &app.options_moran.probs,
                 options.gillespie_options.max_cells,
                 app.options_moran.tau,
-            ) as f64;
+            );
             let moran_distributions = Distributions::new(
                 u,
                 app.options_moran.probs.mu_background,
@@ -212,7 +212,7 @@ fn main() {
                 &app.options_moran.probs,
                 app.options_moran.gillespie_options.max_cells - 1,
                 app.options_moran.tau,
-            ) as f64;
+            );
             let distributions = Distributions::new(
                 u,
                 app.options_moran.probs.mu_background,

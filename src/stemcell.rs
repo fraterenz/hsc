@@ -1,3 +1,4 @@
+use anyhow::{ensure, Context};
 use rand::Rng;
 
 use crate::genotype::{NeutralMutationPoisson, Variant};
@@ -44,6 +45,16 @@ impl StemCell {
     pub fn burden(&self) -> usize {
         self.variants.len()
     }
+
+    pub fn interdivision_time(&self, time: f32) -> anyhow::Result<f32> {
+        ensure!(
+            time > self.last_division_t,
+            "found a cell that has divided in the future! {} last_division vs {} time",
+            self.last_division_t,
+            time,
+        );
+        Ok(time - self.last_division_t)
+    }
 }
 
 fn mutate(cell: &mut StemCell, mut mutations: Vec<Variant>) {
@@ -78,7 +89,10 @@ pub fn assign_background_mutations(
     //! current simulation time.
     //!
     //! This updates also the time of the last division for the cell.
-    let interdivison_time = time - stem_cell.last_division_t;
+    let interdivison_time = stem_cell
+        .interdivision_time(time)
+        .with_context(|| "wrong interdivision time")
+        .unwrap();
     if verbosity > 1 {
         println!(
             "assigning background mutations with interdivision time {}",
@@ -97,7 +111,6 @@ pub fn assign_background_mutations(
         }
         mutate(stem_cell, background);
     }
-    stem_cell.last_division_t = time;
 }
 
 #[cfg(test)]
@@ -139,8 +152,24 @@ mod tests {
         let poissons = NeutralMutationPoisson::new(1.1, 12f32).unwrap();
 
         assign_background_mutations(&mut stem_cell, time, &poissons, rng, 0);
-        mutations != stem_cell.variants
-            && mutations.len() < stem_cell.variants.len()
-            && (stem_cell.last_division_t - time).abs() < f32::EPSILON
+        mutations != stem_cell.variants && mutations.len() < stem_cell.variants.len()
+    }
+
+    #[test]
+    #[should_panic]
+    fn interidivision_time_panic_0_test() {
+        let mut stem_cell = StemCell::new();
+        stem_cell.last_division_t = 0.;
+
+        stem_cell.interdivision_time(0.).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn interidivision_time_panic_test() {
+        let mut stem_cell = StemCell::new();
+        stem_cell.last_division_t = 1.;
+
+        stem_cell.interdivision_time(0.1).unwrap();
     }
 }

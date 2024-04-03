@@ -3,7 +3,7 @@ use rand_distr::{Bernoulli, Distribution};
 
 use crate::{
     stemcell::{assign_background_mutations, assign_divisional_mutations},
-    subclone::{assign_fit_mutations, proliferating_cell, CloneId, Distributions, SubClones},
+    subclone::{next_clone, proliferating_cell, CloneId, Distributions, SubClones},
 };
 
 #[derive(Debug, Clone, Default)]
@@ -62,6 +62,16 @@ impl Proliferation {
         rng: &mut impl Rng,
         verbosity: u8,
     ) {
+        //! Sample a random cell from the subclones with id
+        //! `proliferating_subclone`, assign neutral mutations (background and
+        //! those upon proliferation) and finally assign `cell` to a subclone.
+        //!
+        //! For the last step, there are two possible scenarios:
+        //!
+        //! 1. if there is a new fit variant, then `cell` will be assigned to a
+        //! new **empty** random clone with an id different from `old_subclone_id`
+        //! and panics if there aren't any empty subclones left
+        //! 2. else, reassign `cell` to the old subclone with id `old_subclone_id`
         let mut stem_cell = proliferating_cell(subclones, proliferating_subclone, verbosity, rng);
         if verbosity > 1 {
             println!("proliferation at time {}", time);
@@ -103,14 +113,17 @@ impl Proliferation {
                 rng,
                 verbosity,
             );
-            assign_fit_mutations(
+            let id = next_clone(
                 subclones,
                 proliferating_subclone,
-                stem_cell,
+                &stem_cell,
+                time,
                 distributions,
                 rng,
                 verbosity,
             );
+            stem_cell.last_division_t = time;
+            subclones.get_mut_clone_unchecked(id).assign_cell(stem_cell);
         }
     }
 }
