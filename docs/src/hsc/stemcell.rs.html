@@ -173,6 +173,15 @@
 <a href="#173" id="173">173</a>
 <a href="#174" id="174">174</a>
 <a href="#175" id="175">175</a>
+<a href="#176" id="176">176</a>
+<a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a>
+<a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
+<a href="#181" id="181">181</a>
+<a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a>
+<a href="#184" id="184">184</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>anyhow::{ensure, Context};
 <span class="kw">use </span>rand::Rng;
 
@@ -187,7 +196,7 @@
 </span><span class="kw">pub struct </span>StemCell {
     <span class="kw">pub </span>variants: Vec&lt;Variant&gt;,
     <span class="doccomment">/// the last time at which the cell has divided
-    </span><span class="kw">pub </span>last_division_t: f32,
+    </span>last_division_t: f32,
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>StemCell {
@@ -221,9 +230,19 @@
         <span class="self">self</span>.variants.len()
     }
 
+    <span class="kw">pub fn </span>get_last_division_time(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>f32 {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.last_division_t
+    }
+
+    <span class="kw">pub fn </span>set_last_division_time(<span class="kw-2">&amp;mut </span><span class="self">self</span>, last_division_t: f32) -&gt; anyhow::Result&lt;()&gt; {
+        <span class="macro">ensure!</span>(last_division_t.is_sign_positive());
+        <span class="self">self</span>.last_division_t = last_division_t;
+        <span class="prelude-val">Ok</span>(())
+    }
+
     <span class="kw">pub fn </span>interdivision_time(<span class="kw-2">&amp;</span><span class="self">self</span>, time: f32) -&gt; anyhow::Result&lt;f32&gt; {
         <span class="macro">ensure!</span>(
-            time &gt; <span class="self">self</span>.last_division_t,
+            time &gt;= <span class="self">self</span>.last_division_t,
             <span class="string">&quot;found a cell that has divided in the future! {} last_division vs {} time&quot;</span>,
             <span class="self">self</span>.last_division_t,
             time,
@@ -330,18 +349,17 @@
         mutations != stem_cell.variants &amp;&amp; mutations.len() &lt; stem_cell.variants.len()
     }
 
-    <span class="attr">#[test]
-    #[should_panic]
-    </span><span class="kw">fn </span>interidivision_time_panic_0_test() {
+    <span class="attr">#[quickcheck]
+    </span><span class="kw">fn </span>interdivision_time_test(time: NonZeroU8) -&gt; bool {
         <span class="kw">let </span><span class="kw-2">mut </span>stem_cell = StemCell::new();
-        stem_cell.last_division_t = <span class="number">0.</span>;
+        stem_cell.last_division_t = time.get() <span class="kw">as </span>f32;
 
-        stem_cell.interdivision_time(<span class="number">0.</span>).unwrap();
+        (stem_cell.interdivision_time(time.get() <span class="kw">as </span>f32).unwrap()).abs() &lt; f32::EPSILON
     }
 
     <span class="attr">#[test]
     #[should_panic]
-    </span><span class="kw">fn </span>interidivision_time_panic_test() {
+    </span><span class="kw">fn </span>interdivision_time_panic_test() {
         <span class="kw">let </span><span class="kw-2">mut </span>stem_cell = StemCell::new();
         stem_cell.last_division_t = <span class="number">1.</span>;
 

@@ -1064,7 +1064,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>rng = ChaCha8Rng::seed_from_u64(seed);
         <span class="kw">let </span>distr = Distributions::new(<span class="number">0.001</span>, <span class="number">1.1</span>, <span class="number">1.1</span>, <span class="number">0</span>);
         <span class="kw">let </span><span class="kw-2">mut </span>cell = StemCell::new();
-        cell.last_division_t = <span class="number">1.</span>;
+        cell.set_last_division_time(<span class="number">1.1</span>).unwrap();
 
         <span class="kw">let </span>cells = <span class="macro">vec!</span>[cell; cells_present.get() <span class="kw">as </span>usize];
         <span class="kw">let </span>subclones = SubClones::new(cells, cells_present.get() <span class="kw">as </span>usize + <span class="number">1</span>, <span class="number">0</span>);
@@ -1087,7 +1087,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>rng = ChaCha8Rng::seed_from_u64(seed);
         <span class="kw">let </span>distr = Distributions::new(<span class="number">0.1f32</span>, <span class="number">1.1</span>, <span class="number">1.1</span>, <span class="number">0</span>);
         <span class="kw">let </span><span class="kw-2">mut </span>cell = StemCell::new();
-        cell.last_division_t = <span class="number">1.</span>;
+        cell.set_last_division_time(<span class="number">1.1</span>).unwrap();
 
         <span class="kw">let </span>cells = <span class="macro">vec!</span>[cell; cells_present.get() <span class="kw">as </span>usize];
         <span class="kw">let </span>before_assignment = cells.len();
@@ -1106,7 +1106,7 @@
 
         <span class="kw">let </span>subclones = SubClones::default();
         <span class="kw">let </span><span class="kw-2">mut </span>cell = StemCell::new();
-        cell.last_division_t = <span class="number">1.</span>;
+        cell.set_last_division_time(<span class="number">1.</span>).unwrap();
 
         next_clone(<span class="kw-2">&amp;</span>subclones, <span class="number">0</span>, <span class="kw-2">&amp;</span>cell, <span class="number">1.1</span>, <span class="kw-2">&amp;</span>distr, <span class="kw-2">&amp;mut </span>rng, <span class="number">0</span>);
     }

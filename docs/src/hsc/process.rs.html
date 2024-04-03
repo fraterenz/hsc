@@ -712,6 +712,15 @@
 <a href="#712" id="712">712</a>
 <a href="#713" id="713">713</a>
 <a href="#714" id="714">714</a>
+<a href="#715" id="715">715</a>
+<a href="#716" id="716">716</a>
+<a href="#717" id="717">717</a>
+<a href="#718" id="718">718</a>
+<a href="#719" id="719">719</a>
+<a href="#720" id="720">720</a>
+<a href="#721" id="721">721</a>
+<a href="#722" id="722">722</a>
+<a href="#723" id="723">723</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::genotype::{MutationalBurden, Sfs};
 <span class="kw">use </span><span class="kw">crate</span>::proliferation::{NeutralMutations, Proliferation};
 <span class="kw">use </span><span class="kw">crate</span>::stemcell::{assign_background_mutations, StemCell};
@@ -845,7 +854,7 @@
                     <span class="self">self</span>.verbosity,
                 );
                 <span class="comment">// this is required as we are restarting the time
-                </span>stem_cell.last_division_t = <span class="number">0f32</span>;
+                </span>stem_cell.set_last_division_time(<span class="number">0f32</span>).unwrap();
             }
         }
         <span class="kw">let </span><span class="kw-2">mut </span>moran = Moran {
@@ -1407,23 +1416,32 @@
     }
 
     <span class="attr">#[quickcheck]
-    </span><span class="kw">fn </span>advance_exp_test(cells: NonZeroU8, seed: u64) {
+    </span><span class="kw">fn </span>advance_exp_test(cells: NonZeroU8, seed: u64, new_clone: bool) {
         <span class="kw">let </span><span class="kw-2">mut </span>exp = create_exp_fit_variants(NonZeroU64::new(cells.get() <span class="kw">as </span>u64).unwrap());
-        <span class="kw">let </span>reaction = NextReaction {
-            time: <span class="number">2.2</span>,
-            event: <span class="number">0</span>,
+        <span class="kw">let </span>reaction = <span class="kw">if </span>new_clone {
+            NextReaction {
+                time: <span class="number">999.99</span>,
+                event: <span class="number">0</span>,
+            }
+        } <span class="kw">else </span>{
+            NextReaction {
+                time: <span class="number">1.2</span>,
+                event: <span class="number">0</span>,
+            }
         };
-        <span class="comment">// let burden_before = genotype::MutationalBurden::from_exp(&amp;exp.process, 0).unwrap();
-        </span><span class="kw">let </span>old_cells = exp.process.subclones.compute_tot_cells();
+        <span class="kw">let </span>burden_before = genotype::MutationalBurden::from_exp(<span class="kw-2">&amp;</span>exp.process, <span class="number">0</span>).unwrap();
+        <span class="kw">let </span>old_cells = exp.process.subclones.compute_tot_cells();
         assert_all_cells_in_wild_type_exp(<span class="kw-2">&amp;</span>exp.process, exp.tot_cells);
         <span class="kw">let </span>rng = <span class="kw-2">&amp;mut </span>ChaCha8Rng::seed_from_u64(seed);
 
         exp.process.advance_step(reaction, rng);
 
         <span class="macro">assert_eq!</span>(exp.process.subclones.compute_tot_cells(), old_cells + <span class="number">1</span>);
-        assert_not_all_cells_in_wild_type_exp(<span class="kw-2">&amp;</span>exp.process, exp.tot_cells);
-        <span class="comment">// let burden_after = genotype::MutationalBurden::from_exp(&amp;exp.process, 0).unwrap();
-        // assert!(burden_before.0.keys().sum::&lt;u16&gt;() &lt; burden_after.0.keys().sum::&lt;u16&gt;());
-    </span>}
+        <span class="kw">if </span>new_clone {
+            assert_not_all_cells_in_wild_type_exp(<span class="kw-2">&amp;</span>exp.process, exp.tot_cells);
+        }
+        <span class="kw">let </span>burden_after = genotype::MutationalBurden::from_exp(<span class="kw-2">&amp;</span>exp.process, <span class="number">0</span>).unwrap();
+        <span class="macro">assert!</span>(burden_before.<span class="number">0</span>.keys().sum::&lt;u16&gt;() &lt; burden_after.<span class="number">0</span>.keys().sum::&lt;u16&gt;());
+    }
 }
 </code></pre></div></section></main></body></html>

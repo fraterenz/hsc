@@ -1,6 +1,9 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 4.3.1
+- relax the assumption on the interdivision time: an intervidision time can be 0
+
 ## 4.3.0
 - decouple the arrival of fit mutants from the division by implementing an interdivision time
 

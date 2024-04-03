@@ -492,7 +492,7 @@ mod tests {
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
         let distr = Distributions::new(0.001, 1.1, 1.1, 0);
         let mut cell = StemCell::new();
-        cell.last_division_t = 1.;
+        cell.set_last_division_time(1.1).unwrap();
 
         let cells = vec![cell; cells_present.get() as usize];
         let subclones = SubClones::new(cells, cells_present.get() as usize + 1, 0);
@@ -515,7 +515,7 @@ mod tests {
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
         let distr = Distributions::new(0.1f32, 1.1, 1.1, 0);
         let mut cell = StemCell::new();
-        cell.last_division_t = 1.;
+        cell.set_last_division_time(1.1).unwrap();
 
         let cells = vec![cell; cells_present.get() as usize];
         let before_assignment = cells.len();
@@ -534,7 +534,7 @@ mod tests {
 
         let subclones = SubClones::default();
         let mut cell = StemCell::new();
-        cell.last_division_t = 1.;
+        cell.set_last_division_time(1.).unwrap();
 
         next_clone(&subclones, 0, &cell, 1.1, &distr, &mut rng, 0);
     }

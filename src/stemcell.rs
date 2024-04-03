@@ -12,7 +12,7 @@ use crate::genotype::{NeutralMutationPoisson, Variant};
 pub struct StemCell {
     pub variants: Vec<Variant>,
     /// the last time at which the cell has divided
-    pub last_division_t: f32,
+    last_division_t: f32,
 }
 
 impl Default for StemCell {
@@ -46,9 +46,19 @@ impl StemCell {
         self.variants.len()
     }
 
+    pub fn get_last_division_time(&mut self) -> &f32 {
+        &self.last_division_t
+    }
+
+    pub fn set_last_division_time(&mut self, last_division_t: f32) -> anyhow::Result<()> {
+        ensure!(last_division_t.is_sign_positive());
+        self.last_division_t = last_division_t;
+        Ok(())
+    }
+
     pub fn interdivision_time(&self, time: f32) -> anyhow::Result<f32> {
         ensure!(
-            time > self.last_division_t,
+            time >= self.last_division_t,
             "found a cell that has divided in the future! {} last_division vs {} time",
             self.last_division_t,
             time,
@@ -155,18 +165,17 @@ mod tests {
         mutations != stem_cell.variants && mutations.len() < stem_cell.variants.len()
     }
 
-    #[test]
-    #[should_panic]
-    fn interidivision_time_panic_0_test() {
+    #[quickcheck]
+    fn interdivision_time_test(time: NonZeroU8) -> bool {
         let mut stem_cell = StemCell::new();
-        stem_cell.last_division_t = 0.;
+        stem_cell.last_division_t = time.get() as f32;
 
-        stem_cell.interdivision_time(0.).unwrap();
+        (stem_cell.interdivision_time(time.get() as f32).unwrap()).abs() < f32::EPSILON
     }
 
     #[test]
     #[should_panic]
-    fn interidivision_time_panic_test() {
+    fn interdivision_time_panic_test() {
         let mut stem_cell = StemCell::new();
         stem_cell.last_division_t = 1.;
 

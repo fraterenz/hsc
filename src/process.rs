@@ -131,7 +131,7 @@ impl Exponential {
                     self.verbosity,
                 );
                 // this is required as we are restarting the time
-                stem_cell.last_division_t = 0f32;
+                stem_cell.set_last_division_time(0f32).unwrap();
             }
         }
         let mut moran = Moran {

@@ -1,3 +1,4 @@
+use anyhow::Context;
 use rand::Rng;
 use rand_distr::{Bernoulli, Distribution};
 
@@ -77,7 +78,7 @@ impl Proliferation {
             println!("proliferation at time {}", time);
             println!(
                 "cell with last division time {} is dividing",
-                stem_cell.last_division_t
+                stem_cell.get_last_division_time()
             );
             if verbosity > 2 {
                 println!("cell {:#?} is dividing", stem_cell);
@@ -122,7 +123,10 @@ impl Proliferation {
                 rng,
                 verbosity,
             );
-            stem_cell.last_division_t = time;
+            stem_cell
+                .set_last_division_time(time)
+                .with_context(|| "wrong time")
+                .unwrap();
             subclones.get_mut_clone_unchecked(id).assign_cell(stem_cell);
         }
     }

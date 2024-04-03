@@ -138,7 +138,12 @@
 <a href="#138" id="138">138</a>
 <a href="#139" id="139">139</a>
 <a href="#140" id="140">140</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>rand::Rng;
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>anyhow::Context;
+<span class="kw">use </span>rand::Rng;
 <span class="kw">use </span>rand_distr::{Bernoulli, Distribution};
 
 <span class="kw">use crate</span>::{
@@ -217,7 +222,7 @@
             <span class="macro">println!</span>(<span class="string">&quot;proliferation at time {}&quot;</span>, time);
             <span class="macro">println!</span>(
                 <span class="string">&quot;cell with last division time {} is dividing&quot;</span>,
-                stem_cell.last_division_t
+                stem_cell.get_last_division_time()
             );
             <span class="kw">if </span>verbosity &gt; <span class="number">2 </span>{
                 <span class="macro">println!</span>(<span class="string">&quot;cell {:#?} is dividing&quot;</span>, stem_cell);
@@ -262,7 +267,10 @@
                 rng,
                 verbosity,
             );
-            stem_cell.last_division_t = time;
+            stem_cell
+                .set_last_division_time(time)
+                .with_context(|| <span class="string">&quot;wrong time&quot;</span>)
+                .unwrap();
             subclones.get_mut_clone_unchecked(id).assign_cell(stem_cell);
         }
     }
