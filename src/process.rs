@@ -693,13 +693,20 @@ mod tests {
     }
 
     #[quickcheck]
-    fn advance_exp_test(cells: NonZeroU8, seed: u64) {
+    fn advance_exp_test(cells: NonZeroU8, seed: u64, new_clone: bool) {
         let mut exp = create_exp_fit_variants(NonZeroU64::new(cells.get() as u64).unwrap());
-        let reaction = NextReaction {
-            time: 2.2,
-            event: 0,
+        let reaction = if new_clone {
+            NextReaction {
+                time: 999.99,
+                event: 0,
+            }
+        } else {
+            NextReaction {
+                time: 1.2,
+                event: 0,
+            }
         };
-        // let burden_before = genotype::MutationalBurden::from_exp(&exp.process, 0).unwrap();
+        let burden_before = genotype::MutationalBurden::from_exp(&exp.process, 0).unwrap();
         let old_cells = exp.process.subclones.compute_tot_cells();
         assert_all_cells_in_wild_type_exp(&exp.process, exp.tot_cells);
         let rng = &mut ChaCha8Rng::seed_from_u64(seed);
@@ -707,8 +714,10 @@ mod tests {
         exp.process.advance_step(reaction, rng);
 
         assert_eq!(exp.process.subclones.compute_tot_cells(), old_cells + 1);
-        assert_not_all_cells_in_wild_type_exp(&exp.process, exp.tot_cells);
-        // let burden_after = genotype::MutationalBurden::from_exp(&exp.process, 0).unwrap();
-        // assert!(burden_before.0.keys().sum::<u16>() < burden_after.0.keys().sum::<u16>());
+        if new_clone {
+            assert_not_all_cells_in_wild_type_exp(&exp.process, exp.tot_cells);
+        }
+        let burden_after = genotype::MutationalBurden::from_exp(&exp.process, 0).unwrap();
+        assert!(burden_before.0.keys().sum::<u16>() < burden_after.0.keys().sum::<u16>());
     }
 }
