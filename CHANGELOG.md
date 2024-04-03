@@ -1,6 +1,10 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 4.3.2
+### BugFix
+- Do not multiply by tau when converting the rate per year into rate per division
+
 ## 4.3.1
 - relax the assumption on the interdivision time: an intervidision time can be 0
 

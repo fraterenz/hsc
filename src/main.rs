@@ -64,8 +64,8 @@ pub struct AppOptions {
     background: bool,
 }
 
-fn compute_mu_per_division_per_cell_from_probs(probs: &Probs, cells: u64, tau: f32) -> f32 {
-    let u = tau * probs.mu / (cells as f32);
+fn compute_mu_per_division_per_cell_from_probs(probs: &Probs, cells: u64) -> f32 {
+    let u = probs.mu / (cells as f32);
     if !probs.is_asymmetric() {
         return u * 0.5;
     }
@@ -136,7 +136,6 @@ fn main() {
             let u = compute_mu_per_division_per_cell_from_probs(
                 &options.probs,
                 options.gillespie_options.max_cells,
-                options.tau,
             );
             let distributions = Distributions::new(
                 u,
@@ -179,7 +178,6 @@ fn main() {
             let u = compute_mu_per_division_per_cell_from_probs(
                 &app.options_moran.probs,
                 options.gillespie_options.max_cells,
-                app.options_moran.tau,
             );
             let moran_distributions = Distributions::new(
                 u,
@@ -211,7 +209,6 @@ fn main() {
             let u = compute_mu_per_division_per_cell_from_probs(
                 &app.options_moran.probs,
                 app.options_moran.gillespie_options.max_cells - 1,
-                app.options_moran.tau,
             );
             let distributions = Distributions::new(
                 u,
