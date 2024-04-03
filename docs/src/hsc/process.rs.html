@@ -1263,7 +1263,7 @@
                     time: <span class="number">10.</span>,
                 }]),
             },
-            SubClones::new(<span class="macro">vec!</span>[StemCell::new(); cells.get() <span class="kw">as </span>usize], <span class="number">3</span>),
+            SubClones::new(<span class="macro">vec!</span>[StemCell::new(); cells.get() <span class="kw">as </span>usize], <span class="number">3</span>, <span class="number">0</span>),
             <span class="number">0f32</span>,
             SavingOptions {
                 filename: PathBuf::default(),
@@ -1355,7 +1355,7 @@
     <span class="kw">fn </span>create_exp(fit_variants: bool, cells: NonZeroU64) -&gt; Exponential {
         <span class="kw">let </span>u = <span class="kw">if </span>fit_variants { <span class="number">1. </span>} <span class="kw">else </span>{ <span class="number">0. </span>};
         Exponential::new(
-            SubClones::new(<span class="macro">vec!</span>[StemCell::new(); cells.get() <span class="kw">as </span>usize], <span class="number">3</span>),
+            SubClones::new(<span class="macro">vec!</span>[StemCell::new(); cells.get() <span class="kw">as </span>usize], <span class="number">3</span>, <span class="number">0</span>),
             Distributions::new(u, <span class="number">10f32</span>, <span class="number">1f32</span>, <span class="number">0</span>),
             Proliferation::default(),
             <span class="number">0</span>,

@@ -562,6 +562,11 @@
 <a href="#562" id="562">562</a>
 <a href="#563" id="563">563</a>
 <a href="#564" id="564">564</a>
+<a href="#565" id="565">565</a>
+<a href="#566" id="566">566</a>
+<a href="#567" id="567">567</a>
+<a href="#568" id="568">568</a>
+<a href="#569" id="569">569</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::genotype::NeutralMutationPoisson;
 <span class="kw">use crate</span>::{stemcell::StemCell, write2file, MAX_SUBCLONES};
 <span class="kw">use </span>anyhow::{ensure, Context};
@@ -770,7 +775,7 @@
 </span><span class="kw">pub struct </span>SubClones([SubClone; MAX_SUBCLONES]);
 
 <span class="kw">impl </span>SubClones {
-    <span class="kw">pub fn </span>new(cells: Vec&lt;StemCell&gt;, capacity: usize) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub fn </span>new(cells: Vec&lt;StemCell&gt;, capacity: usize, verbosity: u8) -&gt; <span class="self">Self </span>{
         <span class="doccomment">//! Returns all the newly initiated subclones by assigning all `cells`
         //! to the neutral clone.
         //!
@@ -778,9 +783,14 @@
         </span><span class="comment">// initial state
         </span><span class="kw">let </span><span class="kw-2">mut </span>subclones: [SubClone; MAX_SUBCLONES] =
             std::array::from_fn(|i| SubClone::new(i, capacity));
+        <span class="kw">let </span>tot_cells = cells.len();
+        <span class="kw">if </span>verbosity &gt; <span class="number">1 </span>{
+            <span class="macro">println!</span>(<span class="string">&quot;assigning {} cells to the wild-type clone&quot;</span>, tot_cells);
+        }
         <span class="kw">for </span>cell <span class="kw">in </span>cells {
             subclones[<span class="number">0</span>].assign_cell(cell);
         }
+        <span class="macro">assert_eq!</span>(subclones[<span class="number">0</span>].cells.len(), tot_cells);
 
         <span class="self">Self</span>(subclones)
     }
@@ -954,7 +964,7 @@
         //!     [1. / MAX_SUBCLONES as f32; MAX_SUBCLONES]
         //! );
         //!
-        //! let subclones = SubClones::new(vec![StemCell::new()], MAX_SUBCLONES);
+        //! let subclones = SubClones::new(vec![StemCell::new()], MAX_SUBCLONES, 0);
         //! let mut variant_fraction = [0.; MAX_SUBCLONES];
         //! variant_fraction[0] = 1.;
         //!
@@ -1063,7 +1073,7 @@
         <span class="kw">let </span>cells = <span class="macro">vec!</span>[StemCell::new(); cells_present <span class="kw">as </span>usize];
         <span class="kw">let </span>before_assignment = cells.len();
         <span class="kw">let </span>cell2assign = StemCell::new();
-        <span class="kw">let </span><span class="kw-2">mut </span>subclones = SubClones::new(cells, cells_present <span class="kw">as </span>usize + <span class="number">1</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>subclones = SubClones::new(cells, cells_present <span class="kw">as </span>usize + <span class="number">1</span>, <span class="number">0</span>);
 
         assign_fit_mutations(<span class="kw-2">&amp;mut </span>subclones, <span class="number">0</span>, cell2assign, <span class="kw-2">&amp;</span>distr, <span class="kw-2">&amp;mut </span>rng, <span class="number">0</span>);
         subclones.<span class="number">0</span>[<span class="number">0</span>].cell_count() <span class="kw">as </span>usize == before_assignment + <span class="number">1
@@ -1077,7 +1087,7 @@
         <span class="kw">let </span>cells = <span class="macro">vec!</span>[StemCell::new(); cells_present <span class="kw">as </span>usize];
         <span class="kw">let </span>before_assignment = cells.len();
         <span class="kw">let </span>cell2assign = StemCell::new();
-        <span class="kw">let </span><span class="kw-2">mut </span>subclones = SubClones::new(cells, cells_present <span class="kw">as </span>usize + <span class="number">1</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>subclones = SubClones::new(cells, cells_present <span class="kw">as </span>usize + <span class="number">1</span>, <span class="number">0</span>);
 
         assign_fit_mutations(<span class="kw-2">&amp;mut </span>subclones, <span class="number">0</span>, cell2assign, <span class="kw-2">&amp;</span>distr, <span class="kw-2">&amp;mut </span>rng, <span class="number">0</span>);
         subclones.<span class="number">0</span>[<span class="number">0</span>].cell_count() <span class="kw">as </span>usize == before_assignment

@@ -1,6 +1,10 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 4.2.2
+### BugFix
+- fix the number of cells used to convert the arrival rate of fit mutatants per year to per division (was off by 1)
+
 ## 4.2.1
 ### BugFix
 - `is_asymmetric` was actually symmetric

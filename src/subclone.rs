@@ -206,7 +206,7 @@ pub fn assign_fit_mutations(
 pub struct SubClones([SubClone; MAX_SUBCLONES]);
 
 impl SubClones {
-    pub fn new(cells: Vec<StemCell>, capacity: usize) -> Self {
+    pub fn new(cells: Vec<StemCell>, capacity: usize, verbosity: u8) -> Self {
         //! Returns all the newly initiated subclones by assigning all `cells`
         //! to the neutral clone.
         //!
@@ -214,9 +214,14 @@ impl SubClones {
         // initial state
         let mut subclones: [SubClone; MAX_SUBCLONES] =
             std::array::from_fn(|i| SubClone::new(i, capacity));
+        let tot_cells = cells.len();
+        if verbosity > 1 {
+            println!("assigning {} cells to the wild-type clone", tot_cells);
+        }
         for cell in cells {
             subclones[0].assign_cell(cell);
         }
+        assert_eq!(subclones[0].cells.len(), tot_cells);
 
         Self(subclones)
     }
@@ -390,7 +395,7 @@ impl Variants {
         //!     [1. / MAX_SUBCLONES as f32; MAX_SUBCLONES]
         //! );
         //!
-        //! let subclones = SubClones::new(vec![StemCell::new()], MAX_SUBCLONES);
+        //! let subclones = SubClones::new(vec![StemCell::new()], MAX_SUBCLONES, 0);
         //! let mut variant_fraction = [0.; MAX_SUBCLONES];
         //! variant_fraction[0] = 1.;
         //!
@@ -499,7 +504,7 @@ mod tests {
         let cells = vec![StemCell::new(); cells_present as usize];
         let before_assignment = cells.len();
         let cell2assign = StemCell::new();
-        let mut subclones = SubClones::new(cells, cells_present as usize + 1);
+        let mut subclones = SubClones::new(cells, cells_present as usize + 1, 0);
 
         assign_fit_mutations(&mut subclones, 0, cell2assign, &distr, &mut rng, 0);
         subclones.0[0].cell_count() as usize == before_assignment + 1
@@ -513,7 +518,7 @@ mod tests {
         let cells = vec![StemCell::new(); cells_present as usize];
         let before_assignment = cells.len();
         let cell2assign = StemCell::new();
-        let mut subclones = SubClones::new(cells, cells_present as usize + 1);
+        let mut subclones = SubClones::new(cells, cells_present as usize + 1, 0);
 
         assign_fit_mutations(&mut subclones, 0, cell2assign, &distr, &mut rng, 0);
         subclones.0[0].cell_count() as usize == before_assignment

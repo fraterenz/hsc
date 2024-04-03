@@ -102,7 +102,8 @@ fn main() {
         };
         let subclones = SubClones::new(
             cells,
-            app.options_moran.gillespie_options.max_cells as usize,
+            app.options_moran.gillespie_options.max_cells as usize - 1,
+            app.verbosity,
         );
         let state = &mut CurrentState {
             population: Variants::variant_counts(&subclones),
@@ -177,7 +178,7 @@ fn main() {
             // convert into rates per division
             let u = compute_mu_per_division_per_cell_from_probs(
                 &app.options_moran.probs,
-                app.options_moran.gillespie_options.max_cells,
+                options.gillespie_options.max_cells,
                 app.options_moran.tau,
             ) as f64;
             let moran_distributions = Distributions::new(
@@ -209,7 +210,7 @@ fn main() {
             // convert into rates per division
             let u = compute_mu_per_division_per_cell_from_probs(
                 &app.options_moran.probs,
-                app.options_moran.gillespie_options.max_cells,
+                app.options_moran.gillespie_options.max_cells - 1,
                 app.options_moran.tau,
             ) as f64;
             let distributions = Distributions::new(
