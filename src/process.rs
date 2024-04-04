@@ -659,7 +659,7 @@ mod tests {
             SubClones::new(vec![StemCell::new(); cells.get() as usize], 3, 0),
             Distributions::new(Probs::new(10., 1., mu, 1., cells.get(), 0), 0),
             Proliferation::default(),
-            2,
+            0,
         )
     }
 
