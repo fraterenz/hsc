@@ -40,6 +40,84 @@ pub const MAX_SUBCLONES: usize = 1200;
 /// exponential growing phase.
 pub const TIME_AT_BIRTH: f32 = 9. / 12.;
 
+#[derive(Clone, Debug)]
+pub struct ProbsPerYear {
+    /// Arrival rate of neutral background mutations per year
+    pub mu_background: f32,
+    /// Arrival rate of neutral "divisional" mutations per year
+    pub mu_division: f32,
+    /// Arrival rate of fit mutants per year
+    pub mu: f32,
+}
+
+/// Probabilities used in the simulations.
+#[derive(Clone, Debug)]
+pub enum Probs {
+    Asymmetric {
+        /// Arrival rate of fit mutants per cell per division
+        u: f32,
+        /// Probabilities per year
+        probs_per_year: ProbsPerYear,
+        /// Probability of asymmetric division per cell per division
+        asymmetric: f32,
+    },
+    Symmetric {
+        /// Arrival rate of fit mutants per cell per division
+        u: f32,
+        /// Probabilities per year
+        probs_per_year: ProbsPerYear,
+    },
+}
+
+impl Probs {
+    pub fn new(
+        mu_background: f32,
+        mu_division: f32,
+        mu: f32,
+        asymmetric: f32,
+        cells: u64,
+        verbosity: u8,
+    ) -> Probs {
+        //! ## Panics
+        //! Panics when `mu` is greater than `cells` or when asymmetric is not
+        //! within interval of 0 and 1.
+        assert!(mu <= cells as f32);
+        let probs_per_year = ProbsPerYear {
+            mu_background,
+            mu_division,
+            mu,
+        };
+        let mut u = mu / (cells as f32);
+        let probs = if (asymmetric - 0.).abs() > f32::EPSILON {
+            Probs::Asymmetric {
+                u,
+                probs_per_year,
+                asymmetric,
+            }
+        } else {
+            u *= 0.5;
+            Probs::Symmetric { u, probs_per_year }
+        };
+        if verbosity > 0 {
+            println!("probs {:#?}", probs);
+        }
+        dbg!(u);
+        assert!((0f32..1.).contains(&u), "Invalid u: u>=0 and u<1");
+        assert!(
+            (0f32..=1.).contains(&asymmetric),
+            "Invalid asymmetric: asymmetric>=0 and asymmetric<=1"
+        );
+        probs
+    }
+
+    pub fn is_asymmetric(&self) -> bool {
+        match self {
+            Probs::Symmetric { .. } => false,
+            Probs::Asymmetric { .. } => true,
+        }
+    }
+}
+
 pub fn write2file<T: std::fmt::Display>(
     data: &[T],
     path: &Path,
@@ -78,6 +156,7 @@ pub fn write2file<T: std::fmt::Display>(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use quickcheck::{Arbitrary, Gen};
     use std::num::NonZeroU8;
 
@@ -89,5 +168,47 @@ mod tests {
             let lambda: NonZeroU8 = NonZeroU8::arbitrary(g);
             LambdaFromNonZeroU8(lambda.get() as f32)
         }
+    }
+
+    #[test]
+    #[should_panic]
+    fn panic_asymmetric_neg_cells_test() {
+        Probs::new(1.1, 1.1, 0.1, -0.1, 10, 0);
+    }
+
+    #[test]
+    #[should_panic]
+    fn panic_asymmetric_inf_cells_test() {
+        Probs::new(1.1, 1.1, 0.1, f32::INFINITY, 10, 0);
+    }
+
+    #[test]
+    #[should_panic]
+    fn panic_asymmetric_nan_cells_test() {
+        Probs::new(1.1, 1.1, 0.1, f32::NAN, 10, 0);
+    }
+
+    #[test]
+    #[should_panic]
+    fn panic_mu_gr_cells_test() {
+        Probs::new(1.1, 1.1, 12., 0., 10, 0);
+    }
+
+    #[test]
+    #[should_panic]
+    fn panic_mu_neg_cells_test() {
+        Probs::new(1.1, 1.1, -0.1, 0., 10, 0);
+    }
+
+    #[test]
+    #[should_panic]
+    fn panic_mu_inf_cells_test() {
+        Probs::new(1.1, 1.1, f32::INFINITY, 0., 10, 0);
+    }
+
+    #[test]
+    #[should_panic]
+    fn panic_mu_nan_cells_test() {
+        Probs::new(1.1, 1.1, f32::NAN, 0., 10, 0);
     }
 }

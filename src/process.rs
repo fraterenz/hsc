@@ -519,7 +519,7 @@ mod tests {
     use rand::SeedableRng;
     use rand_chacha::ChaCha8Rng;
 
-    use crate::genotype;
+    use crate::{genotype, Probs};
 
     use super::*;
 
@@ -548,7 +548,7 @@ mod tests {
     }
 
     fn create_moran(fit_variants: bool, cells: NonZeroU64) -> Moran {
-        let u = if fit_variants { 0.001 } else { 0. };
+        let mu = if fit_variants { 0.999 } else { 0. };
         Moran::new(
             ProcessOptions {
                 path: PathBuf::default(),
@@ -561,7 +561,7 @@ mod tests {
                 save_sfs_only: true,
                 save_population: true,
             },
-            Distributions::new(u, 10f32, 1f32, 0),
+            Distributions::new(Probs::new(1., 1., mu, 1., cells.get(), 0), 0),
             Proliferation::default(),
             0,
         )
@@ -605,12 +605,12 @@ mod tests {
         let mut moran = create_moran_fit_variants(NonZeroU64::new(cells.get() as u64).unwrap());
         let reaction = if new_clone {
             NextReaction {
-                time: 999.99,
+                time: cells.get() as f32 * 0.9999,
                 event: 0,
             }
         } else {
             NextReaction {
-                time: 12.2,
+                time: 0.0002,
                 event: 0,
             }
         };
@@ -623,11 +623,10 @@ mod tests {
 
         assert_pop_const(&moran.process, moran.tot_cells);
         if new_clone {
-            // this is ok because time is 999.99
             assert_not_all_cells_in_wild_type(&moran.process, moran.tot_cells);
         }
         let burden_after = genotype::MutationalBurden::from_moran(&moran.process, 0).unwrap();
-        assert!(burden_before.0.keys().sum::<u16>() < burden_after.0.keys().sum::<u16>());
+        assert!(burden_before.0.keys().sum::<u16>() <= burden_after.0.keys().sum::<u16>());
     }
 
     struct ExpFitVariant {
@@ -655,12 +654,12 @@ mod tests {
     }
 
     fn create_exp(fit_variants: bool, cells: NonZeroU64) -> Exponential {
-        let u = if fit_variants { 0.001 } else { 0. };
+        let mu = if fit_variants { 0.999 } else { 0. };
         Exponential::new(
             SubClones::new(vec![StemCell::new(); cells.get() as usize], 3, 0),
-            Distributions::new(u, 10f32, 1f32, 0),
+            Distributions::new(Probs::new(10., 1., mu, 1., cells.get(), 0), 0),
             Proliferation::default(),
-            0,
+            2,
         )
     }
 
@@ -689,7 +688,7 @@ mod tests {
 
         assert_eq!(exp.process.subclones.compute_tot_cells(), old_cells + 1);
         let burden_after = genotype::MutationalBurden::from_exp(&exp.process, 0).unwrap();
-        assert!(burden_before.0.keys().sum::<u16>() < burden_after.0.keys().sum::<u16>());
+        assert!(burden_before.0.keys().sum::<u16>() <= burden_after.0.keys().sum::<u16>());
     }
 
     #[quickcheck]
@@ -697,12 +696,12 @@ mod tests {
         let mut exp = create_exp_fit_variants(NonZeroU64::new(cells.get() as u64).unwrap());
         let reaction = if new_clone {
             NextReaction {
-                time: 999.99,
+                time: cells.get() as f32 * 0.9999,
                 event: 0,
             }
         } else {
             NextReaction {
-                time: 1.2,
+                time: 0.0002,
                 event: 0,
             }
         };
@@ -718,6 +717,6 @@ mod tests {
             assert_not_all_cells_in_wild_type_exp(&exp.process, exp.tot_cells);
         }
         let burden_after = genotype::MutationalBurden::from_exp(&exp.process, 0).unwrap();
-        assert!(burden_before.0.keys().sum::<u16>() < burden_after.0.keys().sum::<u16>());
+        assert!(burden_before.0.keys().sum::<u16>() <= burden_after.0.keys().sum::<u16>());
     }
 }

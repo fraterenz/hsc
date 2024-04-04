@@ -3,12 +3,13 @@ use clap::{ArgAction, Args, Parser, Subcommand};
 use hsc::{
     process::{ProcessOptions, Snapshot},
     subclone::{from_mean_std_to_shape_scale, Fitness},
+    ProbsPerYear,
 };
 use num_traits::{Float, NumCast};
 use sosa::{IterTime, NbIndividuals, Options};
 use std::{collections::VecDeque, ops::RangeInclusive, path::PathBuf};
 
-use crate::{AppOptions, Probs, SimulationOptionsExp, SimulationOptionsMoran};
+use crate::{AppOptions, SimulationOptionsExp, SimulationOptionsMoran};
 
 #[derive(Clone, Debug)]
 pub enum Parallel {
@@ -302,12 +303,12 @@ impl Cli {
                     save_sfs_only: cli.save_sfs_only,
                     save_population: cli.save_population,
                     tau: moran.tau,
-                    probs: Probs {
+                    probs_per_year: ProbsPerYear {
                         mu_background: moran.mu_background,
                         mu_division: moran.mu_division,
                         mu: moran.mu,
-                        asymmetric: moran.asymmetric,
                     },
+                    asymmetric: moran.asymmetric,
                 };
                 (options_moran, None)
             }
@@ -326,12 +327,12 @@ impl Cli {
                     save_sfs_only: cli.save_sfs_only,
                     save_population: cli.save_population,
                     tau: exp_moran.moran.tau,
-                    probs: Probs {
+                    probs_per_year: ProbsPerYear {
                         mu_background: exp_moran.moran.mu_background,
                         mu_division: exp_moran.moran.mu_division,
                         mu: exp_moran.moran.mu,
-                        asymmetric: exp_moran.moran.asymmetric,
                     },
+                    asymmetric: exp_moran.moran.asymmetric,
                 };
                 let options_exponential = SimulationOptionsExp {
                     gillespie_options: Options {
@@ -344,12 +345,12 @@ impl Cli {
                         verbosity,
                     },
                     tau: exp_moran.exponential.tau_exp,
-                    probs: Probs {
+                    probs_per_year: ProbsPerYear {
                         mu_background: exp_moran.exponential.mu_background_exp,
                         mu_division: exp_moran.exponential.mu_division_exp,
                         mu: exp_moran.exponential.mu_exp,
-                        asymmetric: exp_moran.exponential.asymmetric_exp,
                     },
+                    asymmetric: exp_moran.exponential.asymmetric_exp,
                 };
                 (options_moran, Some(options_exponential))
             }

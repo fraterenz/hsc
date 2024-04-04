@@ -7,7 +7,7 @@ use hsc::{
     proliferation::{Division, NeutralMutations, Proliferation},
     stemcell::StemCell,
     subclone::{Distributions, Fitness, SubClones, Variants},
-    write2file,
+    write2file, Probs, ProbsPerYear,
 };
 use indicatif::ParallelProgressIterator;
 use rand::SeedableRng;
@@ -21,34 +21,22 @@ use uuid::Uuid;
 pub mod clap_app;
 
 #[derive(Clone, Debug)]
-pub struct Probs {
-    mu_background: f32,
-    mu_division: f32,
-    mu: f32,
-    asymmetric: f32,
-}
-
-impl Probs {
-    pub fn is_asymmetric(&self) -> bool {
-        (self.asymmetric - 0.).abs() > f32::EPSILON
-    }
-}
-
-#[derive(Clone, Debug)]
 pub struct SimulationOptionsMoran {
     tau: f32,
-    probs: Probs,
+    probs_per_year: ProbsPerYear,
     process_options: ProcessOptions,
     gillespie_options: Options,
     save_sfs_only: bool,
     save_population: bool,
+    asymmetric: f32,
 }
 
 #[derive(Clone, Debug)]
 pub struct SimulationOptionsExp {
     tau: f32,
     gillespie_options: Options,
-    probs: Probs,
+    probs_per_year: ProbsPerYear,
+    asymmetric: f32,
 }
 
 #[derive(Clone, Debug)]
@@ -62,14 +50,6 @@ pub struct AppOptions {
     pub snapshots: VecDeque<Snapshot>,
     pub verbosity: u8,
     background: bool,
-}
-
-fn compute_mu_per_division_per_cell_from_probs(probs: &Probs, cells: u64) -> f32 {
-    let u = probs.mu / (cells as f32);
-    if !probs.is_asymmetric() {
-        return u * 0.5;
-    }
-    u
 }
 
 fn main() {
@@ -116,7 +96,7 @@ fn main() {
         let (mean, std) = app.fitness.get_mean_std();
         let filename = format!(
             "{}mu_{}mean_{}std_{}tau_{}cells_{}idx",
-            app.options_moran.probs.mu,
+            app.options_moran.probs_per_year.mu,
             mean,
             std,
             app.options_moran.tau,
@@ -133,26 +113,26 @@ fn main() {
 
         let mut moran = if let Some(options) = app.options_exponential.as_ref() {
             // convert into rates per division
-            let u = compute_mu_per_division_per_cell_from_probs(
-                &options.probs,
+            let probs_exp = Probs::new(
+                options.probs_per_year.mu_background,
+                options.probs_per_year.mu_division,
+                options.probs_per_year.mu,
+                options.asymmetric,
                 options.gillespie_options.max_cells,
-            );
-            let distributions = Distributions::new(
-                u,
-                options.probs.mu_background,
-                options.probs.mu_division,
                 options.gillespie_options.verbosity,
             );
+            let distributions_exp =
+                Distributions::new(probs_exp, options.gillespie_options.verbosity);
             let rates = subclones.gillespie_rates(&app.fitness, 1.0 / options.tau, rng);
-            let division = if options.probs.is_asymmetric() {
-                Division::Asymmetric(Bernoulli::new(options.probs.asymmetric as f64).unwrap())
-            } else {
+            let division = if (options.asymmetric - 0.).abs() < f32::EPSILON {
                 Division::Symmetric
+            } else {
+                Division::Asymmetric(Bernoulli::new(options.asymmetric as f64).unwrap())
             };
             let proliferation = Proliferation::new(neutral_mutation, division);
             let mut exp = Exponential::new(
                 subclones,
-                distributions,
+                distributions_exp,
                 proliferation,
                 options.gillespie_options.verbosity,
             );
@@ -175,16 +155,16 @@ fn main() {
             }
 
             // convert into rates per division
-            let u = compute_mu_per_division_per_cell_from_probs(
-                &app.options_moran.probs,
-                options.gillespie_options.max_cells,
-            );
-            let moran_distributions = Distributions::new(
-                u,
-                app.options_moran.probs.mu_background,
-                app.options_moran.probs.mu_division,
+            let probs_moran = Probs::new(
+                app.options_moran.probs_per_year.mu_background,
+                app.options_moran.probs_per_year.mu_division,
+                app.options_moran.probs_per_year.mu,
+                app.options_moran.asymmetric,
+                app.options_moran.gillespie_options.max_cells - 1,
                 app.options_moran.gillespie_options.verbosity,
             );
+            let moran_distributions =
+                Distributions::new(probs_moran, app.options_moran.gillespie_options.verbosity);
             // switch_to_moran start with time 0
             exp.switch_to_moran(
                 ProcessOptions {
@@ -198,24 +178,22 @@ fn main() {
                 rng,
             )
         } else {
-            let division = if app.options_moran.probs.is_asymmetric() {
-                Division::Asymmetric(
-                    Bernoulli::new(app.options_moran.probs.asymmetric as f64).unwrap(),
-                )
-            } else {
+            let division = if (app.options_moran.asymmetric - 0.).abs() < f32::EPSILON {
                 Division::Symmetric
+            } else {
+                Division::Asymmetric(Bernoulli::new(app.options_moran.asymmetric as f64).unwrap())
             };
             // convert into rates per division
-            let u = compute_mu_per_division_per_cell_from_probs(
-                &app.options_moran.probs,
+            let probs_moran = Probs::new(
+                app.options_moran.probs_per_year.mu_background,
+                app.options_moran.probs_per_year.mu_division,
+                app.options_moran.probs_per_year.mu,
+                app.options_moran.asymmetric,
                 app.options_moran.gillespie_options.max_cells - 1,
-            );
-            let distributions = Distributions::new(
-                u,
-                app.options_moran.probs.mu_background,
-                app.options_moran.probs.mu_division,
                 app.options_moran.gillespie_options.verbosity,
             );
+            let moran_distributions =
+                Distributions::new(probs_moran, app.options_moran.gillespie_options.verbosity);
             let proliferation = Proliferation::new(neutral_mutation, division);
             Moran::new(
                 app.options_moran.process_options.clone(),
@@ -226,7 +204,7 @@ fn main() {
                     save_sfs_only: app.options_moran.save_sfs_only,
                     save_population: app.options_moran.save_population,
                 },
-                distributions,
+                moran_distributions,
                 proliferation,
                 app.options_moran.gillespie_options.verbosity,
             )
@@ -285,31 +263,4 @@ fn main() {
         println!("{} End simulation", Utc::now());
         0
     });
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn is_symmetric_test() {
-        let probs = Probs {
-            mu_background: 1.,
-            mu_division: 1.,
-            mu: 1.,
-            asymmetric: 0.,
-        };
-        assert!(!probs.is_asymmetric());
-    }
-
-    #[test]
-    fn is_asymmetric_test() {
-        let probs = Probs {
-            mu_background: 1.,
-            mu_division: 1.,
-            mu: 1.,
-            asymmetric: 1.,
-        };
-        assert!(probs.is_asymmetric());
-    }
 }

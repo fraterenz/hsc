@@ -1,4 +1,5 @@
 use crate::genotype::NeutralMutationPoisson;
+use crate::Probs;
 use crate::{stemcell::StemCell, write2file, MAX_SUBCLONES};
 use anyhow::{ensure, Context};
 use rand::seq::IteratorRandom;
@@ -18,14 +19,21 @@ pub struct Distributions {
 }
 
 impl Distributions {
-    pub fn new(u: f32, background: f32, division: f32, verbosity: u8) -> Self {
+    pub fn new(probs: Probs, verbosity: u8) -> Self {
+        let (u, background, division) = match probs {
+            Probs::Symmetric { u, probs_per_year } => {
+                (u, probs_per_year.mu_background, probs_per_year.mu_division)
+            }
+            Probs::Asymmetric {
+                u, probs_per_year, ..
+            } => (u, probs_per_year.mu_background, probs_per_year.mu_division),
+        };
         if verbosity > 1 {
             println!(
                 "creating distributions with u: {}, lambda_background: {}, lambda_division: {}",
                 u, background, division
             );
         }
-        assert!((0f32..1.).contains(&u), "Invalid u: u>=0 and u<1");
 
         Self {
             u,
@@ -162,11 +170,10 @@ pub fn next_clone(
         .interdivision_time(time)
         .with_context(|| "wrong interdivision time")
         .unwrap();
-    // this will panic when u is not small and the cell hasn't divided much
-    if Bernoulli::new((distr.u * interdivison_time) as f64)
-        .unwrap()
-        .sample(rng)
-    {
+    let p = (distr.u * interdivison_time) as f64;
+    // this will panic when u is not small and the cell hasn't divided much,
+    // i.e. when p > 1
+    if Bernoulli::new(p).unwrap().sample(rng) {
         let mut rnd_clone_id = rng.gen_range(0..MAX_SUBCLONES);
         let mut counter = 0;
         // the new random clone cannot have `subclone_id` id and must be empty
@@ -178,13 +185,16 @@ pub fn next_clone(
             counter += 1;
         }
         assert!(counter <= MAX_SUBCLONES, "max number of clones reached");
-        if verbosity > 2 {
+        if verbosity > 1 {
             println!("new fit variant: assign cell to clone {}", rnd_clone_id);
         }
         return rnd_clone_id;
     }
-    if verbosity > 2 {
-        println!("no new fit variants");
+    if verbosity > 1 {
+        println!(
+            "no new fit variants with p {} at interdivision time {}",
+            p, interdivison_time
+        );
     }
     old_subclone_id
 }
@@ -490,7 +500,11 @@ mod tests {
     #[quickcheck]
     fn division_no_new_clone(seed: u64, cells_present: NonZeroU8) -> bool {
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
-        let distr = Distributions::new(0.001, 1.1, 1.1, 0);
+        let mu = 0.001 * cells_present.get() as f32;
+        let distr = Distributions::new(
+            Probs::new(1.1, 1.1, mu, 0., cells_present.get() as u64, 0),
+            0,
+        );
         let mut cell = StemCell::new();
         cell.set_last_division_time(1.1).unwrap();
 
@@ -513,7 +527,11 @@ mod tests {
     #[quickcheck]
     fn division_new_clone(seed: u64, cells_present: NonZeroU8) -> bool {
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
-        let distr = Distributions::new(0.1f32, 1.1, 1.1, 0);
+        let mu = 0.1 * cells_present.get() as f32;
+        let distr = Distributions::new(
+            Probs::new(1.1, 1.1, mu, 0., cells_present.get() as u64, 0),
+            0,
+        );
         let mut cell = StemCell::new();
         cell.set_last_division_time(1.1).unwrap();
 
@@ -530,7 +548,8 @@ mod tests {
     #[should_panic]
     fn assign_all_clones_occupied() {
         let mut rng = ChaCha8Rng::seed_from_u64(26);
-        let distr = Distributions::new(1f32, 1.1, 1.1, 0);
+        let mu = 1. * MAX_SUBCLONES as f32;
+        let distr = Distributions::new(Probs::new(1.1, 1.1, mu, 1., MAX_SUBCLONES as u64, 0), 2);
 
         let subclones = SubClones::default();
         let mut cell = StemCell::new();
@@ -539,30 +558,13 @@ mod tests {
         next_clone(&subclones, 0, &cell, 1.1, &distr, &mut rng, 0);
     }
 
-    #[should_panic]
-    #[test]
-    fn new_distribution_wrong_p_test() {
-        Distributions::new(f32::NAN, 1.1, 1.1, 0);
-    }
-
-    #[should_panic]
-    #[test]
-    fn new_distribution_wrong_p_inf_test() {
-        Distributions::new(f32::INFINITY, 1.1, 1.1, 0);
-    }
-
-    #[should_panic]
-    #[test]
-    fn new_distribution_wrong_p_neg_test() {
-        Distributions::new(-0.9, 1.1, 1.1, 0);
-    }
-
     #[quickcheck]
     fn new_distribution_test(
         lambda_division: LambdaFromNonZeroU8,
         lambda_background: LambdaFromNonZeroU8,
     ) -> bool {
-        let distrs = Distributions::new(0.1, lambda_background.0, lambda_division.0, 0);
+        let probs = Probs::new(lambda_background.0, lambda_division.0, 0.01, 0., 10, 0);
+        let distrs = Distributions::new(probs, 0);
         distrs.neutral_poisson.eq(&NeutralMutationPoisson::new(
             lambda_division.0,
             lambda_background.0,
