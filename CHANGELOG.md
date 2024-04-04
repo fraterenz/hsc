@@ -1,6 +1,12 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 4.3.3
+- create a new type for the probabilities
+### BugFix
+- saving timepoints when the simulations run for only 1 year
+- remove the factor 2 for the fit variants introduced by `v4.2.0` (not clear why we shouldn't divide by 2)
+
 ## 4.3.2
 ### BugFix
 - Do not multiply by tau when converting the rate per year into rate per division

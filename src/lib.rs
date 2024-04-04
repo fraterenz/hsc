@@ -87,7 +87,7 @@ impl Probs {
             mu_division,
             mu,
         };
-        let mut u = mu / (cells as f32);
+        let u = mu / (cells as f32);
         let probs = if (asymmetric - 0.).abs() > f32::EPSILON {
             Probs::Asymmetric {
                 u,
@@ -95,13 +95,11 @@ impl Probs {
                 asymmetric,
             }
         } else {
-            u *= 0.5;
             Probs::Symmetric { u, probs_per_year }
         };
         if verbosity > 0 {
             println!("probs {:#?}", probs);
         }
-        dbg!(u);
         assert!((0f32..1.).contains(&u), "Invalid u: u>=0 and u<1");
         assert!(
             (0f32..=1.).contains(&asymmetric),
