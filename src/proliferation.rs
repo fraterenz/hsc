@@ -3,7 +3,7 @@ use rand::Rng;
 use rand_distr::{Bernoulli, Distribution};
 
 use crate::{
-    stemcell::{assign_background_mutations, assign_divisional_mutations, StemCell},
+    stemcell::{assign_background_mutations, assign_divisional_mutations},
     subclone::{next_clone, proliferating_cell, CloneId, Distributions, SubClones},
 };
 
@@ -74,6 +74,13 @@ impl Proliferation {
         //! and panics if there aren't any empty subclones left
         //! 2. else, reassign `cell` to the old subclone with id `old_subclone_id`
         let mut stem_cell = proliferating_cell(subclones, proliferating_subclone, verbosity, rng);
+        let p = (distributions.u
+            * stem_cell
+                .interdivision_time(time)
+                .with_context(|| "wrong interdivision time")
+                .unwrap()) as f64;
+        // the fit variant is sampled here
+        let clone_id = next_clone(subclones, proliferating_subclone, p, rng, verbosity);
         if verbosity > 1 {
             println!("proliferation at time {}", time);
             println!(
@@ -99,38 +106,14 @@ impl Proliferation {
                     if verbosity > 1 {
                         println!("asymmetric division");
                     }
-                    cells_with_id_asymmetric(
-                        stem_cell,
-                        subclones,
-                        time,
-                        proliferating_subclone,
-                        distributions.u,
-                        rng,
-                        verbosity,
-                    )
+                    vec![stem_cell]
                 } else {
-                    cells_with_id_symmetric(
-                        stem_cell,
-                        subclones,
-                        time,
-                        proliferating_subclone,
-                        distributions.u,
-                        rng,
-                        verbosity,
-                    )
+                    vec![stem_cell.clone(), stem_cell]
                 }
             }
-            Division::Symmetric => cells_with_id_symmetric(
-                stem_cell,
-                subclones,
-                time,
-                proliferating_subclone,
-                distributions.u,
-                rng,
-                verbosity,
-            ),
+            Division::Symmetric => vec![stem_cell.clone(), stem_cell],
         };
-        for (mut stem_cell, clone_id) in cells {
+        for mut stem_cell in cells {
             assign_divisional_mutations(
                 &mut stem_cell,
                 &distributions.neutral_poisson,
@@ -146,43 +129,6 @@ impl Proliferation {
                 .assign_cell(stem_cell);
         }
     }
-}
-
-fn cells_with_id_asymmetric(
-    stem_cell: StemCell,
-    subclones: &mut SubClones,
-    time: f32,
-    proliferating_subclone: CloneId,
-    u: f32,
-    rng: &mut impl Rng,
-    verbosity: u8,
-) -> Vec<(StemCell, CloneId)> {
-    let p = (u * stem_cell
-        .interdivision_time(time)
-        .with_context(|| "wrong interdivision time")
-        .unwrap()) as f64;
-    let clone_id = next_clone(subclones, proliferating_subclone, p, rng, verbosity);
-    vec![(stem_cell, clone_id)]
-}
-
-fn cells_with_id_symmetric(
-    stem_cell: StemCell,
-    subclones: &mut SubClones,
-    time: f32,
-    proliferating_subclone: CloneId,
-    u: f32,
-    rng: &mut impl Rng,
-    verbosity: u8,
-) -> Vec<(StemCell, CloneId)> {
-    let p = (u
-        * 0.5
-        * stem_cell
-            .interdivision_time(time)
-            .with_context(|| "wrong interdivision time")
-            .unwrap()) as f64;
-    let clone_id1 = next_clone(subclones, proliferating_subclone, p, rng, verbosity);
-    let clone_id2 = next_clone(subclones, proliferating_subclone, p, rng, verbosity);
-    vec![(stem_cell.clone(), clone_id1), (stem_cell, clone_id2)]
 }
 
 #[derive(Clone, Debug, Default)]

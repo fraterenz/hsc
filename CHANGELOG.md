@@ -1,6 +1,10 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 4.3.6
+### BugFix
+- The previous version didn't match the number of expanded clones from the SDE mode. So, we remove factor 2 and restore solution from `v4.3.4`, even though we initiate fit variants at size 2 instead of 1 (but has small prob. of p squared).
+
 ## 4.3.5
 - reintroduce the factor 2 for the fit variants to avoid "initiating fit variants at size 2, instead of 1"
 
