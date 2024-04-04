@@ -181,19 +181,19 @@ pub struct Cli {
     subsamples: Option<Vec<usize>>,
 }
 
-impl Cli {
-    fn build_snapshots_from_time(n_snapshots: usize, time: f32) -> Vec<f32> {
-        let dx = time / ((n_snapshots - 1) as f32);
-        let mut x = vec![0.; n_snapshots];
-        for i in 1..n_snapshots - 1 {
-            x[i] = x[i - 1] + dx;
-        }
-
-        x.shrink_to_fit();
-        x[n_snapshots - 1] = time;
-        x
+fn build_snapshots_from_time(n_snapshots: usize, time: f32) -> Vec<f32> {
+    let dx = time / ((n_snapshots - 1) as f32);
+    let mut x = vec![0.; n_snapshots];
+    for i in 1..n_snapshots - 1 {
+        x[i] = x[i - 1] + dx;
     }
 
+    x.shrink_to_fit();
+    x[n_snapshots - 1] = time;
+    x
+}
+
+impl Cli {
     pub fn normalise_mutation_rate<F: Float>(rate: F) -> F {
         rate / NumCast::from(2).unwrap()
     }
@@ -255,7 +255,7 @@ impl Cli {
                 }
             }
             (None, None) => VecDeque::from_iter(
-                Cli::build_snapshots_from_time(10usize, years as f32 - 1.)
+                build_snapshots_from_time(10usize, if years > 1 { years as f32 - 1. } else { 0.9 })
                     .into_iter()
                     .map(|t| Snapshot {
                         cells2sample: cli.cells as usize,
