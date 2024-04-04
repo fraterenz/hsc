@@ -156,21 +156,15 @@ impl SubClone {
 pub fn next_clone(
     subclones: &SubClones,
     old_subclone_id: CloneId,
-    stem_cell: &StemCell,
-    time: f32,
-    distr: &Distributions,
+    p: f64,
     rng: &mut impl Rng,
     verbosity: u8,
 ) -> CloneId {
-    //! Returns a [`CloneId`] to which the stem cell must be assigned.
+    //! Returns a [`CloneId`] to which the stem cell must be assigned by
+    //! sampling a fit variant.
     //!
     //! This id can be either a new id if a new variant has been arisen, else
     //! it will be the old clone.
-    let interdivison_time = stem_cell
-        .interdivision_time(time)
-        .with_context(|| "wrong interdivision time")
-        .unwrap();
-    let p = (distr.u * interdivison_time) as f64;
     // this will panic when u is not small and the cell hasn't divided much,
     // i.e. when p > 1
     if Bernoulli::new(p).unwrap().sample(rng) {
@@ -191,10 +185,7 @@ pub fn next_clone(
         return rnd_clone_id;
     }
     if verbosity > 1 {
-        println!(
-            "no new fit variants with p {} at interdivision time {}",
-            p, interdivison_time
-        );
+        println!("no new fit variants with p {}", p,);
     }
     old_subclone_id
 }
@@ -500,11 +491,6 @@ mod tests {
     #[quickcheck]
     fn division_no_new_clone(seed: u64, cells_present: NonZeroU8) -> bool {
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
-        let mu = 0.001 * cells_present.get() as f32;
-        let distr = Distributions::new(
-            Probs::new(1.1, 1.1, mu, 0., cells_present.get() as u64, 0),
-            0,
-        );
         let mut cell = StemCell::new();
         cell.set_last_division_time(1.1).unwrap();
 
@@ -512,35 +498,21 @@ mod tests {
         let subclones = SubClones::new(cells, cells_present.get() as usize + 1, 0);
 
         let old_id = 0;
-        let id = next_clone(
-            &subclones,
-            old_id,
-            &subclones.0[old_id].cells[0],
-            1.1,
-            &distr,
-            &mut rng,
-            0,
-        );
+        let id = next_clone(&subclones, old_id, 0., &mut rng, 0);
         id == old_id
     }
 
     #[quickcheck]
     fn division_new_clone(seed: u64, cells_present: NonZeroU8) -> bool {
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
-        let mu = 0.1 * cells_present.get() as f32;
-        let distr = Distributions::new(
-            Probs::new(1.1, 1.1, mu, 0., cells_present.get() as u64, 0),
-            0,
-        );
         let mut cell = StemCell::new();
         cell.set_last_division_time(1.1).unwrap();
 
         let cells = vec![cell; cells_present.get() as usize];
         let before_assignment = cells.len();
-        let cell2assign = StemCell::new();
         let subclones = SubClones::new(cells, cells_present.get() as usize + 1, 0);
 
-        next_clone(&subclones, 0, &cell2assign, 0.1, &distr, &mut rng, 0);
+        next_clone(&subclones, 0, 1., &mut rng, 0);
         subclones.0[0].cell_count() as usize == before_assignment
     }
 
@@ -548,14 +520,12 @@ mod tests {
     #[should_panic]
     fn assign_all_clones_occupied() {
         let mut rng = ChaCha8Rng::seed_from_u64(26);
-        let mu = 1. * MAX_SUBCLONES as f32;
-        let distr = Distributions::new(Probs::new(1.1, 1.1, mu, 1., MAX_SUBCLONES as u64, 0), 2);
 
         let subclones = SubClones::default();
         let mut cell = StemCell::new();
         cell.set_last_division_time(1.).unwrap();
 
-        next_clone(&subclones, 0, &cell, 1.1, &distr, &mut rng, 0);
+        next_clone(&subclones, 0, 1., &mut rng, 0);
     }
 
     #[quickcheck]

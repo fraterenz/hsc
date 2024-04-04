@@ -1,6 +1,9 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 4.3.5
+- reintroduce the factor 2 for the fit variants to avoid "initiating fit variants at size 2, instead of 1"
+
 ## 4.3.4
 ### BugFix
 - first sample fit variant (clone) for the parental cell, then assigned both cells to that sampled clone, this justifies removing the factor 2

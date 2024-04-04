@@ -605,7 +605,7 @@ mod tests {
         let mut moran = create_moran_fit_variants(NonZeroU64::new(cells.get() as u64).unwrap());
         let reaction = if new_clone {
             NextReaction {
-                time: cells.get() as f32 * 0.9999,
+                time: 2. * cells.get() as f32 * 0.9999,
                 event: 0,
             }
         } else {
@@ -696,7 +696,7 @@ mod tests {
         let mut exp = create_exp_fit_variants(NonZeroU64::new(cells.get() as u64).unwrap());
         let reaction = if new_clone {
             NextReaction {
-                time: cells.get() as f32 * 0.9999,
+                time: 2. * cells.get() as f32 * 0.9999,
                 event: 0,
             }
         } else {

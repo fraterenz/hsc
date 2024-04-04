@@ -1327,7 +1327,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>moran = create_moran_fit_variants(NonZeroU64::new(cells.get() <span class="kw">as </span>u64).unwrap());
         <span class="kw">let </span>reaction = <span class="kw">if </span>new_clone {
             NextReaction {
-                time: cells.get() <span class="kw">as </span>f32 * <span class="number">0.9999</span>,
+                time: <span class="number">2. </span>* cells.get() <span class="kw">as </span>f32 * <span class="number">0.9999</span>,
                 event: <span class="number">0</span>,
             }
         } <span class="kw">else </span>{
@@ -1418,7 +1418,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>exp = create_exp_fit_variants(NonZeroU64::new(cells.get() <span class="kw">as </span>u64).unwrap());
         <span class="kw">let </span>reaction = <span class="kw">if </span>new_clone {
             NextReaction {
-                time: cells.get() <span class="kw">as </span>f32 * <span class="number">0.9999</span>,
+                time: <span class="number">2. </span>* cells.get() <span class="kw">as </span>f32 * <span class="number">0.9999</span>,
                 event: <span class="number">0</span>,
             }
         } <span class="kw">else </span>{
