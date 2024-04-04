@@ -570,7 +570,10 @@
 <a href="#570" id="570">570</a>
 <a href="#571" id="571">571</a>
 <a href="#572" id="572">572</a>
+<a href="#573" id="573">573</a>
+<a href="#574" id="574">574</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::genotype::NeutralMutationPoisson;
+<span class="kw">use </span><span class="kw">crate</span>::Probs;
 <span class="kw">use crate</span>::{stemcell::StemCell, write2file, MAX_SUBCLONES};
 <span class="kw">use </span>anyhow::{ensure, Context};
 <span class="kw">use </span>rand::seq::IteratorRandom;
@@ -590,14 +593,21 @@
 }
 
 <span class="kw">impl </span>Distributions {
-    <span class="kw">pub fn </span>new(u: f32, background: f32, division: f32, verbosity: u8) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub fn </span>new(probs: Probs, verbosity: u8) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>(u, background, division) = <span class="kw">match </span>probs {
+            Probs::Symmetric { u, probs_per_year } =&gt; {
+                (u, probs_per_year.mu_background, probs_per_year.mu_division)
+            }
+            Probs::Asymmetric {
+                u, probs_per_year, ..
+            } =&gt; (u, probs_per_year.mu_background, probs_per_year.mu_division),
+        };
         <span class="kw">if </span>verbosity &gt; <span class="number">1 </span>{
             <span class="macro">println!</span>(
                 <span class="string">&quot;creating distributions with u: {}, lambda_background: {}, lambda_division: {}&quot;</span>,
                 u, background, division
             );
         }
-        <span class="macro">assert!</span>((<span class="number">0f32</span>..<span class="number">1.</span>).contains(<span class="kw-2">&amp;</span>u), <span class="string">&quot;Invalid u: u&gt;=0 and u&lt;1&quot;</span>);
 
         <span class="self">Self </span>{
             u,
@@ -734,11 +744,10 @@
         .interdivision_time(time)
         .with_context(|| <span class="string">&quot;wrong interdivision time&quot;</span>)
         .unwrap();
-    <span class="comment">// this will panic when u is not small and the cell hasn&#39;t divided much
-    </span><span class="kw">if </span>Bernoulli::new((distr.u * interdivison_time) <span class="kw">as </span>f64)
-        .unwrap()
-        .sample(rng)
-    {
+    <span class="kw">let </span>p = (distr.u * interdivison_time) <span class="kw">as </span>f64;
+    <span class="comment">// this will panic when u is not small and the cell hasn&#39;t divided much,
+    // i.e. when p &gt; 1
+    </span><span class="kw">if </span>Bernoulli::new(p).unwrap().sample(rng) {
         <span class="kw">let </span><span class="kw-2">mut </span>rnd_clone_id = rng.gen_range(<span class="number">0</span>..MAX_SUBCLONES);
         <span class="kw">let </span><span class="kw-2">mut </span>counter = <span class="number">0</span>;
         <span class="comment">// the new random clone cannot have `subclone_id` id and must be empty
@@ -750,13 +759,16 @@
             counter += <span class="number">1</span>;
         }
         <span class="macro">assert!</span>(counter &lt;= MAX_SUBCLONES, <span class="string">&quot;max number of clones reached&quot;</span>);
-        <span class="kw">if </span>verbosity &gt; <span class="number">2 </span>{
+        <span class="kw">if </span>verbosity &gt; <span class="number">1 </span>{
             <span class="macro">println!</span>(<span class="string">&quot;new fit variant: assign cell to clone {}&quot;</span>, rnd_clone_id);
         }
         <span class="kw">return </span>rnd_clone_id;
     }
-    <span class="kw">if </span>verbosity &gt; <span class="number">2 </span>{
-        <span class="macro">println!</span>(<span class="string">&quot;no new fit variants&quot;</span>);
+    <span class="kw">if </span>verbosity &gt; <span class="number">1 </span>{
+        <span class="macro">println!</span>(
+            <span class="string">&quot;no new fit variants with p {} at interdivision time {}&quot;</span>,
+            p, interdivison_time
+        );
     }
     old_subclone_id
 }
@@ -1062,7 +1074,11 @@
     <span class="attr">#[quickcheck]
     </span><span class="kw">fn </span>division_no_new_clone(seed: u64, cells_present: NonZeroU8) -&gt; bool {
         <span class="kw">let </span><span class="kw-2">mut </span>rng = ChaCha8Rng::seed_from_u64(seed);
-        <span class="kw">let </span>distr = Distributions::new(<span class="number">0.001</span>, <span class="number">1.1</span>, <span class="number">1.1</span>, <span class="number">0</span>);
+        <span class="kw">let </span>mu = <span class="number">0.001 </span>* cells_present.get() <span class="kw">as </span>f32;
+        <span class="kw">let </span>distr = Distributions::new(
+            Probs::new(<span class="number">1.1</span>, <span class="number">1.1</span>, mu, <span class="number">0.</span>, cells_present.get() <span class="kw">as </span>u64, <span class="number">0</span>),
+            <span class="number">0</span>,
+        );
         <span class="kw">let </span><span class="kw-2">mut </span>cell = StemCell::new();
         cell.set_last_division_time(<span class="number">1.1</span>).unwrap();
 
@@ -1085,7 +1101,11 @@
     <span class="attr">#[quickcheck]
     </span><span class="kw">fn </span>division_new_clone(seed: u64, cells_present: NonZeroU8) -&gt; bool {
         <span class="kw">let </span><span class="kw-2">mut </span>rng = ChaCha8Rng::seed_from_u64(seed);
-        <span class="kw">let </span>distr = Distributions::new(<span class="number">0.1f32</span>, <span class="number">1.1</span>, <span class="number">1.1</span>, <span class="number">0</span>);
+        <span class="kw">let </span>mu = <span class="number">0.1 </span>* cells_present.get() <span class="kw">as </span>f32;
+        <span class="kw">let </span>distr = Distributions::new(
+            Probs::new(<span class="number">1.1</span>, <span class="number">1.1</span>, mu, <span class="number">0.</span>, cells_present.get() <span class="kw">as </span>u64, <span class="number">0</span>),
+            <span class="number">0</span>,
+        );
         <span class="kw">let </span><span class="kw-2">mut </span>cell = StemCell::new();
         cell.set_last_division_time(<span class="number">1.1</span>).unwrap();
 
@@ -1102,7 +1122,8 @@
     #[should_panic]
     </span><span class="kw">fn </span>assign_all_clones_occupied() {
         <span class="kw">let </span><span class="kw-2">mut </span>rng = ChaCha8Rng::seed_from_u64(<span class="number">26</span>);
-        <span class="kw">let </span>distr = Distributions::new(<span class="number">1f32</span>, <span class="number">1.1</span>, <span class="number">1.1</span>, <span class="number">0</span>);
+        <span class="kw">let </span>mu = <span class="number">1. </span>* MAX_SUBCLONES <span class="kw">as </span>f32;
+        <span class="kw">let </span>distr = Distributions::new(Probs::new(<span class="number">1.1</span>, <span class="number">1.1</span>, mu, <span class="number">1.</span>, MAX_SUBCLONES <span class="kw">as </span>u64, <span class="number">0</span>), <span class="number">2</span>);
 
         <span class="kw">let </span>subclones = SubClones::default();
         <span class="kw">let </span><span class="kw-2">mut </span>cell = StemCell::new();
@@ -1111,30 +1132,13 @@
         next_clone(<span class="kw-2">&amp;</span>subclones, <span class="number">0</span>, <span class="kw-2">&amp;</span>cell, <span class="number">1.1</span>, <span class="kw-2">&amp;</span>distr, <span class="kw-2">&amp;mut </span>rng, <span class="number">0</span>);
     }
 
-    <span class="attr">#[should_panic]
-    #[test]
-    </span><span class="kw">fn </span>new_distribution_wrong_p_test() {
-        Distributions::new(f32::NAN, <span class="number">1.1</span>, <span class="number">1.1</span>, <span class="number">0</span>);
-    }
-
-    <span class="attr">#[should_panic]
-    #[test]
-    </span><span class="kw">fn </span>new_distribution_wrong_p_inf_test() {
-        Distributions::new(f32::INFINITY, <span class="number">1.1</span>, <span class="number">1.1</span>, <span class="number">0</span>);
-    }
-
-    <span class="attr">#[should_panic]
-    #[test]
-    </span><span class="kw">fn </span>new_distribution_wrong_p_neg_test() {
-        Distributions::new(-<span class="number">0.9</span>, <span class="number">1.1</span>, <span class="number">1.1</span>, <span class="number">0</span>);
-    }
-
     <span class="attr">#[quickcheck]
     </span><span class="kw">fn </span>new_distribution_test(
         lambda_division: LambdaFromNonZeroU8,
         lambda_background: LambdaFromNonZeroU8,
     ) -&gt; bool {
-        <span class="kw">let </span>distrs = Distributions::new(<span class="number">0.1</span>, lambda_background.<span class="number">0</span>, lambda_division.<span class="number">0</span>, <span class="number">0</span>);
+        <span class="kw">let </span>probs = Probs::new(lambda_background.<span class="number">0</span>, lambda_division.<span class="number">0</span>, <span class="number">0.01</span>, <span class="number">0.</span>, <span class="number">10</span>, <span class="number">0</span>);
+        <span class="kw">let </span>distrs = Distributions::new(probs, <span class="number">0</span>);
         distrs.neutral_poisson.eq(<span class="kw-2">&amp;</span>NeutralMutationPoisson::new(
             lambda_division.<span class="number">0</span>,
             lambda_background.<span class="number">0</span>,

@@ -142,6 +142,7 @@
 <a href="#142" id="142">142</a>
 <a href="#143" id="143">143</a>
 <a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>anyhow::Context;
 <span class="kw">use </span>rand::Rng;
 <span class="kw">use </span>rand_distr::{Bernoulli, Distribution};
@@ -218,6 +219,16 @@
         //! and panics if there aren&#39;t any empty subclones left
         //! 2. else, reassign `cell` to the old subclone with id `old_subclone_id`
         </span><span class="kw">let </span><span class="kw-2">mut </span>stem_cell = proliferating_cell(subclones, proliferating_subclone, verbosity, rng);
+        <span class="comment">// the fit variant is sampled here
+        </span><span class="kw">let </span>id = next_clone(
+            subclones,
+            proliferating_subclone,
+            <span class="kw-2">&amp;</span>stem_cell,
+            time,
+            distributions,
+            rng,
+            verbosity,
+        );
         <span class="kw">if </span>verbosity &gt; <span class="number">1 </span>{
             <span class="macro">println!</span>(<span class="string">&quot;proliferation at time {}&quot;</span>, time);
             <span class="macro">println!</span>(
@@ -255,15 +266,6 @@
             assign_divisional_mutations(
                 <span class="kw-2">&amp;mut </span>stem_cell,
                 <span class="kw-2">&amp;</span>distributions.neutral_poisson,
-                rng,
-                verbosity,
-            );
-            <span class="kw">let </span>id = next_clone(
-                subclones,
-                proliferating_subclone,
-                <span class="kw-2">&amp;</span>stem_cell,
-                time,
-                distributions,
                 rng,
                 verbosity,
             );

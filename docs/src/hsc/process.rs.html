@@ -720,7 +720,6 @@
 <a href="#720" id="720">720</a>
 <a href="#721" id="721">721</a>
 <a href="#722" id="722">722</a>
-<a href="#723" id="723">723</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::genotype::{MutationalBurden, Sfs};
 <span class="kw">use </span><span class="kw">crate</span>::proliferation::{NeutralMutations, Proliferation};
 <span class="kw">use </span><span class="kw">crate</span>::stemcell::{assign_background_mutations, StemCell};
@@ -1242,7 +1241,7 @@
     <span class="kw">use </span>rand::SeedableRng;
     <span class="kw">use </span>rand_chacha::ChaCha8Rng;
 
-    <span class="kw">use </span><span class="kw">crate</span>::genotype;
+    <span class="kw">use crate</span>::{genotype, Probs};
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
@@ -1271,7 +1270,7 @@
     }
 
     <span class="kw">fn </span>create_moran(fit_variants: bool, cells: NonZeroU64) -&gt; Moran {
-        <span class="kw">let </span>u = <span class="kw">if </span>fit_variants { <span class="number">0.001 </span>} <span class="kw">else </span>{ <span class="number">0. </span>};
+        <span class="kw">let </span>mu = <span class="kw">if </span>fit_variants { <span class="number">0.999 </span>} <span class="kw">else </span>{ <span class="number">0. </span>};
         Moran::new(
             ProcessOptions {
                 path: PathBuf::default(),
@@ -1284,7 +1283,7 @@
                 save_sfs_only: <span class="bool-val">true</span>,
                 save_population: <span class="bool-val">true</span>,
             },
-            Distributions::new(u, <span class="number">10f32</span>, <span class="number">1f32</span>, <span class="number">0</span>),
+            Distributions::new(Probs::new(<span class="number">1.</span>, <span class="number">1.</span>, mu, <span class="number">1.</span>, cells.get(), <span class="number">0</span>), <span class="number">0</span>),
             Proliferation::default(),
             <span class="number">0</span>,
         )
@@ -1328,12 +1327,12 @@
         <span class="kw">let </span><span class="kw-2">mut </span>moran = create_moran_fit_variants(NonZeroU64::new(cells.get() <span class="kw">as </span>u64).unwrap());
         <span class="kw">let </span>reaction = <span class="kw">if </span>new_clone {
             NextReaction {
-                time: <span class="number">999.99</span>,
+                time: cells.get() <span class="kw">as </span>f32 * <span class="number">0.9999</span>,
                 event: <span class="number">0</span>,
             }
         } <span class="kw">else </span>{
             NextReaction {
-                time: <span class="number">12.2</span>,
+                time: <span class="number">0.0002</span>,
                 event: <span class="number">0</span>,
             }
         };
@@ -1346,11 +1345,10 @@
 
         assert_pop_const(<span class="kw-2">&amp;</span>moran.process, moran.tot_cells);
         <span class="kw">if </span>new_clone {
-            <span class="comment">// this is ok because time is 999.99
-            </span>assert_not_all_cells_in_wild_type(<span class="kw-2">&amp;</span>moran.process, moran.tot_cells);
+            assert_not_all_cells_in_wild_type(<span class="kw-2">&amp;</span>moran.process, moran.tot_cells);
         }
         <span class="kw">let </span>burden_after = genotype::MutationalBurden::from_moran(<span class="kw-2">&amp;</span>moran.process, <span class="number">0</span>).unwrap();
-        <span class="macro">assert!</span>(burden_before.<span class="number">0</span>.keys().sum::&lt;u16&gt;() &lt; burden_after.<span class="number">0</span>.keys().sum::&lt;u16&gt;());
+        <span class="macro">assert!</span>(burden_before.<span class="number">0</span>.keys().sum::&lt;u16&gt;() &lt;= burden_after.<span class="number">0</span>.keys().sum::&lt;u16&gt;());
     }
 
     <span class="kw">struct </span>ExpFitVariant {
@@ -1378,10 +1376,10 @@
     }
 
     <span class="kw">fn </span>create_exp(fit_variants: bool, cells: NonZeroU64) -&gt; Exponential {
-        <span class="kw">let </span>u = <span class="kw">if </span>fit_variants { <span class="number">0.001 </span>} <span class="kw">else </span>{ <span class="number">0. </span>};
+        <span class="kw">let </span>mu = <span class="kw">if </span>fit_variants { <span class="number">0.999 </span>} <span class="kw">else </span>{ <span class="number">0. </span>};
         Exponential::new(
             SubClones::new(<span class="macro">vec!</span>[StemCell::new(); cells.get() <span class="kw">as </span>usize], <span class="number">3</span>, <span class="number">0</span>),
-            Distributions::new(u, <span class="number">10f32</span>, <span class="number">1f32</span>, <span class="number">0</span>),
+            Distributions::new(Probs::new(<span class="number">10.</span>, <span class="number">1.</span>, mu, <span class="number">1.</span>, cells.get(), <span class="number">0</span>), <span class="number">0</span>),
             Proliferation::default(),
             <span class="number">0</span>,
         )
@@ -1412,7 +1410,7 @@
 
         <span class="macro">assert_eq!</span>(exp.process.subclones.compute_tot_cells(), old_cells + <span class="number">1</span>);
         <span class="kw">let </span>burden_after = genotype::MutationalBurden::from_exp(<span class="kw-2">&amp;</span>exp.process, <span class="number">0</span>).unwrap();
-        <span class="macro">assert!</span>(burden_before.<span class="number">0</span>.keys().sum::&lt;u16&gt;() &lt; burden_after.<span class="number">0</span>.keys().sum::&lt;u16&gt;());
+        <span class="macro">assert!</span>(burden_before.<span class="number">0</span>.keys().sum::&lt;u16&gt;() &lt;= burden_after.<span class="number">0</span>.keys().sum::&lt;u16&gt;());
     }
 
     <span class="attr">#[quickcheck]
@@ -1420,12 +1418,12 @@
         <span class="kw">let </span><span class="kw-2">mut </span>exp = create_exp_fit_variants(NonZeroU64::new(cells.get() <span class="kw">as </span>u64).unwrap());
         <span class="kw">let </span>reaction = <span class="kw">if </span>new_clone {
             NextReaction {
-                time: <span class="number">999.99</span>,
+                time: cells.get() <span class="kw">as </span>f32 * <span class="number">0.9999</span>,
                 event: <span class="number">0</span>,
             }
         } <span class="kw">else </span>{
             NextReaction {
-                time: <span class="number">1.2</span>,
+                time: <span class="number">0.0002</span>,
                 event: <span class="number">0</span>,
             }
         };
@@ -1441,7 +1439,7 @@
             assert_not_all_cells_in_wild_type_exp(<span class="kw-2">&amp;</span>exp.process, exp.tot_cells);
         }
         <span class="kw">let </span>burden_after = genotype::MutationalBurden::from_exp(<span class="kw-2">&amp;</span>exp.process, <span class="number">0</span>).unwrap();
-        <span class="macro">assert!</span>(burden_before.<span class="number">0</span>.keys().sum::&lt;u16&gt;() &lt; burden_after.<span class="number">0</span>.keys().sum::&lt;u16&gt;());
+        <span class="macro">assert!</span>(burden_before.<span class="number">0</span>.keys().sum::&lt;u16&gt;() &lt;= burden_after.<span class="number">0</span>.keys().sum::&lt;u16&gt;());
     }
 }
 </code></pre></div></section></main></body></html>

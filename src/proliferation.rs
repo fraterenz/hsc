@@ -74,6 +74,16 @@ impl Proliferation {
         //! and panics if there aren't any empty subclones left
         //! 2. else, reassign `cell` to the old subclone with id `old_subclone_id`
         let mut stem_cell = proliferating_cell(subclones, proliferating_subclone, verbosity, rng);
+        // the fit variant is sampled here
+        let id = next_clone(
+            subclones,
+            proliferating_subclone,
+            &stem_cell,
+            time,
+            distributions,
+            rng,
+            verbosity,
+        );
         if verbosity > 1 {
             println!("proliferation at time {}", time);
             println!(
@@ -111,15 +121,6 @@ impl Proliferation {
             assign_divisional_mutations(
                 &mut stem_cell,
                 &distributions.neutral_poisson,
-                rng,
-                verbosity,
-            );
-            let id = next_clone(
-                subclones,
-                proliferating_subclone,
-                &stem_cell,
-                time,
-                distributions,
                 rng,
                 verbosity,
             );

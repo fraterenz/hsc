@@ -1,6 +1,10 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 4.3.4
+### BugFix
+- first sample fit variant (clone) for the parental cell, then assigned both cells to that sampled clone, this justifies removing the factor 2
+
 ## 4.3.3
 - create a new type for the probabilities
 ### BugFix
