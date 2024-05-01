@@ -123,13 +123,15 @@ impl Exponential {
                 println!("updating the neutral background mutations for all cells");
             }
             for stem_cell in self.subclones.get_mut_cells() {
-                assign_background_mutations(
-                    stem_cell,
-                    TIME_AT_BIRTH,
-                    &self.distributions.neutral_poisson,
-                    rng,
-                    self.verbosity,
-                );
+                if stem_cell.get_last_division_time() < &TIME_AT_BIRTH {
+                    assign_background_mutations(
+                        stem_cell,
+                        TIME_AT_BIRTH,
+                        &self.distributions.neutral_poisson,
+                        rng,
+                        self.verbosity,
+                    );
+                }
                 // this is required as we are restarting the time
                 stem_cell.set_last_division_time(0f32).unwrap();
             }
