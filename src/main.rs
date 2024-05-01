@@ -137,7 +137,7 @@ fn main() {
                 options.gillespie_options.verbosity,
             );
             if options.gillespie_options.verbosity > 0 {
-                println!("start simulating exp. phase");
+                println!("{} start simulating exp. phase", Utc::now());
             }
 
             let stop = simulate(
@@ -150,7 +150,8 @@ fn main() {
             );
             if options.gillespie_options.verbosity > 0 {
                 println!(
-                    "exponential simulation {} stopped because {:#?}, nb cells {}",
+                    "{} exponential simulation {} stopped because {:#?}, nb cells {}",
+                    Utc::now(),
                     idx,
                     stop,
                     exp.subclones.compute_tot_cells()
@@ -169,7 +170,7 @@ fn main() {
             let moran_distributions =
                 Distributions::new(probs_moran, app.options_moran.gillespie_options.verbosity);
             if options.gillespie_options.verbosity > 0 {
-                println!("switching to moran");
+                println!("{} switching to moran", Utc::now());
             }
             // switch_to_moran start with time 0
             exp.switch_to_moran(
@@ -216,7 +217,7 @@ fn main() {
             )
         };
         if app.options_moran.gillespie_options.verbosity > 0 {
-            println!("simulating Moran phase");
+            println!("{} simulating Moran phase", Utc::now());
         }
 
         let stop = simulate(
