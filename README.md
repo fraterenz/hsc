@@ -3,7 +3,7 @@
 ![workflow](https://github.com/fraterenz/hsc/actions/workflows/test.yml/badge.svg)
 [![codecov](https://codecov.io/gh/fraterenz/hsc/branch/master/graph/badge.svg?token=6JTE5AV0QO)](https://codecov.io/gh/fraterenz/hsc)
 
-`hsc` can be ran from the comand line: `hsc [OPTIONS] <DIR> <COMMAND>`, see also `hsc --help` and `hsc -h`.
+`hsc` can be ran from the command line: `hsc [OPTIONS] <DIR> <COMMAND>`, see also `hsc --help` and `hsc -h`.
 There are two commands `<COMMAND>`, which are `moran` and `exp-moran`.
 They have their options as well, see `hsc <COMMAND> -h`.
 
