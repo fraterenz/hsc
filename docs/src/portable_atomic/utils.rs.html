@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/francesco/.cargo/registry/src/index.crates.io-6f17d22bba15001f/portable-atomic-1.3.3/src/utils.rs`."><title>utils.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="portable_atomic" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/francesco/.cargo/registry/src/index.crates.io-6f17d22bba15001f/portable-atomic-1.3.3/src/utils.rs`."><title>utils.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-dd39b87e5fcfba68.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="portable_atomic" data-themes="" data-resource-suffix="" data-rustdoc-version="1.80.1 (3f5fd8dd4 2024-08-06)" data-channel="1.80.1" data-search-js="search-d52510db62a78183.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-20a3ad099b048cf2.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -742,11 +742,11 @@
 <a href="#742" id="742">742</a>
 <a href="#743" id="743">743</a>
 <a href="#744" id="744">744</a>
-</pre></div><pre class="rust"><code><span class="attr">#![cfg_attr(not(all(test, feature = <span class="string">&quot;float&quot;</span>)), allow(dead_code, unused_macros))]
+</pre></div><pre class="rust"><code><span class="attr">#![cfg_attr(not(all(test, feature = <span class="string">"float"</span>)), allow(dead_code, unused_macros))]
 
 </span><span class="kw">use </span>core::sync::atomic::Ordering;
 
-<span class="macro">macro_rules! </span>static_assert {
+<span class="macro">macro_rules!</span> static_assert {
     (<span class="macro-nonterminal">$cond</span>:expr $(,)<span class="question-mark">?</span>) =&gt; {{
         <span class="kw">let </span>[] = [(); <span class="bool-val">true </span><span class="kw">as </span>usize - <span class="macro-nonterminal">$crate::utils::_assert_is_bool</span>(<span class="macro-nonterminal">$cond</span>) <span class="kw">as </span>usize];
     }};
@@ -755,7 +755,7 @@
     v
 }
 
-<span class="macro">macro_rules! </span>static_assert_layout {
+<span class="macro">macro_rules!</span> static_assert_layout {
     (<span class="macro-nonterminal">$atomic_type</span>:ty, <span class="macro-nonterminal">$value_type</span>:ty) =&gt; {
         <span class="macro">static_assert!</span>(
             core::mem::align_of::&lt;<span class="macro-nonterminal">$atomic_type</span>&gt;() == core::mem::size_of::&lt;<span class="macro-nonterminal">$atomic_type</span>&gt;()
@@ -765,7 +765,7 @@
 }
 
 <span class="comment">// #[doc = concat!(...)] requires Rust 1.54
-</span><span class="macro">macro_rules! </span>doc_comment {
+</span><span class="macro">macro_rules!</span> doc_comment {
     (<span class="macro-nonterminal">$doc</span>:expr, $(<span class="macro-nonterminal">$tt</span>:tt)<span class="kw-2">*</span>) =&gt; {
         <span class="attr">#[doc = <span class="macro-nonterminal">$doc</span>]
         </span>$(<span class="macro-nonterminal">$tt</span>)*
@@ -783,12 +783,12 @@
 </span><span class="attr">#[allow(unused_macros)]
 #[cfg(not(portable_atomic_no_outline_atomics))]
 #[cfg(any(
-    target_arch = <span class="string">&quot;aarch64&quot;</span>,
-    target_arch = <span class="string">&quot;arm&quot;</span>,
-    target_arch = <span class="string">&quot;powerpc64&quot;</span>,
-    all(target_arch = <span class="string">&quot;x86_64&quot;</span>, not(target_env = <span class="string">&quot;sgx&quot;</span>)),
+    target_arch = <span class="string">"aarch64"</span>,
+    target_arch = <span class="string">"arm"</span>,
+    target_arch = <span class="string">"powerpc64"</span>,
+    all(target_arch = <span class="string">"x86_64"</span>, not(target_env = <span class="string">"sgx"</span>)),
 ))]
-</span><span class="macro">macro_rules! </span>ifunc {
+</span><span class="macro">macro_rules!</span> ifunc {
     (<span class="kw">unsafe fn</span>($(<span class="macro-nonterminal">$arg_pat</span>:ident: <span class="macro-nonterminal">$arg_ty</span>:ty),<span class="kw-2">*</span>) $(-&gt; <span class="macro-nonterminal">$ret_ty</span>:ty)<span class="question-mark">? </span>{ $(<span class="macro-nonterminal">$detect_body</span>:tt)* }) =&gt; {{
         <span class="kw">type </span>FnTy = <span class="kw">unsafe fn</span>($(<span class="macro-nonterminal">$arg_ty</span>),<span class="kw-2">*</span>) $(-&gt; <span class="macro-nonterminal">$ret_ty</span>)<span class="question-mark">?</span>;
         <span class="kw">static </span>FUNC: core::sync::atomic::AtomicPtr&lt;()&gt;
@@ -816,12 +816,12 @@
 <span class="attr">#[allow(unused_macros)]
 #[cfg(not(portable_atomic_no_outline_atomics))]
 #[cfg(any(
-    target_arch = <span class="string">&quot;aarch64&quot;</span>,
-    target_arch = <span class="string">&quot;arm&quot;</span>,
-    target_arch = <span class="string">&quot;powerpc64&quot;</span>,
-    all(target_arch = <span class="string">&quot;x86_64&quot;</span>, not(target_env = <span class="string">&quot;sgx&quot;</span>)),
+    target_arch = <span class="string">"aarch64"</span>,
+    target_arch = <span class="string">"arm"</span>,
+    target_arch = <span class="string">"powerpc64"</span>,
+    all(target_arch = <span class="string">"x86_64"</span>, not(target_env = <span class="string">"sgx"</span>)),
 ))]
-</span><span class="macro">macro_rules! </span>fn_alias {
+</span><span class="macro">macro_rules!</span> fn_alias {
     (
         $(<span class="attr">#[$(<span class="macro-nonterminal">$fn_attr</span>:tt)<span class="kw-2">*</span>]</span>)*
         <span class="macro-nonterminal">$vis</span>:vis <span class="kw">unsafe fn</span>($(<span class="macro-nonterminal">$arg_pat</span>:ident: <span class="macro-nonterminal">$arg_ty</span>:ty),<span class="kw-2">*</span>) $(-&gt; <span class="macro-nonterminal">$ret_ty</span>:ty)<span class="question-mark">?</span>;
@@ -835,7 +835,7 @@
             <span class="comment">// SAFETY: the caller must uphold the safety contract.
             </span><span class="kw">unsafe </span>{ <span class="macro-nonterminal">$from</span>($(<span class="macro-nonterminal">$arg_pat</span>,)* $(<span class="macro-nonterminal">$last_args</span>)<span class="kw-2">*</span>) }
         }
-        <span class="macro">fn_alias! </span>{
+        <span class="macro">fn_alias!</span> {
             $(<span class="attr">#[$(<span class="macro-nonterminal">$fn_attr</span>)<span class="kw-2">*</span>]</span>)*
             <span class="macro-nonterminal">$vis </span><span class="kw">unsafe fn</span>($(<span class="macro-nonterminal">$arg_pat</span>: <span class="macro-nonterminal">$arg_ty</span>),<span class="kw-2">*</span>) $(-&gt; <span class="macro-nonterminal">$ret_ty</span>)<span class="question-mark">?</span>;
             $(<span class="macro-nonterminal">$rest</span>)*
@@ -848,7 +848,7 @@
 }
 
 <span class="doccomment">/// Make the given function const if the given condition is true.
-</span><span class="macro">macro_rules! </span>const_fn {
+</span><span class="macro">macro_rules!</span> const_fn {
     (
         const_if: <span class="attr">#[cfg($(<span class="macro-nonterminal">$cfg</span>:tt)+)]</span>;
         $(<span class="attr">#[$(<span class="macro-nonterminal">$attr</span>:tt)<span class="kw-2">*</span>]</span>)*
@@ -865,19 +865,19 @@
 
 <span class="doccomment">/// Implements `core::fmt::Debug` and `serde::{Serialize, Deserialize}` (when serde
 /// feature is enabled) for atomic bool, integer, or float.
-</span><span class="macro">macro_rules! </span>impl_debug_and_serde {
+</span><span class="macro">macro_rules!</span> impl_debug_and_serde {
     (<span class="macro-nonterminal">$atomic_type</span>:ident) =&gt; {
         <span class="kw">impl </span>fmt::Debug <span class="kw">for </span><span class="macro-nonterminal">$atomic_type </span>{
             <span class="attr">#[allow(clippy::missing_inline_in_public_items)] </span><span class="comment">// fmt is not hot path
-            </span><span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+            </span><span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
                 <span class="comment">// std atomic types use Relaxed in Debug::fmt: https://github.com/rust-lang/rust/blob/1.69.0/library/core/src/sync/atomic.rs#L2023
                 </span>fmt::Debug::fmt(<span class="kw-2">&amp;</span><span class="self">self</span>.load(Ordering::Relaxed), f)
             }
         }
-        <span class="attr">#[cfg(feature = <span class="string">&quot;serde&quot;</span>)]
-        #[cfg_attr(docsrs, doc(cfg(feature = <span class="string">&quot;serde&quot;</span>)))]
+        <span class="attr">#[cfg(feature = <span class="string">"serde"</span>)]
+        #[cfg_attr(docsrs, doc(cfg(feature = <span class="string">"serde"</span>)))]
         </span><span class="kw">impl </span>serde::Serialize <span class="kw">for </span><span class="macro-nonterminal">$atomic_type </span>{
-            <span class="attr">#[allow(clippy::missing_inline_in_public_items)] </span><span class="comment">// serde doesn&#39;t use inline on std atomic&#39;s Serialize/Deserialize impl
+            <span class="attr">#[allow(clippy::missing_inline_in_public_items)] </span><span class="comment">// serde doesn't use inline on std atomic's Serialize/Deserialize impl
             </span><span class="kw">fn </span>serialize&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
             <span class="kw">where
                 </span>S: serde::Serializer,
@@ -886,13 +886,13 @@
                 </span><span class="self">self</span>.load(Ordering::Relaxed).serialize(serializer)
             }
         }
-        <span class="attr">#[cfg(feature = <span class="string">&quot;serde&quot;</span>)]
-        #[cfg_attr(docsrs, doc(cfg(feature = <span class="string">&quot;serde&quot;</span>)))]
-        </span><span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; serde::Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span><span class="macro-nonterminal">$atomic_type </span>{
-            <span class="attr">#[allow(clippy::missing_inline_in_public_items)] </span><span class="comment">// serde doesn&#39;t use inline on std atomic&#39;s Serialize/Deserialize impl
+        <span class="attr">#[cfg(feature = <span class="string">"serde"</span>)]
+        #[cfg_attr(docsrs, doc(cfg(feature = <span class="string">"serde"</span>)))]
+        </span><span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; serde::Deserialize&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span><span class="macro-nonterminal">$atomic_type </span>{
+            <span class="attr">#[allow(clippy::missing_inline_in_public_items)] </span><span class="comment">// serde doesn't use inline on std atomic's Serialize/Deserialize impl
             </span><span class="kw">fn </span>deserialize&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt;
             <span class="kw">where
-                </span>D: serde::Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
+                </span>D: serde::Deserializer&lt;<span class="lifetime">'de</span>&gt;,
             {
                 serde::Deserialize::deserialize(deserializer).map(<span class="self">Self</span>::new)
             }
@@ -902,7 +902,7 @@
 
 <span class="comment">// We do not provide `nand` because it cannot be optimized on neither x86 nor MSP430.
 // https://godbolt.org/z/x88voWGov
-</span><span class="macro">macro_rules! </span>impl_default_no_fetch_ops {
+</span><span class="macro">macro_rules!</span> impl_default_no_fetch_ops {
     (<span class="macro-nonterminal">$atomic_type</span>:ident, bool) =&gt; {
         <span class="kw">impl </span><span class="macro-nonterminal">$atomic_type </span>{
             <span class="attr">#[inline]
@@ -952,7 +952,7 @@
         }
     };
 }
-<span class="macro">macro_rules! </span>impl_default_bit_opts {
+<span class="macro">macro_rules!</span> impl_default_bit_opts {
     (<span class="macro-nonterminal">$atomic_type</span>:ident, <span class="macro-nonterminal">$int_type</span>:ident) =&gt; {
         <span class="kw">impl </span><span class="macro-nonterminal">$atomic_type </span>{
             <span class="attr">#[inline]
@@ -978,106 +978,106 @@
 }
 
 <span class="attr">#[cfg(not(all(
-    target_arch = <span class="string">&quot;mips&quot;</span>,
+    target_arch = <span class="string">"mips"</span>,
     portable_atomic_no_atomic_load_store,
-    not(feature = <span class="string">&quot;critical-section&quot;</span>),
+    not(feature = <span class="string">"critical-section"</span>),
 )))]
 #[macro_use]
 </span><span class="kw">mod </span>atomic_ptr_macros {
     <span class="attr">#[doc(hidden)] </span><span class="comment">// Not public API. (please submit an issue if you want this to be public API)
     </span><span class="attr">#[macro_export]
-    </span><span class="macro">macro_rules! </span>cfg_has_atomic_ptr {
+    </span><span class="macro">macro_rules!</span> cfg_has_atomic_ptr {
         ($(<span class="macro-nonterminal">$tt</span>:tt)<span class="kw-2">*</span>) =&gt; {
             $(<span class="macro-nonterminal">$tt</span>)*
         };
     }
 }
 <span class="attr">#[cfg(all(
-    target_arch = <span class="string">&quot;mips&quot;</span>,
+    target_arch = <span class="string">"mips"</span>,
     portable_atomic_no_atomic_load_store,
-    not(feature = <span class="string">&quot;critical-section&quot;</span>),
+    not(feature = <span class="string">"critical-section"</span>),
 ))]
 #[macro_use]
 </span><span class="kw">mod </span>atomic_ptr_macros {
     <span class="attr">#[doc(hidden)] </span><span class="comment">// Not public API. (please submit an issue if you want this to be public API)
     </span><span class="attr">#[macro_export]
-    </span><span class="macro">macro_rules! </span>cfg_has_atomic_ptr {
+    </span><span class="macro">macro_rules!</span> cfg_has_atomic_ptr {
         ($(<span class="macro-nonterminal">$tt</span>:tt)<span class="kw-2">*</span>) =&gt; {};
     }
 }
 
 <span class="attr">#[cfg(not(all(
-    any(target_arch = <span class="string">&quot;mips&quot;</span>, target_arch = <span class="string">&quot;bpf&quot;</span>),
+    any(target_arch = <span class="string">"mips"</span>, target_arch = <span class="string">"bpf"</span>),
     portable_atomic_no_atomic_load_store,
-    not(feature = <span class="string">&quot;critical-section&quot;</span>),
+    not(feature = <span class="string">"critical-section"</span>),
 )))]
 #[macro_use]
 </span><span class="kw">mod </span>atomic_8_16_macros {
     <span class="attr">#[doc(hidden)] </span><span class="comment">// Not public API. (please submit an issue if you want this to be public API)
     </span><span class="attr">#[macro_export]
-    </span><span class="macro">macro_rules! </span>cfg_has_atomic_8 {
+    </span><span class="macro">macro_rules!</span> cfg_has_atomic_8 {
         ($(<span class="macro-nonterminal">$tt</span>:tt)<span class="kw-2">*</span>) =&gt; {
             $(<span class="macro-nonterminal">$tt</span>)*
         };
     }
     <span class="attr">#[doc(hidden)] </span><span class="comment">// Not public API. (please submit an issue if you want this to be public API)
     </span><span class="attr">#[macro_export]
-    </span><span class="macro">macro_rules! </span>cfg_has_atomic_16 {
+    </span><span class="macro">macro_rules!</span> cfg_has_atomic_16 {
         ($(<span class="macro-nonterminal">$tt</span>:tt)<span class="kw-2">*</span>) =&gt; {
             $(<span class="macro-nonterminal">$tt</span>)*
         };
     }
 }
 <span class="attr">#[cfg(all(
-    any(target_arch = <span class="string">&quot;mips&quot;</span>, target_arch = <span class="string">&quot;bpf&quot;</span>),
+    any(target_arch = <span class="string">"mips"</span>, target_arch = <span class="string">"bpf"</span>),
     portable_atomic_no_atomic_load_store,
-    not(feature = <span class="string">&quot;critical-section&quot;</span>),
+    not(feature = <span class="string">"critical-section"</span>),
 ))]
 #[macro_use]
 </span><span class="kw">mod </span>atomic_8_16_macros {
     <span class="attr">#[doc(hidden)] </span><span class="comment">// Not public API. (please submit an issue if you want this to be public API)
     </span><span class="attr">#[macro_export]
-    </span><span class="macro">macro_rules! </span>cfg_has_atomic_8 {
+    </span><span class="macro">macro_rules!</span> cfg_has_atomic_8 {
         ($(<span class="macro-nonterminal">$tt</span>:tt)<span class="kw-2">*</span>) =&gt; {};
     }
     <span class="attr">#[doc(hidden)] </span><span class="comment">// Not public API. (please submit an issue if you want this to be public API)
     </span><span class="attr">#[macro_export]
-    </span><span class="macro">macro_rules! </span>cfg_has_atomic_16 {
+    </span><span class="macro">macro_rules!</span> cfg_has_atomic_16 {
         ($(<span class="macro-nonterminal">$tt</span>:tt)<span class="kw-2">*</span>) =&gt; {};
     }
 }
 
 <span class="attr">#[cfg(all(
-    any(not(target_pointer_width = <span class="string">&quot;16&quot;</span>), feature = <span class="string">&quot;fallback&quot;</span>),
+    any(not(target_pointer_width = <span class="string">"16"</span>), feature = <span class="string">"fallback"</span>),
     not(all(
-        any(target_arch = <span class="string">&quot;mips&quot;</span>, target_arch = <span class="string">&quot;bpf&quot;</span>),
+        any(target_arch = <span class="string">"mips"</span>, target_arch = <span class="string">"bpf"</span>),
         portable_atomic_no_atomic_load_store,
-        not(feature = <span class="string">&quot;critical-section&quot;</span>),
+        not(feature = <span class="string">"critical-section"</span>),
     )),
 ))]
 #[macro_use]
 </span><span class="kw">mod </span>atomic_32_macros {
     <span class="attr">#[doc(hidden)] </span><span class="comment">// Not public API. (please submit an issue if you want this to be public API)
     </span><span class="attr">#[macro_export]
-    </span><span class="macro">macro_rules! </span>cfg_has_atomic_32 {
+    </span><span class="macro">macro_rules!</span> cfg_has_atomic_32 {
         ($(<span class="macro-nonterminal">$tt</span>:tt)<span class="kw-2">*</span>) =&gt; {
             $(<span class="macro-nonterminal">$tt</span>)*
         };
     }
 }
 <span class="attr">#[cfg(not(all(
-    any(not(target_pointer_width = <span class="string">&quot;16&quot;</span>), feature = <span class="string">&quot;fallback&quot;</span>),
+    any(not(target_pointer_width = <span class="string">"16"</span>), feature = <span class="string">"fallback"</span>),
     not(all(
-        any(target_arch = <span class="string">&quot;mips&quot;</span>, target_arch = <span class="string">&quot;bpf&quot;</span>),
+        any(target_arch = <span class="string">"mips"</span>, target_arch = <span class="string">"bpf"</span>),
         portable_atomic_no_atomic_load_store,
-        not(feature = <span class="string">&quot;critical-section&quot;</span>),
+        not(feature = <span class="string">"critical-section"</span>),
     )),
 )))]
 #[macro_use]
 </span><span class="kw">mod </span>atomic_32_macros {
     <span class="attr">#[doc(hidden)] </span><span class="comment">// Not public API. (please submit an issue if you want this to be public API)
     </span><span class="attr">#[macro_export]
-    </span><span class="macro">macro_rules! </span>cfg_has_atomic_32 {
+    </span><span class="macro">macro_rules!</span> cfg_has_atomic_32 {
         ($(<span class="macro-nonterminal">$tt</span>:tt)<span class="kw-2">*</span>) =&gt; {};
     }
 }
@@ -1086,41 +1086,41 @@
     portable_atomic_no_cfg_target_has_atomic,
     cfg(any(
         all(
-            feature = <span class="string">&quot;fallback&quot;</span>,
+            feature = <span class="string">"fallback"</span>,
             any(
                 not(portable_atomic_no_atomic_cas),
                 portable_atomic_unsafe_assume_single_core,
-                feature = <span class="string">&quot;critical-section&quot;</span>,
-                target_arch = <span class="string">&quot;avr&quot;</span>,
-                target_arch = <span class="string">&quot;msp430&quot;</span>,
+                feature = <span class="string">"critical-section"</span>,
+                target_arch = <span class="string">"avr"</span>,
+                target_arch = <span class="string">"msp430"</span>,
             ),
         ),
         not(portable_atomic_no_atomic_64),
-        not(any(target_pointer_width = <span class="string">&quot;16&quot;</span>, target_pointer_width = <span class="string">&quot;32&quot;</span>)),
+        not(any(target_pointer_width = <span class="string">"16"</span>, target_pointer_width = <span class="string">"32"</span>)),
     ))
 )]
 #[cfg_attr(
     not(portable_atomic_no_cfg_target_has_atomic),
     cfg(any(
         all(
-            feature = <span class="string">&quot;fallback&quot;</span>,
+            feature = <span class="string">"fallback"</span>,
             any(
-                target_has_atomic = <span class="string">&quot;ptr&quot;</span>,
+                target_has_atomic = <span class="string">"ptr"</span>,
                 portable_atomic_unsafe_assume_single_core,
-                feature = <span class="string">&quot;critical-section&quot;</span>,
-                target_arch = <span class="string">&quot;avr&quot;</span>,
-                target_arch = <span class="string">&quot;msp430&quot;</span>,
+                feature = <span class="string">"critical-section"</span>,
+                target_arch = <span class="string">"avr"</span>,
+                target_arch = <span class="string">"msp430"</span>,
             ),
         ),
-        target_has_atomic = <span class="string">&quot;64&quot;</span>,
-        not(any(target_pointer_width = <span class="string">&quot;16&quot;</span>, target_pointer_width = <span class="string">&quot;32&quot;</span>)),
+        target_has_atomic = <span class="string">"64"</span>,
+        not(any(target_pointer_width = <span class="string">"16"</span>, target_pointer_width = <span class="string">"32"</span>)),
     ))
 )]
 #[macro_use]
 </span><span class="kw">mod </span>atomic_64_macros {
     <span class="attr">#[doc(hidden)] </span><span class="comment">// Not public API. (please submit an issue if you want this to be public API)
     </span><span class="attr">#[macro_export]
-    </span><span class="macro">macro_rules! </span>cfg_has_atomic_64 {
+    </span><span class="macro">macro_rules!</span> cfg_has_atomic_64 {
         ($(<span class="macro-nonterminal">$tt</span>:tt)<span class="kw-2">*</span>) =&gt; {
             $(<span class="macro-nonterminal">$tt</span>)*
         };
@@ -1130,198 +1130,198 @@
     portable_atomic_no_cfg_target_has_atomic,
     cfg(not(any(
         all(
-            feature = <span class="string">&quot;fallback&quot;</span>,
+            feature = <span class="string">"fallback"</span>,
             any(
                 not(portable_atomic_no_atomic_cas),
                 portable_atomic_unsafe_assume_single_core,
-                feature = <span class="string">&quot;critical-section&quot;</span>,
-                target_arch = <span class="string">&quot;avr&quot;</span>,
-                target_arch = <span class="string">&quot;msp430&quot;</span>,
+                feature = <span class="string">"critical-section"</span>,
+                target_arch = <span class="string">"avr"</span>,
+                target_arch = <span class="string">"msp430"</span>,
             ),
         ),
         not(portable_atomic_no_atomic_64),
-        not(any(target_pointer_width = <span class="string">&quot;16&quot;</span>, target_pointer_width = <span class="string">&quot;32&quot;</span>)),
+        not(any(target_pointer_width = <span class="string">"16"</span>, target_pointer_width = <span class="string">"32"</span>)),
     )))
 )]
 #[cfg_attr(
     not(portable_atomic_no_cfg_target_has_atomic),
     cfg(not(any(
         all(
-            feature = <span class="string">&quot;fallback&quot;</span>,
+            feature = <span class="string">"fallback"</span>,
             any(
-                target_has_atomic = <span class="string">&quot;ptr&quot;</span>,
+                target_has_atomic = <span class="string">"ptr"</span>,
                 portable_atomic_unsafe_assume_single_core,
-                feature = <span class="string">&quot;critical-section&quot;</span>,
-                target_arch = <span class="string">&quot;avr&quot;</span>,
-                target_arch = <span class="string">&quot;msp430&quot;</span>,
+                feature = <span class="string">"critical-section"</span>,
+                target_arch = <span class="string">"avr"</span>,
+                target_arch = <span class="string">"msp430"</span>,
             ),
         ),
-        target_has_atomic = <span class="string">&quot;64&quot;</span>,
-        not(any(target_pointer_width = <span class="string">&quot;16&quot;</span>, target_pointer_width = <span class="string">&quot;32&quot;</span>)),
+        target_has_atomic = <span class="string">"64"</span>,
+        not(any(target_pointer_width = <span class="string">"16"</span>, target_pointer_width = <span class="string">"32"</span>)),
     )))
 )]
 #[macro_use]
 </span><span class="kw">mod </span>atomic_64_macros {
     <span class="attr">#[doc(hidden)] </span><span class="comment">// Not public API. (please submit an issue if you want this to be public API)
     </span><span class="attr">#[macro_export]
-    </span><span class="macro">macro_rules! </span>cfg_has_atomic_64 {
+    </span><span class="macro">macro_rules!</span> cfg_has_atomic_64 {
         ($(<span class="macro-nonterminal">$tt</span>:tt)<span class="kw-2">*</span>) =&gt; {};
     }
 }
 
 <span class="attr">#[cfg_attr(
-    not(feature = <span class="string">&quot;fallback&quot;</span>),
+    not(feature = <span class="string">"fallback"</span>),
     cfg(any(
         all(
             any(not(portable_atomic_no_asm), portable_atomic_unstable_asm),
-            target_arch = <span class="string">&quot;aarch64&quot;</span>,
+            target_arch = <span class="string">"aarch64"</span>,
         ),
         all(
             any(not(portable_atomic_no_asm), portable_atomic_unstable_asm),
             any(
-                target_feature = <span class="string">&quot;cmpxchg16b&quot;</span>,
-                portable_atomic_target_feature = <span class="string">&quot;cmpxchg16b&quot;</span>,
+                target_feature = <span class="string">"cmpxchg16b"</span>,
+                portable_atomic_target_feature = <span class="string">"cmpxchg16b"</span>,
                 all(
-                    feature = <span class="string">&quot;fallback&quot;</span>,
+                    feature = <span class="string">"fallback"</span>,
                     not(portable_atomic_no_cmpxchg16b_target_feature),
                     not(portable_atomic_no_outline_atomics),
-                    not(target_env = <span class="string">&quot;sgx&quot;</span>),
+                    not(target_env = <span class="string">"sgx"</span>),
                 ),
             ),
-            target_arch = <span class="string">&quot;x86_64&quot;</span>,
+            target_arch = <span class="string">"x86_64"</span>,
         ),
         all(
             portable_atomic_unstable_asm_experimental_arch,
             any(
-                target_feature = <span class="string">&quot;quadword-atomics&quot;</span>,
-                portable_atomic_target_feature = <span class="string">&quot;quadword-atomics&quot;</span>,
+                target_feature = <span class="string">"quadword-atomics"</span>,
+                portable_atomic_target_feature = <span class="string">"quadword-atomics"</span>,
                 all(
-                    feature = <span class="string">&quot;fallback&quot;</span>,
+                    feature = <span class="string">"fallback"</span>,
                     not(portable_atomic_no_outline_atomics),
                     portable_atomic_outline_atomics, <span class="comment">// TODO(powerpc64): currently disabled by default
                     </span>any(
                         all(
-                            target_os = <span class="string">&quot;linux&quot;</span>,
+                            target_os = <span class="string">"linux"</span>,
                             any(
-                                target_env = <span class="string">&quot;gnu&quot;</span>,
-                                all(target_env = <span class="string">&quot;musl&quot;</span>, not(target_feature = <span class="string">&quot;crt-static&quot;</span>)),
+                                target_env = <span class="string">"gnu"</span>,
+                                all(target_env = <span class="string">"musl"</span>, not(target_feature = <span class="string">"crt-static"</span>)),
                                 portable_atomic_outline_atomics,
                             ),
                         ),
-                        target_os = <span class="string">&quot;freebsd&quot;</span>,
+                        target_os = <span class="string">"freebsd"</span>,
                     ),
                     not(any(miri, portable_atomic_sanitize_thread)),
                 ),
             ),
-            target_arch = <span class="string">&quot;powerpc64&quot;</span>,
+            target_arch = <span class="string">"powerpc64"</span>,
         ),
-        all(portable_atomic_unstable_asm_experimental_arch, target_arch = <span class="string">&quot;s390x&quot;</span>),
+        all(portable_atomic_unstable_asm_experimental_arch, target_arch = <span class="string">"s390x"</span>),
     ))
 )]
 #[cfg_attr(
-    all(feature = <span class="string">&quot;fallback&quot;</span>, portable_atomic_no_cfg_target_has_atomic),
+    all(feature = <span class="string">"fallback"</span>, portable_atomic_no_cfg_target_has_atomic),
     cfg(any(
         not(portable_atomic_no_atomic_cas),
         portable_atomic_unsafe_assume_single_core,
-        feature = <span class="string">&quot;critical-section&quot;</span>,
-        target_arch = <span class="string">&quot;avr&quot;</span>,
-        target_arch = <span class="string">&quot;msp430&quot;</span>,
+        feature = <span class="string">"critical-section"</span>,
+        target_arch = <span class="string">"avr"</span>,
+        target_arch = <span class="string">"msp430"</span>,
     ))
 )]
 #[cfg_attr(
-    all(feature = <span class="string">&quot;fallback&quot;</span>, not(portable_atomic_no_cfg_target_has_atomic)),
+    all(feature = <span class="string">"fallback"</span>, not(portable_atomic_no_cfg_target_has_atomic)),
     cfg(any(
-        target_has_atomic = <span class="string">&quot;ptr&quot;</span>,
+        target_has_atomic = <span class="string">"ptr"</span>,
         portable_atomic_unsafe_assume_single_core,
-        feature = <span class="string">&quot;critical-section&quot;</span>,
-        target_arch = <span class="string">&quot;avr&quot;</span>,
-        target_arch = <span class="string">&quot;msp430&quot;</span>,
+        feature = <span class="string">"critical-section"</span>,
+        target_arch = <span class="string">"avr"</span>,
+        target_arch = <span class="string">"msp430"</span>,
     ))
 )]
 #[macro_use]
 </span><span class="kw">mod </span>atomic_128_macros {
     <span class="attr">#[doc(hidden)] </span><span class="comment">// Not public API. (please submit an issue if you want this to be public API)
     </span><span class="attr">#[macro_export]
-    </span><span class="macro">macro_rules! </span>cfg_has_atomic_128 {
+    </span><span class="macro">macro_rules!</span> cfg_has_atomic_128 {
         ($(<span class="macro-nonterminal">$tt</span>:tt)<span class="kw-2">*</span>) =&gt; {
             $(<span class="macro-nonterminal">$tt</span>)*
         };
     }
 }
 <span class="attr">#[cfg_attr(
-    not(feature = <span class="string">&quot;fallback&quot;</span>),
+    not(feature = <span class="string">"fallback"</span>),
     cfg(not(any(
         all(
             any(not(portable_atomic_no_asm), portable_atomic_unstable_asm),
-            target_arch = <span class="string">&quot;aarch64&quot;</span>,
+            target_arch = <span class="string">"aarch64"</span>,
         ),
         all(
             any(not(portable_atomic_no_asm), portable_atomic_unstable_asm),
             any(
-                target_feature = <span class="string">&quot;cmpxchg16b&quot;</span>,
-                portable_atomic_target_feature = <span class="string">&quot;cmpxchg16b&quot;</span>,
+                target_feature = <span class="string">"cmpxchg16b"</span>,
+                portable_atomic_target_feature = <span class="string">"cmpxchg16b"</span>,
                 all(
-                    feature = <span class="string">&quot;fallback&quot;</span>,
+                    feature = <span class="string">"fallback"</span>,
                     not(portable_atomic_no_cmpxchg16b_target_feature),
                     not(portable_atomic_no_outline_atomics),
-                    not(target_env = <span class="string">&quot;sgx&quot;</span>),
+                    not(target_env = <span class="string">"sgx"</span>),
                 ),
             ),
-            target_arch = <span class="string">&quot;x86_64&quot;</span>,
+            target_arch = <span class="string">"x86_64"</span>,
         ),
         all(
             portable_atomic_unstable_asm_experimental_arch,
             any(
-                target_feature = <span class="string">&quot;quadword-atomics&quot;</span>,
-                portable_atomic_target_feature = <span class="string">&quot;quadword-atomics&quot;</span>,
+                target_feature = <span class="string">"quadword-atomics"</span>,
+                portable_atomic_target_feature = <span class="string">"quadword-atomics"</span>,
                 all(
-                    feature = <span class="string">&quot;fallback&quot;</span>,
+                    feature = <span class="string">"fallback"</span>,
                     not(portable_atomic_no_outline_atomics),
                     portable_atomic_outline_atomics, <span class="comment">// TODO(powerpc64): currently disabled by default
                     </span>any(
                         all(
-                            target_os = <span class="string">&quot;linux&quot;</span>,
+                            target_os = <span class="string">"linux"</span>,
                             any(
-                                target_env = <span class="string">&quot;gnu&quot;</span>,
-                                all(target_env = <span class="string">&quot;musl&quot;</span>, not(target_feature = <span class="string">&quot;crt-static&quot;</span>)),
+                                target_env = <span class="string">"gnu"</span>,
+                                all(target_env = <span class="string">"musl"</span>, not(target_feature = <span class="string">"crt-static"</span>)),
                                 portable_atomic_outline_atomics,
                             ),
                         ),
-                        target_os = <span class="string">&quot;freebsd&quot;</span>,
+                        target_os = <span class="string">"freebsd"</span>,
                     ),
                     not(any(miri, portable_atomic_sanitize_thread)),
                 ),
             ),
-            target_arch = <span class="string">&quot;powerpc64&quot;</span>,
+            target_arch = <span class="string">"powerpc64"</span>,
         ),
-        all(portable_atomic_unstable_asm_experimental_arch, target_arch = <span class="string">&quot;s390x&quot;</span>),
+        all(portable_atomic_unstable_asm_experimental_arch, target_arch = <span class="string">"s390x"</span>),
     )))
 )]
 #[cfg_attr(
-    all(feature = <span class="string">&quot;fallback&quot;</span>, portable_atomic_no_cfg_target_has_atomic),
+    all(feature = <span class="string">"fallback"</span>, portable_atomic_no_cfg_target_has_atomic),
     cfg(not(any(
         not(portable_atomic_no_atomic_cas),
         portable_atomic_unsafe_assume_single_core,
-        feature = <span class="string">&quot;critical-section&quot;</span>,
-        target_arch = <span class="string">&quot;avr&quot;</span>,
-        target_arch = <span class="string">&quot;msp430&quot;</span>,
+        feature = <span class="string">"critical-section"</span>,
+        target_arch = <span class="string">"avr"</span>,
+        target_arch = <span class="string">"msp430"</span>,
     )))
 )]
 #[cfg_attr(
-    all(feature = <span class="string">&quot;fallback&quot;</span>, not(portable_atomic_no_cfg_target_has_atomic)),
+    all(feature = <span class="string">"fallback"</span>, not(portable_atomic_no_cfg_target_has_atomic)),
     cfg(not(any(
-        target_has_atomic = <span class="string">&quot;ptr&quot;</span>,
+        target_has_atomic = <span class="string">"ptr"</span>,
         portable_atomic_unsafe_assume_single_core,
-        feature = <span class="string">&quot;critical-section&quot;</span>,
-        target_arch = <span class="string">&quot;avr&quot;</span>,
-        target_arch = <span class="string">&quot;msp430&quot;</span>,
+        feature = <span class="string">"critical-section"</span>,
+        target_arch = <span class="string">"avr"</span>,
+        target_arch = <span class="string">"msp430"</span>,
     )))
 )]
 #[macro_use]
 </span><span class="kw">mod </span>atomic_128_macros {
     <span class="attr">#[doc(hidden)] </span><span class="comment">// Not public API. (please submit an issue if you want this to be public API)
     </span><span class="attr">#[macro_export]
-    </span><span class="macro">macro_rules! </span>cfg_has_atomic_128 {
+    </span><span class="macro">macro_rules!</span> cfg_has_atomic_128 {
         ($(<span class="macro-nonterminal">$tt</span>:tt)<span class="kw-2">*</span>) =&gt; {};
     }
 }
@@ -1331,26 +1331,26 @@
     cfg(any(
         not(portable_atomic_no_atomic_cas),
         portable_atomic_unsafe_assume_single_core,
-        feature = <span class="string">&quot;critical-section&quot;</span>,
-        target_arch = <span class="string">&quot;avr&quot;</span>,
-        target_arch = <span class="string">&quot;msp430&quot;</span>,
+        feature = <span class="string">"critical-section"</span>,
+        target_arch = <span class="string">"avr"</span>,
+        target_arch = <span class="string">"msp430"</span>,
     ))
 )]
 #[cfg_attr(
     not(portable_atomic_no_cfg_target_has_atomic),
     cfg(any(
-        target_has_atomic = <span class="string">&quot;ptr&quot;</span>,
+        target_has_atomic = <span class="string">"ptr"</span>,
         portable_atomic_unsafe_assume_single_core,
-        feature = <span class="string">&quot;critical-section&quot;</span>,
-        target_arch = <span class="string">&quot;avr&quot;</span>,
-        target_arch = <span class="string">&quot;msp430&quot;</span>,
+        feature = <span class="string">"critical-section"</span>,
+        target_arch = <span class="string">"avr"</span>,
+        target_arch = <span class="string">"msp430"</span>,
     ))
 )]
 #[macro_use]
 </span><span class="kw">mod </span>atomic_cas_macros {
     <span class="attr">#[doc(hidden)] </span><span class="comment">// Not public API. (please submit an issue if you want this to be public API)
     </span><span class="attr">#[macro_export]
-    </span><span class="macro">macro_rules! </span>cfg_has_atomic_cas {
+    </span><span class="macro">macro_rules!</span> cfg_has_atomic_cas {
         ($(<span class="macro-nonterminal">$tt</span>:tt)<span class="kw-2">*</span>) =&gt; {
             $(<span class="macro-nonterminal">$tt</span>)*
         };
@@ -1361,26 +1361,26 @@
     cfg(not(any(
         not(portable_atomic_no_atomic_cas),
         portable_atomic_unsafe_assume_single_core,
-        feature = <span class="string">&quot;critical-section&quot;</span>,
-        target_arch = <span class="string">&quot;avr&quot;</span>,
-        target_arch = <span class="string">&quot;msp430&quot;</span>,
+        feature = <span class="string">"critical-section"</span>,
+        target_arch = <span class="string">"avr"</span>,
+        target_arch = <span class="string">"msp430"</span>,
     )))
 )]
 #[cfg_attr(
     not(portable_atomic_no_cfg_target_has_atomic),
     cfg(not(any(
-        target_has_atomic = <span class="string">&quot;ptr&quot;</span>,
+        target_has_atomic = <span class="string">"ptr"</span>,
         portable_atomic_unsafe_assume_single_core,
-        feature = <span class="string">&quot;critical-section&quot;</span>,
-        target_arch = <span class="string">&quot;avr&quot;</span>,
-        target_arch = <span class="string">&quot;msp430&quot;</span>,
+        feature = <span class="string">"critical-section"</span>,
+        target_arch = <span class="string">"avr"</span>,
+        target_arch = <span class="string">"msp430"</span>,
     )))
 )]
 #[macro_use]
 </span><span class="kw">mod </span>atomic_cas_macros {
     <span class="attr">#[doc(hidden)] </span><span class="comment">// Not public API. (please submit an issue if you want this to be public API)
     </span><span class="attr">#[macro_export]
-    </span><span class="macro">macro_rules! </span>cfg_has_atomic_cas {
+    </span><span class="macro">macro_rules!</span> cfg_has_atomic_cas {
         ($(<span class="macro-nonterminal">$tt</span>:tt)<span class="kw-2">*</span>) =&gt; {};
     }
 }
@@ -1391,9 +1391,9 @@
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>assert_load_ordering(order: Ordering) {
     <span class="kw">match </span>order {
         Ordering::Acquire | Ordering::Relaxed | Ordering::SeqCst =&gt; {}
-        Ordering::Release =&gt; <span class="macro">panic!</span>(<span class="string">&quot;there is no such thing as a release load&quot;</span>),
-        Ordering::AcqRel =&gt; <span class="macro">panic!</span>(<span class="string">&quot;there is no such thing as an acquire-release load&quot;</span>),
-        <span class="kw">_ </span>=&gt; <span class="macro">unreachable!</span>(<span class="string">&quot;{:?}&quot;</span>, order),
+        Ordering::Release =&gt; <span class="macro">panic!</span>(<span class="string">"there is no such thing as a release load"</span>),
+        Ordering::AcqRel =&gt; <span class="macro">panic!</span>(<span class="string">"there is no such thing as an acquire-release load"</span>),
+        <span class="kw">_ </span>=&gt; <span class="macro">unreachable!</span>(<span class="string">"{:?}"</span>, order),
     }
 }
 
@@ -1403,9 +1403,9 @@
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>assert_store_ordering(order: Ordering) {
     <span class="kw">match </span>order {
         Ordering::Release | Ordering::Relaxed | Ordering::SeqCst =&gt; {}
-        Ordering::Acquire =&gt; <span class="macro">panic!</span>(<span class="string">&quot;there is no such thing as an acquire store&quot;</span>),
-        Ordering::AcqRel =&gt; <span class="macro">panic!</span>(<span class="string">&quot;there is no such thing as an acquire-release store&quot;</span>),
-        <span class="kw">_ </span>=&gt; <span class="macro">unreachable!</span>(<span class="string">&quot;{:?}&quot;</span>, order),
+        Ordering::Acquire =&gt; <span class="macro">panic!</span>(<span class="string">"there is no such thing as an acquire store"</span>),
+        Ordering::AcqRel =&gt; <span class="macro">panic!</span>(<span class="string">"there is no such thing as an acquire-release store"</span>),
+        <span class="kw">_ </span>=&gt; <span class="macro">unreachable!</span>(<span class="string">"{:?}"</span>, order),
     }
 }
 
@@ -1419,13 +1419,13 @@
         | Ordering::Relaxed
         | Ordering::Release
         | Ordering::SeqCst =&gt; {}
-        <span class="kw">_ </span>=&gt; <span class="macro">unreachable!</span>(<span class="string">&quot;{:?}, {:?}&quot;</span>, success, failure),
+        <span class="kw">_ </span>=&gt; <span class="macro">unreachable!</span>(<span class="string">"{:?}, {:?}"</span>, success, failure),
     }
     <span class="kw">match </span>failure {
         Ordering::Acquire | Ordering::Relaxed | Ordering::SeqCst =&gt; {}
-        Ordering::Release =&gt; <span class="macro">panic!</span>(<span class="string">&quot;there is no such thing as a release failure ordering&quot;</span>),
-        Ordering::AcqRel =&gt; <span class="macro">panic!</span>(<span class="string">&quot;there is no such thing as an acquire-release failure ordering&quot;</span>),
-        <span class="kw">_ </span>=&gt; <span class="macro">unreachable!</span>(<span class="string">&quot;{:?}, {:?}&quot;</span>, success, failure),
+        Ordering::Release =&gt; <span class="macro">panic!</span>(<span class="string">"there is no such thing as a release failure ordering"</span>),
+        Ordering::AcqRel =&gt; <span class="macro">panic!</span>(<span class="string">"there is no such thing as an acquire-release failure ordering"</span>),
+        <span class="kw">_ </span>=&gt; <span class="macro">unreachable!</span>(<span class="string">"{:?}, {:?}"</span>, success, failure),
     }
 }
 
@@ -1444,7 +1444,7 @@
 
 <span class="doccomment">/// Emulate strict provenance.
 ///
-/// Once strict_provenance is stable, migrate to the standard library&#39;s APIs.
+/// Once strict_provenance is stable, migrate to the standard library's APIs.
 </span><span class="attr">#[cfg(miri)]
 #[allow(
     clippy::cast_possible_wrap,
@@ -1468,9 +1468,9 @@
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>with_addr&lt;T&gt;(ptr: <span class="kw-2">*mut </span>T, addr: usize) -&gt; <span class="kw-2">*mut </span>T {
         <span class="comment">// FIXME(strict_provenance_magic): I am magic and should be a compiler intrinsic.
         //
-        // In the mean-time, this operation is defined to be &quot;as if&quot; it was
+        // In the mean-time, this operation is defined to be "as if" it was
         // a wrapping_offset, so we can emulate it as such. This should properly
-        // restore pointer provenance even under today&#39;s compiler.
+        // restore pointer provenance even under today's compiler.
         </span><span class="kw">let </span>self_addr = <span class="self">self</span>::addr(ptr) <span class="kw">as </span>isize;
         <span class="kw">let </span>dest_addr = addr <span class="kw">as </span>isize;
         <span class="kw">let </span>offset = dest_addr.wrapping_sub(self_addr);

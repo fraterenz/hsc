@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/francesco/.cargo/registry/src/index.crates.io-6f17d22bba15001f/crossbeam-utils-0.8.15/src/atomic/atomic_cell.rs`."><title>atomic_cell.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="crossbeam_utils" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/francesco/.cargo/registry/src/index.crates.io-6f17d22bba15001f/crossbeam-utils-0.8.15/src/atomic/atomic_cell.rs`."><title>atomic_cell.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-dd39b87e5fcfba68.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="crossbeam_utils" data-themes="" data-resource-suffix="" data-rustdoc-version="1.80.1 (3f5fd8dd4 2024-08-06)" data-channel="1.80.1" data-search-js="search-d52510db62a78183.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-20a3ad099b048cf2.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1131,7 +1131,7 @@
 
 <span class="kw">use </span>core::ptr;
 
-<span class="attr">#[cfg(feature = <span class="string">&quot;std&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"std"</span>)]
 </span><span class="kw">use </span>std::panic::{RefUnwindSafe, UnwindSafe};
 
 <span class="kw">use </span><span class="kw">super</span>::seq_lock::SeqLock;
@@ -1162,7 +1162,7 @@
     /// &lt;https://github.com/crossbeam-rs/crossbeam/issues/833&gt;
     ///
     /// Note:
-    /// - we&#39;ll never store uninitialized `T` due to our API only using initialized `T`.
+    /// - we'll never store uninitialized `T` due to our API only using initialized `T`.
     /// - this `MaybeUninit` does *not* fix &lt;https://github.com/crossbeam-rs/crossbeam/issues/315&gt;.
     </span>value: UnsafeCell&lt;MaybeUninit&lt;T&gt;&gt;,
 }
@@ -1170,9 +1170,9 @@
 <span class="kw">unsafe impl</span>&lt;T: Send&gt; Send <span class="kw">for </span>AtomicCell&lt;T&gt; {}
 <span class="kw">unsafe impl</span>&lt;T: Send&gt; Sync <span class="kw">for </span>AtomicCell&lt;T&gt; {}
 
-<span class="attr">#[cfg(feature = <span class="string">&quot;std&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"std"</span>)]
 </span><span class="kw">impl</span>&lt;T&gt; UnwindSafe <span class="kw">for </span>AtomicCell&lt;T&gt; {}
-<span class="attr">#[cfg(feature = <span class="string">&quot;std&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"std"</span>)]
 </span><span class="kw">impl</span>&lt;T&gt; RefUnwindSafe <span class="kw">for </span>AtomicCell&lt;T&gt; {}
 
 <span class="kw">impl</span>&lt;T&gt; AtomicCell&lt;T&gt; {
@@ -1218,7 +1218,7 @@
 
     <span class="doccomment">/// Returns `true` if operations on values of this type are lock-free.
     ///
-    /// If the compiler or the platform doesn&#39;t support the necessary atomic instructions,
+    /// If the compiler or the platform doesn't support the necessary atomic instructions,
     /// `AtomicCell&lt;T&gt;` will use global locks for every potentially concurrent atomic operation.
     ///
     /// # Examples
@@ -1362,7 +1362,7 @@
     /// assert_eq!(a.load(), 2);
     /// ```
     </span><span class="comment">// TODO: remove in the next major version.
-    </span><span class="attr">#[deprecated(note = <span class="string">&quot;Use `compare_exchange` instead&quot;</span>)]
+    </span><span class="attr">#[deprecated(note = <span class="string">"Use `compare_exchange` instead"</span>)]
     </span><span class="kw">pub fn </span>compare_and_swap(<span class="kw-2">&amp;</span><span class="self">self</span>, current: T, new: T) -&gt; T {
         <span class="kw">match </span><span class="self">self</span>.compare_exchange(current, new) {
             <span class="prelude-val">Ok</span>(v) =&gt; v,
@@ -1443,7 +1443,7 @@
     }
 }
 
-<span class="macro">macro_rules! </span>impl_arithmetic {
+<span class="macro">macro_rules!</span> impl_arithmetic {
     (<span class="macro-nonterminal">$t</span>:ty, fallback, <span class="macro-nonterminal">$example</span>:tt) =&gt; {
         <span class="kw">impl </span>AtomicCell&lt;<span class="macro-nonterminal">$t</span>&gt; {
             <span class="doccomment">/// Increments the current value by `val` and returns the previous value.
@@ -1492,7 +1492,7 @@
                 old
             }
 
-            <span class="doccomment">/// Applies bitwise &quot;and&quot; to the current value and returns the previous value.
+            <span class="doccomment">/// Applies bitwise "and" to the current value and returns the previous value.
             ///
             /// # Examples
             ///
@@ -1513,7 +1513,7 @@
                 old
             }
 
-            <span class="doccomment">/// Applies bitwise &quot;nand&quot; to the current value and returns the previous value.
+            <span class="doccomment">/// Applies bitwise "nand" to the current value and returns the previous value.
             ///
             /// # Examples
             ///
@@ -1534,7 +1534,7 @@
                 old
             }
 
-            <span class="doccomment">/// Applies bitwise &quot;or&quot; to the current value and returns the previous value.
+            <span class="doccomment">/// Applies bitwise "or" to the current value and returns the previous value.
             ///
             /// # Examples
             ///
@@ -1555,7 +1555,7 @@
                 old
             }
 
-            <span class="doccomment">/// Applies bitwise &quot;xor&quot; to the current value and returns the previous value.
+            <span class="doccomment">/// Applies bitwise "xor" to the current value and returns the previous value.
             ///
             /// # Examples
             ///
@@ -1679,7 +1679,7 @@
                 }
             }
 
-            <span class="doccomment">/// Applies bitwise &quot;and&quot; to the current value and returns the previous value.
+            <span class="doccomment">/// Applies bitwise "and" to the current value and returns the previous value.
             ///
             /// # Examples
             ///
@@ -1705,7 +1705,7 @@
                 }
             }
 
-            <span class="doccomment">/// Applies bitwise &quot;nand&quot; to the current value and returns the previous value.
+            <span class="doccomment">/// Applies bitwise "nand" to the current value and returns the previous value.
             ///
             /// # Examples
             ///
@@ -1731,7 +1731,7 @@
                 }
             }
 
-            <span class="doccomment">/// Applies bitwise &quot;or&quot; to the current value and returns the previous value.
+            <span class="doccomment">/// Applies bitwise "or" to the current value and returns the previous value.
             ///
             /// # Examples
             ///
@@ -1757,7 +1757,7 @@
                 }
             }
 
-            <span class="doccomment">/// Applies bitwise &quot;xor&quot; to the current value and returns the previous value.
+            <span class="doccomment">/// Applies bitwise "xor" to the current value and returns the previous value.
             ///
             /// # Examples
             ///
@@ -1840,39 +1840,39 @@
     };
 }
 
-<span class="macro">impl_arithmetic!</span>(u8, atomic::AtomicU8, <span class="string">&quot;let a = AtomicCell::new(7u8);&quot;</span>);
-<span class="macro">impl_arithmetic!</span>(i8, atomic::AtomicI8, <span class="string">&quot;let a = AtomicCell::new(7i8);&quot;</span>);
-<span class="macro">impl_arithmetic!</span>(u16, atomic::AtomicU16, <span class="string">&quot;let a = AtomicCell::new(7u16);&quot;</span>);
-<span class="macro">impl_arithmetic!</span>(i16, atomic::AtomicI16, <span class="string">&quot;let a = AtomicCell::new(7i16);&quot;</span>);
-<span class="macro">impl_arithmetic!</span>(u32, atomic::AtomicU32, <span class="string">&quot;let a = AtomicCell::new(7u32);&quot;</span>);
-<span class="macro">impl_arithmetic!</span>(i32, atomic::AtomicI32, <span class="string">&quot;let a = AtomicCell::new(7i32);&quot;</span>);
+<span class="macro">impl_arithmetic!</span>(u8, atomic::AtomicU8, <span class="string">"let a = AtomicCell::new(7u8);"</span>);
+<span class="macro">impl_arithmetic!</span>(i8, atomic::AtomicI8, <span class="string">"let a = AtomicCell::new(7i8);"</span>);
+<span class="macro">impl_arithmetic!</span>(u16, atomic::AtomicU16, <span class="string">"let a = AtomicCell::new(7u16);"</span>);
+<span class="macro">impl_arithmetic!</span>(i16, atomic::AtomicI16, <span class="string">"let a = AtomicCell::new(7i16);"</span>);
+<span class="macro">impl_arithmetic!</span>(u32, atomic::AtomicU32, <span class="string">"let a = AtomicCell::new(7u32);"</span>);
+<span class="macro">impl_arithmetic!</span>(i32, atomic::AtomicI32, <span class="string">"let a = AtomicCell::new(7i32);"</span>);
 <span class="attr">#[cfg(not(crossbeam_no_atomic_64))]
-</span><span class="macro">impl_arithmetic!</span>(u64, atomic::AtomicU64, <span class="string">&quot;let a = AtomicCell::new(7u64);&quot;</span>);
+</span><span class="macro">impl_arithmetic!</span>(u64, atomic::AtomicU64, <span class="string">"let a = AtomicCell::new(7u64);"</span>);
 <span class="attr">#[cfg(not(crossbeam_no_atomic_64))]
-</span><span class="macro">impl_arithmetic!</span>(i64, atomic::AtomicI64, <span class="string">&quot;let a = AtomicCell::new(7i64);&quot;</span>);
+</span><span class="macro">impl_arithmetic!</span>(i64, atomic::AtomicI64, <span class="string">"let a = AtomicCell::new(7i64);"</span>);
 <span class="attr">#[cfg(crossbeam_no_atomic_64)]
-</span><span class="macro">impl_arithmetic!</span>(u64, fallback, <span class="string">&quot;let a = AtomicCell::new(7u64);&quot;</span>);
+</span><span class="macro">impl_arithmetic!</span>(u64, fallback, <span class="string">"let a = AtomicCell::new(7u64);"</span>);
 <span class="attr">#[cfg(crossbeam_no_atomic_64)]
-</span><span class="macro">impl_arithmetic!</span>(i64, fallback, <span class="string">&quot;let a = AtomicCell::new(7i64);&quot;</span>);
+</span><span class="macro">impl_arithmetic!</span>(i64, fallback, <span class="string">"let a = AtomicCell::new(7i64);"</span>);
 <span class="comment">// TODO: AtomicU128 is unstable
-// impl_arithmetic!(u128, atomic::AtomicU128, &quot;let a = AtomicCell::new(7u128);&quot;);
-// impl_arithmetic!(i128, atomic::AtomicI128, &quot;let a = AtomicCell::new(7i128);&quot;);
-</span><span class="macro">impl_arithmetic!</span>(u128, fallback, <span class="string">&quot;let a = AtomicCell::new(7u128);&quot;</span>);
-<span class="macro">impl_arithmetic!</span>(i128, fallback, <span class="string">&quot;let a = AtomicCell::new(7i128);&quot;</span>);
+// impl_arithmetic!(u128, atomic::AtomicU128, "let a = AtomicCell::new(7u128);");
+// impl_arithmetic!(i128, atomic::AtomicI128, "let a = AtomicCell::new(7i128);");
+</span><span class="macro">impl_arithmetic!</span>(u128, fallback, <span class="string">"let a = AtomicCell::new(7u128);"</span>);
+<span class="macro">impl_arithmetic!</span>(i128, fallback, <span class="string">"let a = AtomicCell::new(7i128);"</span>);
 
 <span class="macro">impl_arithmetic!</span>(
     usize,
     atomic::AtomicUsize,
-    <span class="string">&quot;let a = AtomicCell::new(7usize);&quot;
+    <span class="string">"let a = AtomicCell::new(7usize);"
 </span>);
 <span class="macro">impl_arithmetic!</span>(
     isize,
     atomic::AtomicIsize,
-    <span class="string">&quot;let a = AtomicCell::new(7isize);&quot;
+    <span class="string">"let a = AtomicCell::new(7isize);"
 </span>);
 
 <span class="kw">impl </span>AtomicCell&lt;bool&gt; {
-    <span class="doccomment">/// Applies logical &quot;and&quot; to the current value and returns the previous value.
+    <span class="doccomment">/// Applies logical "and" to the current value and returns the previous value.
     ///
     /// # Examples
     ///
@@ -1893,7 +1893,7 @@
         a.fetch_and(val, Ordering::AcqRel)
     }
 
-    <span class="doccomment">/// Applies logical &quot;nand&quot; to the current value and returns the previous value.
+    <span class="doccomment">/// Applies logical "nand" to the current value and returns the previous value.
     ///
     /// # Examples
     ///
@@ -1917,7 +1917,7 @@
         a.fetch_nand(val, Ordering::AcqRel)
     }
 
-    <span class="doccomment">/// Applies logical &quot;or&quot; to the current value and returns the previous value.
+    <span class="doccomment">/// Applies logical "or" to the current value and returns the previous value.
     ///
     /// # Examples
     ///
@@ -1938,7 +1938,7 @@
         a.fetch_or(val, Ordering::AcqRel)
     }
 
-    <span class="doccomment">/// Applies logical &quot;xor&quot; to the current value and returns the previous value.
+    <span class="doccomment">/// Applies logical "xor" to the current value and returns the previous value.
     ///
     /// # Examples
     ///
@@ -1974,9 +1974,9 @@
 }
 
 <span class="kw">impl</span>&lt;T: Copy + fmt::Debug&gt; fmt::Debug <span class="kw">for </span>AtomicCell&lt;T&gt; {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        f.debug_struct(<span class="string">&quot;AtomicCell&quot;</span>)
-            .field(<span class="string">&quot;value&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.load())
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        f.debug_struct(<span class="string">"AtomicCell"</span>)
+            .field(<span class="string">"value"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.load())
             .finish()
     }
 }
@@ -1989,7 +1989,7 @@
 
 <span class="doccomment">/// Returns a reference to the global lock associated with the `AtomicCell` at address `addr`.
 ///
-/// This function is used to protect atomic data which doesn&#39;t fit into any of the primitive atomic
+/// This function is used to protect atomic data which doesn't fit into any of the primitive atomic
 /// types in `std::sync::atomic`. Operations on such atomics must therefore use a global lock.
 ///
 /// However, there is not only one global lock but an array of many locks, and one of them is
@@ -1997,7 +1997,7 @@
 /// scalability.
 </span><span class="attr">#[inline]
 #[must_use]
-</span><span class="kw">fn </span>lock(addr: usize) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>SeqLock {
+</span><span class="kw">fn </span>lock(addr: usize) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>SeqLock {
     <span class="comment">// The number of locks is a prime number because we want to make sure `addr % LEN` gets
     // dispersed across all locks.
     //
@@ -2018,7 +2018,7 @@
     // ```
     //
     // Now, if we have a slice of type `&amp;[Foo]`, it is possible that field `a` in all items gets
-    // stored at addresses that are multiples of 3. It&#39;d be too bad if `LEN` was divisible by 3.
+    // stored at addresses that are multiples of 3. It'd be too bad if `LEN` was divisible by 3.
     // In order to protect from such cases, we simply choose a large prime number for `LEN`.
     </span><span class="kw">const </span>LEN: usize = <span class="number">97</span>;
     <span class="attr">#[allow(clippy::declare_interior_mutable_const)]
@@ -2057,7 +2057,7 @@
     }
 }
 
-<span class="macro">macro_rules! </span>atomic {
+<span class="macro">macro_rules!</span> atomic {
     <span class="comment">// If values of type `$t` can be transmuted into values of the primitive atomic type `$atomic`,
     // declares variable `$a` of type `$atomic` and executes `$atomic_op`, breaking out of the loop.
     </span>(@check, <span class="macro-nonterminal">$t</span>:ty, <span class="macro-nonterminal">$atomic</span>:ty, <span class="macro-nonterminal">$a</span>:ident, <span class="macro-nonterminal">$atomic_op</span>:expr) =&gt; {
@@ -2109,7 +2109,7 @@
 <span class="kw">where
     </span>T: Copy,
 {
-    <span class="macro">atomic! </span>{
+    <span class="macro">atomic!</span> {
         T, a,
         {
             a = <span class="kw-2">&amp;*</span>(src <span class="kw">as </span><span class="kw-2">*const </span><span class="kw">_ as </span><span class="kw-2">*const </span><span class="kw">_</span>);
@@ -2123,7 +2123,7 @@
                 <span class="comment">// We need a volatile read here because other threads might concurrently modify the
                 // value. In theory, data races are *always* UB, even if we use volatile reads and
                 // discard the data when a data race is detected. The proper solution would be to
-                // do atomic reads and atomic writes, but we can&#39;t atomically read and write all
+                // do atomic reads and atomic writes, but we can't atomically read and write all
                 // kinds of data since `AtomicU8` is not available on stable Rust yet.
                 // Load as `MaybeUninit` because we may load a value that is not valid as `T`.
                 </span><span class="kw">let </span>val = ptr::read_volatile(src.cast::&lt;MaybeUninit&lt;T&gt;&gt;());
@@ -2133,10 +2133,10 @@
                 }
             }
 
-            <span class="comment">// Grab a regular write lock so that writers don&#39;t starve this load.
+            <span class="comment">// Grab a regular write lock so that writers don't starve this load.
             </span><span class="kw">let </span>guard = lock.write();
             <span class="kw">let </span>val = ptr::read(src);
-            <span class="comment">// The value hasn&#39;t been changed. Drop the guard without incrementing the stamp.
+            <span class="comment">// The value hasn't been changed. Drop the guard without incrementing the stamp.
             </span>guard.abort();
             val
         }
@@ -2148,7 +2148,7 @@
 /// This operation uses the `Release` ordering. If possible, an atomic instructions is used, and a
 /// global lock otherwise.
 </span><span class="kw">unsafe fn </span>atomic_store&lt;T&gt;(dst: <span class="kw-2">*mut </span>T, val: T) {
-    <span class="macro">atomic! </span>{
+    <span class="macro">atomic!</span> {
         T, a,
         {
             a = <span class="kw-2">&amp;*</span>(dst <span class="kw">as </span><span class="kw-2">*const </span><span class="kw">_ as </span><span class="kw-2">*const </span><span class="kw">_</span>);
@@ -2167,7 +2167,7 @@
 /// This operation uses the `AcqRel` ordering. If possible, an atomic instructions is used, and a
 /// global lock otherwise.
 </span><span class="kw">unsafe fn </span>atomic_swap&lt;T&gt;(dst: <span class="kw-2">*mut </span>T, val: T) -&gt; T {
-    <span class="macro">atomic! </span>{
+    <span class="macro">atomic!</span> {
         T, a,
         {
             a = <span class="kw-2">&amp;*</span>(dst <span class="kw">as </span><span class="kw-2">*const </span><span class="kw">_ as </span><span class="kw-2">*const </span><span class="kw">_</span>);
@@ -2194,7 +2194,7 @@
 <span class="kw">where
     </span>T: Copy + Eq,
 {
-    <span class="macro">atomic! </span>{
+    <span class="macro">atomic!</span> {
         T, a,
         {
             a = <span class="kw-2">&amp;*</span>(dst <span class="kw">as </span><span class="kw-2">*const </span><span class="kw">_ as </span><span class="kw-2">*const </span><span class="kw">_</span>);
@@ -2216,9 +2216,9 @@
                             <span class="kw">break </span><span class="prelude-val">Err</span>(previous);
                         }
 
-                        <span class="comment">// The compare-exchange operation has failed and didn&#39;t store `new`. The
+                        <span class="comment">// The compare-exchange operation has failed and didn't store `new`. The
                         // failure is either spurious, or `previous` was semantically equal to
-                        // `current` but not byte-equal. Let&#39;s retry with `previous` as the new
+                        // `current` but not byte-equal. Let's retry with `previous` as the new
                         // `current`.
                         </span>current = previous;
                         current_raw = previous_raw;
@@ -2233,7 +2233,7 @@
                 <span class="prelude-val">Ok</span>(ptr::replace(dst, new))
             } <span class="kw">else </span>{
                 <span class="kw">let </span>val = ptr::read(dst);
-                <span class="comment">// The value hasn&#39;t been changed. Drop the guard without incrementing the stamp.
+                <span class="comment">// The value hasn't been changed. Drop the guard without incrementing the stamp.
                 </span>guard.abort();
                 <span class="prelude-val">Err</span>(val)
             }

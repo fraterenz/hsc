@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/process.rs`."><title>process.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="hsc" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/process.rs`."><title>process.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-dd39b87e5fcfba68.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="hsc" data-themes="" data-resource-suffix="" data-rustdoc-version="1.80.1 (3f5fd8dd4 2024-08-06)" data-channel="1.80.1" data-search-js="search-d52510db62a78183.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-20a3ad099b048cf2.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -717,11 +717,6 @@
 <a href="#717" id="717">717</a>
 <a href="#718" id="718">718</a>
 <a href="#719" id="719">719</a>
-<a href="#720" id="720">720</a>
-<a href="#721" id="721">721</a>
-<a href="#722" id="722">722</a>
-<a href="#723" id="723">723</a>
-<a href="#724" id="724">724</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::genotype::{MutationalBurden, Sfs};
 <span class="kw">use </span><span class="kw">crate</span>::proliferation::{NeutralMutations, Proliferation};
 <span class="kw">use </span><span class="kw">crate</span>::stemcell::{assign_background_mutations, StemCell};
@@ -809,7 +804,7 @@
             time: <span class="number">0f32</span>,
         };
         <span class="kw">if </span>verbosity &gt; <span class="number">1 </span>{
-            <span class="macro">println!</span>(<span class="string">&quot;process created: {:#?}&quot;</span>, hsc);
+            <span class="macro">println!</span>(<span class="string">"process created: {:#?}"</span>, hsc);
         }
         hsc
     }
@@ -831,7 +826,7 @@
         //! We add background mutations in this interval of time between the
         //! end of the exponentially growing phase and the Moran process.
         </span><span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">0 </span>{
-            <span class="macro">println!</span>(<span class="string">&quot;switching to Moran at time {}&quot;</span>, <span class="self">self</span>.time);
+            <span class="macro">println!</span>(<span class="string">"switching to Moran at time {}"</span>, <span class="self">self</span>.time);
         }
         <span class="kw">if let </span>NeutralMutations::UponDivisionAndBackground = <span class="self">self</span>.proliferation.neutral_mutation {
             <span class="comment">// this is important: we update all background mutations at this
@@ -844,7 +839,7 @@
             // Moreover there is delay between the end of the exp. growing phase
             // and birth, hence we use `TIME_AT_BIRTH`.
             </span><span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">0 </span>{
-                <span class="macro">println!</span>(<span class="string">&quot;updating the neutral background mutations for all cells&quot;</span>);
+                <span class="macro">println!</span>(<span class="string">"updating the neutral background mutations for all cells"</span>);
             }
             <span class="kw">for </span>stem_cell <span class="kw">in </span><span class="self">self</span>.subclones.get_mut_cells() {
                 <span class="kw">if </span>stem_cell.get_last_division_time() &lt; <span class="kw-2">&amp;</span>TIME_AT_BIRTH {
@@ -881,7 +876,7 @@
                 moran.save_sfs_only,
                 rng,
             )
-            .expect(<span class="string">&quot;cannot save simulation at the end of the exponential phase&quot;</span>);
+            .expect(<span class="string">"cannot save simulation at the end of the exponential phase"</span>);
         moran
     }
 }
@@ -898,13 +893,13 @@
         //! The proliferation step is implemented as following:
         //!
         //! 1. select the cell that will proliferate next from the clone
-        //! with id `reaction` determined by the Gillespie algorithm
+        //!    with id `reaction` determined by the Gillespie algorithm
         //!
         //! 2. for the proliferating cell and its daughter cell:
         //!     * mutate genome by storing a neutral number of mutations
         //!
         //!     * assign to new subclone with a probability determined by the
-        //!     rate of mutations conferring a proliferative advantage
+        //!       rate of mutations conferring a proliferative advantage
         </span><span class="comment">// The Gillespie sampler samples the clone that will proliferate next,
         // that is the clone with id `reaction.event`.
         // Pick random proliferating cells from this clone. **Note that this
@@ -949,7 +944,7 @@
 <span class="kw">impl </span>Default <span class="kw">for </span>Moran {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>process_options = ProcessOptions {
-            path: PathBuf::from(<span class="string">&quot;./output&quot;</span>),
+            path: PathBuf::from(<span class="string">"./output"</span>),
             snapshots: VecDeque::default(),
         };
 
@@ -995,7 +990,7 @@
             proliferation,
         };
         <span class="kw">if </span>verbosity &gt; <span class="number">1 </span>{
-            <span class="macro">println!</span>(<span class="string">&quot;process created: {:#?}&quot;</span>, hsc);
+            <span class="macro">println!</span>(<span class="string">"process created: {:#?}"</span>, hsc);
         }
         hsc
     }
@@ -1013,25 +1008,20 @@
         //!     3. and sample from any clone based on the weights defined by
         //!     the variant counts
         </span><span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">2 </span>{
-            <span class="macro">println!</span>(<span class="string">&quot;keeping the cell population constant&quot;</span>);
+            <span class="macro">println!</span>(<span class="string">"keeping the cell population constant"</span>);
         }
         <span class="comment">// remove a cell from a random subclone based on the frequencies of
         // the clones at the current state
-        </span><span class="kw">let </span>id2remove = <span class="kw">if let </span><span class="prelude-val">Some</span>(id) = <span class="self">self</span>.subclones.the_only_one_subclone_present() {
-            id
-        } <span class="kw">else </span>{
-            <span class="kw">let </span>variants = Variants::variant_counts(<span class="kw-2">&amp;</span><span class="self">self</span>.subclones);
-            WeightedIndex::new(variants).unwrap().sample(rng)
-        };
-        <span class="comment">// remove a cell from the random subclone
-        </span><span class="kw">let _ </span>= <span class="self">self
+        </span><span class="kw">let </span>variants = Variants::variant_counts(<span class="kw-2">&amp;</span><span class="self">self</span>.subclones);
+        <span class="kw">let </span>id2remove = WeightedIndex::new(variants).unwrap().sample(rng);
+        <span class="kw">let _ </span>= <span class="self">self
             </span>.subclones
             .get_mut_clone_unchecked(id2remove)
             .random_cell(rng)
-            .with_context(|| <span class="string">&quot;found empty subclone&quot;</span>)
+            .with_context(|| <span class="string">"found empty subclone"</span>)
             .unwrap();
         <span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">2 </span>{
-            <span class="macro">println!</span>(<span class="string">&quot;removing one cell from clone {}&quot;</span>, id2remove);
+            <span class="macro">println!</span>(<span class="string">"removing one cell from clone {}"</span>, id2remove);
         }
     }
 
@@ -1041,18 +1031,18 @@
         cells: usize,
         time: f32,
     ) -&gt; anyhow::Result&lt;PathBuf&gt; {
-        <span class="kw">let </span>path2dir = <span class="self">self</span>.path2dir.join(<span class="macro">format!</span>(<span class="string">&quot;{}cells&quot;</span>, cells));
+        <span class="kw">let </span>path2dir = <span class="self">self</span>.path2dir.join(<span class="macro">format!</span>(<span class="string">"{}cells"</span>, cells));
         <span class="kw">let </span>path2file = <span class="kw">match </span>tosave {
-            Stats2Save::VariantFraction =&gt; path2dir.join(<span class="string">&quot;variant_fraction&quot;</span>),
-            Stats2Save::Burden =&gt; path2dir.join(<span class="string">&quot;burden&quot;</span>),
-            Stats2Save::Sfs =&gt; path2dir.join(<span class="string">&quot;sfs&quot;</span>),
+            Stats2Save::VariantFraction =&gt; path2dir.join(<span class="string">"variant_fraction"</span>),
+            Stats2Save::Burden =&gt; path2dir.join(<span class="string">"burden"</span>),
+            Stats2Save::Sfs =&gt; path2dir.join(<span class="string">"sfs"</span>),
         };
-        <span class="kw">let </span><span class="kw-2">mut </span>timepoint = <span class="macro">format!</span>(<span class="string">&quot;{:.1}&quot;</span>, time).replace(<span class="string">&#39;.&#39;</span>, <span class="string">&quot;dot&quot;</span>);
-        timepoint.push_str(<span class="string">&quot;years&quot;</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>timepoint = <span class="macro">format!</span>(<span class="string">"{:.1}"</span>, time).replace(<span class="string">'.'</span>, <span class="string">"dot"</span>);
+        timepoint.push_str(<span class="string">"years"</span>);
         <span class="kw">let </span>path2file = path2file.join(timepoint);
-        fs::create_dir_all(<span class="kw-2">&amp;</span>path2file).with_context(|| <span class="string">&quot;Cannot create dir&quot;</span>)<span class="question-mark">?</span>;
+        fs::create_dir_all(<span class="kw-2">&amp;</span>path2file).with_context(|| <span class="string">"Cannot create dir"</span>)<span class="question-mark">?</span>;
         <span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">1 </span>{
-            <span class="macro">println!</span>(<span class="string">&quot;creating dirs {:#?}&quot;</span>, path2file);
+            <span class="macro">println!</span>(<span class="string">"creating dirs {:#?}"</span>, path2file);
         }
         <span class="prelude-val">Ok</span>(path2file.join(<span class="self">self</span>.filename.clone()))
     }
@@ -1064,17 +1054,17 @@
         save_sfs_only: bool,
     ) -&gt; anyhow::Result&lt;()&gt; {
         <span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">0 </span>{
-            <span class="macro">println!</span>(<span class="string">&quot;saving data at time {}&quot;</span>, time);
+            <span class="macro">println!</span>(<span class="string">"saving data at time {}"</span>, time);
         }
         <span class="kw">let </span>cells: Vec&lt;<span class="kw-2">&amp;</span>StemCell&gt; = cells_with_idx.iter().map(|ele| ele.<span class="number">0</span>).collect();
         <span class="kw">let </span>nb_cells = cells.len();
 
         <span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">0 </span>{
-            <span class="macro">println!</span>(<span class="string">&quot;saving {} cells&quot;</span>, nb_cells);
+            <span class="macro">println!</span>(<span class="string">"saving {} cells"</span>, nb_cells);
         }
 
         Sfs::from_cells(<span class="kw-2">&amp;</span>cells, <span class="self">self</span>.verbosity)
-            .unwrap_or_else(|<span class="kw">_</span>| <span class="macro">panic!</span>(<span class="string">&quot;cannot create SFS for timepoint at time {}&quot;</span>, time))
+            .unwrap_or_else(|<span class="kw">_</span>| <span class="macro">panic!</span>(<span class="string">"cannot create SFS for timepoint at time {}"</span>, time))
             .save(
                 <span class="kw-2">&amp;</span><span class="self">self</span>.make_path(Stats2Save::Sfs, nb_cells, time)<span class="question-mark">?</span>,
                 <span class="self">self</span>.verbosity,
@@ -1083,7 +1073,7 @@
         <span class="kw">if </span>!save_sfs_only {
             MutationalBurden::from_cells(<span class="kw-2">&amp;</span>cells, <span class="self">self</span>.verbosity)
                 .unwrap_or_else(|<span class="kw">_</span>| {
-                    <span class="macro">panic!</span>(<span class="string">&quot;cannot create burden for the timepoint at time {}&quot;</span>, time)
+                    <span class="macro">panic!</span>(<span class="string">"cannot create burden for the timepoint at time {}"</span>, time)
                 })
                 .save(
                     <span class="kw-2">&amp;</span><span class="self">self</span>.make_path(Stats2Save::Burden, nb_cells, time)<span class="question-mark">?</span>,
@@ -1103,7 +1093,7 @@
 
         <span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">0 </span>{
             <span class="macro">println!</span>(
-                <span class="string">&quot;saved measurements after {} mutational events&quot;</span>,
+                <span class="string">"saved measurements after {} mutational events"</span>,
                 <span class="self">self</span>.counter_divisions
             );
         }
@@ -1118,7 +1108,7 @@
         rng: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>Rng,
     ) -&gt; anyhow::Result&lt;()&gt; {
         <span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">0 </span>{
-            <span class="macro">println!</span>(<span class="string">&quot;saving process at time {}&quot;</span>, time);
+            <span class="macro">println!</span>(<span class="string">"saving process at time {}"</span>, time);
         }
         <span class="kw">if let </span>NeutralMutations::UponDivisionAndBackground = <span class="self">self</span>.proliferation.neutral_mutation {
             <span class="comment">// this is important: we update all background mutations at this
@@ -1128,7 +1118,7 @@
             // update the background mutations at the timepoint corresponding
             // to sampling step, i.e. before saving.
             </span><span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">0 </span>{
-                <span class="macro">println!</span>(<span class="string">&quot;updating the neutral background mutations for all cells&quot;</span>);
+                <span class="macro">println!</span>(<span class="string">"updating the neutral background mutations for all cells"</span>);
             }
             <span class="kw">for </span>stem_cell <span class="kw">in </span><span class="self">self</span>.subclones.get_mut_cells() {
                 assign_background_mutations(
@@ -1142,12 +1132,12 @@
         }
         <span class="kw">let </span>population = <span class="self">self</span>.subclones.get_cells_with_clones_idx();
         <span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">0 </span>{
-            <span class="macro">println!</span>(<span class="string">&quot;saving {:#?}&quot;</span>, saving_cells);
+            <span class="macro">println!</span>(<span class="string">"saving {:#?}"</span>, saving_cells);
         }
         <span class="kw">match </span>saving_cells {
             SavingCells::WholePopulation =&gt; <span class="self">self
                 </span>.save_it(time, population, save_sfs_only)
-                .with_context(|| <span class="string">&quot;cannot save the full population&quot;</span>)
+                .with_context(|| <span class="string">"cannot save the full population"</span>)
                 .unwrap(),
             SavingCells::Subsampling {
                 sample_size,
@@ -1155,7 +1145,7 @@
             } =&gt; {
                 <span class="kw">if </span><span class="kw-2">*</span>populaiton_as_well {
                     <span class="self">self</span>.save_it(time, population, save_sfs_only)
-                        .with_context(|| <span class="string">&quot;cannot save the full population&quot;</span>)
+                        .with_context(|| <span class="string">"cannot save the full population"</span>)
                         .unwrap();
                 }
                 <span class="kw">let </span>cells_with_idx = <span class="self">self
@@ -1163,7 +1153,7 @@
                     .get_cells_subsampled_with_clones_idx(<span class="kw-2">*</span>sample_size, rng);
                 <span class="macro">assert_eq!</span>(cells_with_idx.len(), <span class="kw-2">*</span>sample_size);
                 <span class="self">self</span>.save_it(time, cells_with_idx, save_sfs_only)
-                    .with_context(|| <span class="string">&quot;cannot save the subsample&quot;</span>)
+                    .with_context(|| <span class="string">"cannot save the subsample"</span>)
                     .unwrap();
             }
         }
@@ -1191,7 +1181,7 @@
             <span class="kw">let </span>snapshot = <span class="self">self</span>.snapshots.pop_front().unwrap();
             <span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">0 </span>{
                 <span class="macro">println!</span>(
-                    <span class="string">&quot;saving state for timepoint at time {:#?} at simulation&#39;s time {} with {} cells&quot;</span>,
+                    <span class="string">"saving state for timepoint at time {:#?} at simulation's time {} with {} cells"</span>,
                     snapshot.time, <span class="self">self</span>.time, snapshot.cells2sample
                 );
             }
@@ -1205,7 +1195,7 @@
                     }
                 };
             <span class="self">self</span>.save(<span class="self">self</span>.time, <span class="kw-2">&amp;</span>saving_cells, <span class="self">self</span>.save_sfs_only, rng)
-                .expect(<span class="string">&quot;cannot save snapshot&quot;</span>);
+                .expect(<span class="string">"cannot save snapshot"</span>);
         }
 
         <span class="comment">// 1. select a cell `c` at random
@@ -1228,7 +1218,7 @@
         </span><span class="self">self</span>.keep_const_population_upon_symmetric_division(rng);
 
         <span class="kw">if </span><span class="self">self</span>.verbosity &gt; <span class="number">2 </span>{
-            <span class="macro">println!</span>(<span class="string">&quot;{} cells&quot;</span>, <span class="self">self</span>.subclones.compute_tot_cells());
+            <span class="macro">println!</span>(<span class="string">"{} cells"</span>, <span class="self">self</span>.subclones.compute_tot_cells());
         }
     }
 

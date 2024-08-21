@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/francesco/.cargo/registry/src/index.crates.io-6f17d22bba15001f/sosa-3.0.3/src/lib.rs`."><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="sosa" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/francesco/.cargo/registry/src/index.crates.io-6f17d22bba15001f/sosa-3.0.3/src/lib.rs`."><title>lib.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-dd39b87e5fcfba68.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="sosa" data-themes="" data-resource-suffix="" data-rustdoc-version="1.80.1 (3f5fd8dd4 2024-08-06)" data-channel="1.80.1" data-search-js="search-d52510db62a78183.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-20a3ad099b048cf2.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -659,12 +659,12 @@
 
         <span class="kw">if </span>options.verbosity &gt; <span class="number">1 </span>{
             <span class="macro">println!</span>(
-                <span class="string">&quot;time: {} iter: {} and reaction: {:#?}&quot;</span>,
+                <span class="string">"time: {} iter: {} and reaction: {:#?}"</span>,
                 time, iter, reaction
             );
 
             <span class="kw">if </span>options.verbosity &gt; <span class="number">2 </span>{
-                <span class="macro">println!</span>(<span class="string">&quot;State: {:#?}&quot;</span>, state);
+                <span class="macro">println!</span>(<span class="string">"State: {:#?}"</span>, state);
             }
         }
 
@@ -712,7 +712,7 @@
         //! [Monte-Carlo generating method](https://en.wikipedia.org/wiki/Gillespie_algorithm#Algorithm).
         //! ## Returns
         //! `None` if the maximal number of iterations have been reached or
-        //! there aren&#39;t any individuals left in the total population, see
+        //! there aren't any individuals left in the total population, see
         //! [`SimState`].
         //!
         //! ## Panics
@@ -755,18 +755,18 @@
     </span><span class="kw">fn </span>advance_step(<span class="kw-2">&amp;mut </span><span class="self">self</span>, reaction: NextReaction&lt;<span class="self">Self</span>::Reaction&gt;, rng: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>Rng);
 
     <span class="doccomment">/// Once the process has been updated by [`AdvanceStep::advance_step`],
-    /// update back the [`CurrentState`] according to the process&#39; rules.
+    /// update back the [`CurrentState`] according to the process' rules.
     </span><span class="kw">fn </span>update_state(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>CurrentState&lt;NB_REACTIONS&gt;);
 }
 
 <span class="doccomment">/// Requesting to compute the reaction rates via [`ReactionRates`] when the
-/// simulation&#39;s state is not compatible (e.g. `NoIndividualsLeft`) raises an
+/// simulation's state is not compatible (e.g. `NoIndividualsLeft`) raises an
 /// error.
 </span><span class="attr">#[derive(Error, Debug, PartialEq)]
 </span><span class="kw">enum </span>ReactionRatesError {
-    <span class="attr">#[error(<span class="string">&quot;no individuals left&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"no individuals left"</span>)]
     </span>NoIndividualsLeft,
-    <span class="attr">#[error(<span class="string">&quot;the computed times are 0 or inf, probably 0 or inf rates&quot;</span>)]
+    <span class="attr">#[error(<span class="string">"the computed times are 0 or inf, probably 0 or inf rates"</span>)]
     </span>ComputeTimesAllInfinite,
 }
 
@@ -865,30 +865,30 @@
 ) -&gt; anyhow::Result&lt;()&gt; {
     <span class="doccomment">//! Write vector of float into new file with a precision of 4 decimals.
     //! Write NAN if the slice to write to file is empty.
-    </span>fs::create_dir_all(path.parent().unwrap()).expect(<span class="string">&quot;Cannot create dir&quot;</span>);
+    </span>fs::create_dir_all(path.parent().unwrap()).expect(<span class="string">"Cannot create dir"</span>);
     <span class="kw">let </span>f = fs::OpenOptions::new()
         .read(<span class="bool-val">true</span>)
         .append(<span class="bool-val">true</span>)
         .create(<span class="bool-val">true</span>)
         .open(path)
-        .with_context(|| <span class="string">&quot;Cannot open stream&quot;</span>)<span class="question-mark">?</span>;
+        .with_context(|| <span class="string">"Cannot open stream"</span>)<span class="question-mark">?</span>;
 
     <span class="kw">let </span><span class="kw-2">mut </span>buffer = BufWriter::new(f);
 
     <span class="kw">if </span>!data.is_empty() {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(h) = header {
-            <span class="macro">writeln!</span>(buffer, <span class="string">&quot;{}&quot;</span>, h)<span class="question-mark">?</span>;
+            <span class="macro">writeln!</span>(buffer, <span class="string">"{}"</span>, h)<span class="question-mark">?</span>;
         }
 
         <span class="kw">for </span>ele <span class="kw">in </span>data.iter() {
-            <span class="macro">write!</span>(buffer, <span class="string">&quot;{:.4},&quot;</span>, ele)<span class="question-mark">?</span>;
+            <span class="macro">write!</span>(buffer, <span class="string">"{:.4},"</span>, ele)<span class="question-mark">?</span>;
         }
 
         <span class="kw">if </span>endline {
             <span class="macro">writeln!</span>(buffer)<span class="question-mark">?</span>;
         }
     } <span class="kw">else </span>{
-        <span class="macro">write!</span>(buffer, <span class="string">&quot;{},&quot;</span>, f32::NAN)<span class="question-mark">?</span>;
+        <span class="macro">write!</span>(buffer, <span class="string">"{},"</span>, f32::NAN)<span class="question-mark">?</span>;
     }
 
     <span class="prelude-val">Ok</span>(())

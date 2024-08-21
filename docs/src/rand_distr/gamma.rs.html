@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/francesco/.cargo/registry/src/index.crates.io-6f17d22bba15001f/rand_distr-0.4.3/src/gamma.rs`."><title>gamma.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="rand_distr" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://www.rust-lang.org/favicon.ico"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../rand_distr/index.html"><img src="https://www.rust-lang.org/logos/rust-logo-128x128-blk.png" alt="rand_distr"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/francesco/.cargo/registry/src/index.crates.io-6f17d22bba15001f/rand_distr-0.4.3/src/gamma.rs`."><title>gamma.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-dd39b87e5fcfba68.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="rand_distr" data-themes="" data-resource-suffix="" data-rustdoc-version="1.80.1 (3f5fd8dd4 2024-08-06)" data-channel="1.80.1" data-search-js="search-d52510db62a78183.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-20a3ad099b048cf2.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="icon" href="https://www.rust-lang.org/favicon.ico"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -835,7 +835,7 @@
 <span class="kw">use crate</span>::{Distribution, Exp, Exp1, Open01};
 <span class="kw">use </span>rand::Rng;
 <span class="kw">use </span>core::fmt;
-<span class="attr">#[cfg(feature = <span class="string">&quot;serde1&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"serde1"</span>)]
 </span><span class="kw">use </span>serde::{Serialize, Deserialize};
 
 <span class="doccomment">/// The Gamma distribution `Gamma(shape, scale)` distribution.
@@ -861,15 +861,15 @@
 ///
 /// let gamma = Gamma::new(2.0, 5.0).unwrap();
 /// let v = gamma.sample(&amp;mut rand::thread_rng());
-/// println!(&quot;{} is from a Gamma(2, 5) distribution&quot;, v);
+/// println!("{} is from a Gamma(2, 5) distribution", v);
 /// ```
 ///
-/// [^1]: George Marsaglia and Wai Wan Tsang. 2000. &quot;A Simple Method for
-///       Generating Gamma Variables&quot; *ACM Trans. Math. Softw.* 26, 3
+/// [^1]: George Marsaglia and Wai Wan Tsang. 2000. "A Simple Method for
+///       Generating Gamma Variables" *ACM Trans. Math. Softw.* 26, 3
 ///       (September 2000), 363-372.
 ///       DOI:[10.1145/358407.358414](https://doi.acm.org/10.1145/358407.358414)
 </span><span class="attr">#[derive(Clone, Copy, Debug)]
-#[cfg_attr(feature = <span class="string">&quot;serde1&quot;</span>, derive(Serialize, Deserialize))]
+#[cfg_attr(feature = <span class="string">"serde1"</span>, derive(Serialize, Deserialize))]
 </span><span class="kw">pub struct </span>Gamma&lt;F&gt;
 <span class="kw">where
     </span>F: Float,
@@ -892,21 +892,21 @@
 }
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>Error {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         f.write_str(<span class="kw">match </span><span class="self">self </span>{
-            Error::ShapeTooSmall =&gt; <span class="string">&quot;shape is not positive in gamma distribution&quot;</span>,
-            Error::ScaleTooSmall =&gt; <span class="string">&quot;scale is not positive in gamma distribution&quot;</span>,
-            Error::ScaleTooLarge =&gt; <span class="string">&quot;scale is infinity in gamma distribution&quot;</span>,
+            Error::ShapeTooSmall =&gt; <span class="string">"shape is not positive in gamma distribution"</span>,
+            Error::ScaleTooSmall =&gt; <span class="string">"scale is not positive in gamma distribution"</span>,
+            Error::ScaleTooLarge =&gt; <span class="string">"scale is infinity in gamma distribution"</span>,
         })
     }
 }
 
-<span class="attr">#[cfg(feature = <span class="string">&quot;std&quot;</span>)]
-#[cfg_attr(doc_cfg, doc(cfg(feature = <span class="string">&quot;std&quot;</span>)))]
+<span class="attr">#[cfg(feature = <span class="string">"std"</span>)]
+#[cfg_attr(doc_cfg, doc(cfg(feature = <span class="string">"std"</span>)))]
 </span><span class="kw">impl </span>std::error::Error <span class="kw">for </span>Error {}
 
 <span class="attr">#[derive(Clone, Copy, Debug)]
-#[cfg_attr(feature = <span class="string">&quot;serde1&quot;</span>, derive(Serialize, Deserialize))]
+#[cfg_attr(feature = <span class="string">"serde1"</span>, derive(Serialize, Deserialize))]
 </span><span class="kw">enum </span>GammaRepr&lt;F&gt;
 <span class="kw">where
     </span>F: Float,
@@ -921,7 +921,7 @@
 
 <span class="comment">// These two helpers could be made public, but saving the
 // match-on-Gamma-enum branch from using them directly (e.g. if one
-// knows that the shape is always &gt; 1) doesn&#39;t appear to be much
+// knows that the shape is always &gt; 1) doesn't appear to be much
 // faster.
 
 </span><span class="doccomment">/// Gamma distribution where the shape parameter is less than 1.
@@ -934,7 +934,7 @@
 /// See `Gamma` for sampling from a Gamma distribution with general
 /// shape parameters.
 </span><span class="attr">#[derive(Clone, Copy, Debug)]
-#[cfg_attr(feature = <span class="string">&quot;serde1&quot;</span>, derive(Serialize, Deserialize))]
+#[cfg_attr(feature = <span class="string">"serde1"</span>, derive(Serialize, Deserialize))]
 </span><span class="kw">struct </span>GammaSmallShape&lt;F&gt;
 <span class="kw">where
     </span>F: Float,
@@ -950,7 +950,7 @@
 /// See `Gamma` for sampling from a Gamma distribution with general
 /// shape parameters.
 </span><span class="attr">#[derive(Clone, Copy, Debug)]
-#[cfg_attr(feature = <span class="string">&quot;serde1&quot;</span>, derive(Serialize, Deserialize))]
+#[cfg_attr(feature = <span class="string">"serde1"</span>, derive(Serialize, Deserialize))]
 </span><span class="kw">struct </span>GammaLargeShape&lt;F&gt;
 <span class="kw">where
     </span>F: Float,
@@ -1092,10 +1092,10 @@
 ///
 /// let chi = ChiSquared::new(11.0).unwrap();
 /// let v = chi.sample(&amp;mut rand::thread_rng());
-/// println!(&quot;{} is from a χ²(11) distribution&quot;, v)
+/// println!("{} is from a χ²(11) distribution", v)
 /// ```
 </span><span class="attr">#[derive(Clone, Copy, Debug)]
-#[cfg_attr(feature = <span class="string">&quot;serde1&quot;</span>, derive(Serialize, Deserialize))]
+#[cfg_attr(feature = <span class="string">"serde1"</span>, derive(Serialize, Deserialize))]
 </span><span class="kw">pub struct </span>ChiSquared&lt;F&gt;
 <span class="kw">where
     </span>F: Float,
@@ -1108,28 +1108,28 @@
 
 <span class="doccomment">/// Error type returned from `ChiSquared::new` and `StudentT::new`.
 </span><span class="attr">#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = <span class="string">&quot;serde1&quot;</span>, derive(Serialize, Deserialize))]
+#[cfg_attr(feature = <span class="string">"serde1"</span>, derive(Serialize, Deserialize))]
 </span><span class="kw">pub enum </span>ChiSquaredError {
     <span class="doccomment">/// `0.5 * k &lt;= 0` or `nan`.
     </span>DoFTooSmall,
 }
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>ChiSquaredError {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         f.write_str(<span class="kw">match </span><span class="self">self </span>{
             ChiSquaredError::DoFTooSmall =&gt; {
-                <span class="string">&quot;degrees-of-freedom k is not positive in chi-squared distribution&quot;
+                <span class="string">"degrees-of-freedom k is not positive in chi-squared distribution"
             </span>}
         })
     }
 }
 
-<span class="attr">#[cfg(feature = <span class="string">&quot;std&quot;</span>)]
-#[cfg_attr(doc_cfg, doc(cfg(feature = <span class="string">&quot;std&quot;</span>)))]
+<span class="attr">#[cfg(feature = <span class="string">"std"</span>)]
+#[cfg_attr(doc_cfg, doc(cfg(feature = <span class="string">"std"</span>)))]
 </span><span class="kw">impl </span>std::error::Error <span class="kw">for </span>ChiSquaredError {}
 
 <span class="attr">#[derive(Clone, Copy, Debug)]
-#[cfg_attr(feature = <span class="string">&quot;serde1&quot;</span>, derive(Serialize, Deserialize))]
+#[cfg_attr(feature = <span class="string">"serde1"</span>, derive(Serialize, Deserialize))]
 </span><span class="kw">enum </span>ChiSquaredRepr&lt;F&gt;
 <span class="kw">where
     </span>F: Float,
@@ -1197,10 +1197,10 @@
 ///
 /// let f = FisherF::new(2.0, 32.0).unwrap();
 /// let v = f.sample(&amp;mut rand::thread_rng());
-/// println!(&quot;{} is from an F(2, 32) distribution&quot;, v)
+/// println!("{} is from an F(2, 32) distribution", v)
 /// ```
 </span><span class="attr">#[derive(Clone, Copy, Debug)]
-#[cfg_attr(feature = <span class="string">&quot;serde1&quot;</span>, derive(Serialize, Deserialize))]
+#[cfg_attr(feature = <span class="string">"serde1"</span>, derive(Serialize, Deserialize))]
 </span><span class="kw">pub struct </span>FisherF&lt;F&gt;
 <span class="kw">where
     </span>F: Float,
@@ -1217,7 +1217,7 @@
 
 <span class="doccomment">/// Error type returned from `FisherF::new`.
 </span><span class="attr">#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = <span class="string">&quot;serde1&quot;</span>, derive(Serialize, Deserialize))]
+#[cfg_attr(feature = <span class="string">"serde1"</span>, derive(Serialize, Deserialize))]
 </span><span class="kw">pub enum </span>FisherFError {
     <span class="doccomment">/// `m &lt;= 0` or `nan`.
     </span>MTooSmall,
@@ -1226,16 +1226,16 @@
 }
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>FisherFError {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         f.write_str(<span class="kw">match </span><span class="self">self </span>{
-            FisherFError::MTooSmall =&gt; <span class="string">&quot;m is not positive in Fisher F distribution&quot;</span>,
-            FisherFError::NTooSmall =&gt; <span class="string">&quot;n is not positive in Fisher F distribution&quot;</span>,
+            FisherFError::MTooSmall =&gt; <span class="string">"m is not positive in Fisher F distribution"</span>,
+            FisherFError::NTooSmall =&gt; <span class="string">"n is not positive in Fisher F distribution"</span>,
         })
     }
 }
 
-<span class="attr">#[cfg(feature = <span class="string">&quot;std&quot;</span>)]
-#[cfg_attr(doc_cfg, doc(cfg(feature = <span class="string">&quot;std&quot;</span>)))]
+<span class="attr">#[cfg(feature = <span class="string">"std"</span>)]
+#[cfg_attr(doc_cfg, doc(cfg(feature = <span class="string">"std"</span>)))]
 </span><span class="kw">impl </span>std::error::Error <span class="kw">for </span>FisherFError {}
 
 <span class="kw">impl</span>&lt;F&gt; FisherF&lt;F&gt;
@@ -1284,10 +1284,10 @@
 ///
 /// let t = StudentT::new(11.0).unwrap();
 /// let v = t.sample(&amp;mut rand::thread_rng());
-/// println!(&quot;{} is from a t(11) distribution&quot;, v)
+/// println!("{} is from a t(11) distribution", v)
 /// ```
 </span><span class="attr">#[derive(Clone, Copy, Debug)]
-#[cfg_attr(feature = <span class="string">&quot;serde1&quot;</span>, derive(Serialize, Deserialize))]
+#[cfg_attr(feature = <span class="string">"serde1"</span>, derive(Serialize, Deserialize))]
 </span><span class="kw">pub struct </span>StudentT&lt;F&gt;
 <span class="kw">where
     </span>F: Float,
@@ -1337,7 +1337,7 @@
 /// Communications of the ACM 21, 317-322.
 /// https://doi.org/10.1145/359460.359482
 </span><span class="attr">#[derive(Clone, Copy, Debug)]
-#[cfg_attr(feature = <span class="string">&quot;serde1&quot;</span>, derive(Serialize, Deserialize))]
+#[cfg_attr(feature = <span class="string">"serde1"</span>, derive(Serialize, Deserialize))]
 </span><span class="kw">enum </span>BetaAlgorithm&lt;N&gt; {
     BB(BB&lt;N&gt;),
     BC(BC&lt;N&gt;),
@@ -1345,7 +1345,7 @@
 
 <span class="doccomment">/// Algorithm BB for `min(alpha, beta) &gt; 1`.
 </span><span class="attr">#[derive(Clone, Copy, Debug)]
-#[cfg_attr(feature = <span class="string">&quot;serde1&quot;</span>, derive(Serialize, Deserialize))]
+#[cfg_attr(feature = <span class="string">"serde1"</span>, derive(Serialize, Deserialize))]
 </span><span class="kw">struct </span>BB&lt;N&gt; {
     alpha: N,
     beta: N,
@@ -1354,7 +1354,7 @@
 
 <span class="doccomment">/// Algorithm BC for `min(alpha, beta) &lt;= 1`.
 </span><span class="attr">#[derive(Clone, Copy, Debug)]
-#[cfg_attr(feature = <span class="string">&quot;serde1&quot;</span>, derive(Serialize, Deserialize))]
+#[cfg_attr(feature = <span class="string">"serde1"</span>, derive(Serialize, Deserialize))]
 </span><span class="kw">struct </span>BC&lt;N&gt; {
     alpha: N,
     beta: N,
@@ -1372,10 +1372,10 @@
 ///
 /// let beta = Beta::new(2.0, 5.0).unwrap();
 /// let v = beta.sample(&amp;mut rand::thread_rng());
-/// println!(&quot;{} is from a Beta(2, 5) distribution&quot;, v);
+/// println!("{} is from a Beta(2, 5) distribution", v);
 /// ```
 </span><span class="attr">#[derive(Clone, Copy, Debug)]
-#[cfg_attr(feature = <span class="string">&quot;serde1&quot;</span>, derive(Serialize, Deserialize))]
+#[cfg_attr(feature = <span class="string">"serde1"</span>, derive(Serialize, Deserialize))]
 </span><span class="kw">pub struct </span>Beta&lt;F&gt;
 <span class="kw">where
     </span>F: Float,
@@ -1387,7 +1387,7 @@
 
 <span class="doccomment">/// Error type returned from `Beta::new`.
 </span><span class="attr">#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = <span class="string">&quot;serde1&quot;</span>, derive(Serialize, Deserialize))]
+#[cfg_attr(feature = <span class="string">"serde1"</span>, derive(Serialize, Deserialize))]
 </span><span class="kw">pub enum </span>BetaError {
     <span class="doccomment">/// `alpha &lt;= 0` or `nan`.
     </span>AlphaTooSmall,
@@ -1396,16 +1396,16 @@
 }
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>BetaError {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         f.write_str(<span class="kw">match </span><span class="self">self </span>{
-            BetaError::AlphaTooSmall =&gt; <span class="string">&quot;alpha is not positive in beta distribution&quot;</span>,
-            BetaError::BetaTooSmall =&gt; <span class="string">&quot;beta is not positive in beta distribution&quot;</span>,
+            BetaError::AlphaTooSmall =&gt; <span class="string">"alpha is not positive in beta distribution"</span>,
+            BetaError::BetaTooSmall =&gt; <span class="string">"beta is not positive in beta distribution"</span>,
         })
     }
 }
 
-<span class="attr">#[cfg(feature = <span class="string">&quot;std&quot;</span>)]
-#[cfg_attr(doc_cfg, doc(cfg(feature = <span class="string">&quot;std&quot;</span>)))]
+<span class="attr">#[cfg(feature = <span class="string">"std"</span>)]
+#[cfg_attr(doc_cfg, doc(cfg(feature = <span class="string">"std"</span>)))]
 </span><span class="kw">impl </span>std::error::Error <span class="kw">for </span>BetaError {}
 
 <span class="kw">impl</span>&lt;F&gt; Beta&lt;F&gt;
@@ -1622,7 +1622,7 @@
         <span class="kw">let </span>beta = Beta::&lt;f64&gt;::new(<span class="number">1e-3</span>, <span class="number">1e-3</span>).unwrap();
         <span class="kw">let </span><span class="kw-2">mut </span>rng = <span class="kw">crate</span>::test::rng(<span class="number">206</span>);
         <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="number">1000 </span>{
-            <span class="macro">assert!</span>(!beta.sample(<span class="kw-2">&amp;mut </span>rng).is_nan(), <span class="string">&quot;failed at i={}&quot;</span>, i);
+            <span class="macro">assert!</span>(!beta.sample(<span class="kw-2">&amp;mut </span>rng).is_nan(), <span class="string">"failed at i={}"</span>, i);
         }
     }
 }

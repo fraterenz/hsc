@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/francesco/.cargo/registry/src/index.crates.io-6f17d22bba15001f/rand_distr-0.4.3/src/weighted_alias.rs`."><title>weighted_alias.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="rand_distr" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0 (82e1608df 2023-12-21)" data-channel="1.75.0" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://www.rust-lang.org/favicon.ico"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../rand_distr/index.html"><img src="https://www.rust-lang.org/logos/rust-logo-128x128-blk.png" alt="rand_distr"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/francesco/.cargo/registry/src/index.crates.io-6f17d22bba15001f/rand_distr-0.4.3/src/weighted_alias.rs`."><title>weighted_alias.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-dd39b87e5fcfba68.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="rand_distr" data-themes="" data-resource-suffix="" data-rustdoc-version="1.80.1 (3f5fd8dd4 2024-08-06)" data-channel="1.80.1" data-search-js="search-d52510db62a78183.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-20a3ad099b048cf2.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="icon" href="https://www.rust-lang.org/favicon.ico"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -540,7 +540,7 @@
 <span class="kw">use </span>core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
 <span class="kw">use </span>rand::Rng;
 <span class="kw">use </span>alloc::{boxed::Box, vec, vec::Vec};
-<span class="attr">#[cfg(feature = <span class="string">&quot;serde1&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"serde1"</span>)]
 </span><span class="kw">use </span>serde::{Serialize, Deserialize};
 
 <span class="doccomment">/// A distribution using weighted sampling to pick a discretely selected item.
@@ -568,20 +568,20 @@
 /// use rand_distr::WeightedAliasIndex;
 /// use rand::prelude::*;
 ///
-/// let choices = vec![&#39;a&#39;, &#39;b&#39;, &#39;c&#39;];
+/// let choices = vec!['a', 'b', 'c'];
 /// let weights = vec![2, 1, 1];
 /// let dist = WeightedAliasIndex::new(weights).unwrap();
 /// let mut rng = thread_rng();
 /// for _ in 0..100 {
-///     // 50% chance to print &#39;a&#39;, 25% chance to print &#39;b&#39;, 25% chance to print &#39;c&#39;
-///     println!(&quot;{}&quot;, choices[dist.sample(&amp;mut rng)]);
+///     // 50% chance to print 'a', 25% chance to print 'b', 25% chance to print 'c'
+///     println!("{}", choices[dist.sample(&amp;mut rng)]);
 /// }
 ///
-/// let items = [(&#39;a&#39;, 0), (&#39;b&#39;, 3), (&#39;c&#39;, 7)];
+/// let items = [('a', 0), ('b', 3), ('c', 7)];
 /// let dist2 = WeightedAliasIndex::new(items.iter().map(|item| item.1).collect()).unwrap();
 /// for _ in 0..100 {
-///     // 0% chance to print &#39;a&#39;, 30% chance to print &#39;b&#39;, 70% chance to print &#39;c&#39;
-///     println!(&quot;{}&quot;, items[dist2.sample(&amp;mut rng)].0);
+///     // 0% chance to print 'a', 30% chance to print 'b', 70% chance to print 'c'
+///     println!("{}", items[dist2.sample(&amp;mut rng)].0);
 /// }
 /// ```
 ///
@@ -589,10 +589,10 @@
 /// [`Vec&lt;u32&gt;`]: Vec
 /// [`Uniform&lt;u32&gt;::sample`]: Distribution::sample
 /// [`Uniform&lt;W&gt;::sample`]: Distribution::sample
-</span><span class="attr">#[cfg_attr(doc_cfg, doc(cfg(feature = <span class="string">&quot;alloc&quot;</span>)))]
-#[cfg_attr(feature = <span class="string">&quot;serde1&quot;</span>, derive(Serialize, Deserialize))]
-#[cfg_attr(feature = <span class="string">&quot;serde1&quot;</span>, serde(bound(serialize = <span class="string">&quot;W: Serialize, W::Sampler: Serialize&quot;</span>)))]
-#[cfg_attr(feature = <span class="string">&quot;serde1&quot;</span>, serde(bound(deserialize = <span class="string">&quot;W: Deserialize&lt;&#39;de&gt;, W::Sampler: Deserialize&lt;&#39;de&gt;&quot;</span>)))]
+</span><span class="attr">#[cfg_attr(doc_cfg, doc(cfg(feature = <span class="string">"alloc"</span>)))]
+#[cfg_attr(feature = <span class="string">"serde1"</span>, derive(Serialize, Deserialize))]
+#[cfg_attr(feature = <span class="string">"serde1"</span>, serde(bound(serialize = <span class="string">"W: Serialize, W::Sampler: Serialize"</span>)))]
+#[cfg_attr(feature = <span class="string">"serde1"</span>, serde(bound(deserialize = <span class="string">"W: Deserialize&lt;'de&gt;, W::Sampler: Deserialize&lt;'de&gt;"</span>)))]
 </span><span class="kw">pub struct </span>WeightedAliasIndex&lt;W: AliasableWeight&gt; {
     aliases: Box&lt;[u32]&gt;,
     no_alias_odds: Box&lt;[W]&gt;,
@@ -653,7 +653,7 @@
         <span class="doccomment">/// This struct is designed to contain three data structures at once,
         /// sharing the same memory. More precisely it contains two linked lists
         /// and an alias map, which will be the output of this method. To keep
-        /// the three data structures from getting in each other&#39;s way, it must
+        /// the three data structures from getting in each other's way, it must
         /// be ensured that a single index is only ever in one of them at the
         /// same time.
         </span><span class="kw">struct </span>Aliases {
@@ -774,11 +774,11 @@
     Uniform&lt;W&gt;: fmt::Debug,
 {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter) -&gt; fmt::Result {
-        f.debug_struct(<span class="string">&quot;WeightedAliasIndex&quot;</span>)
-            .field(<span class="string">&quot;aliases&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.aliases)
-            .field(<span class="string">&quot;no_alias_odds&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.no_alias_odds)
-            .field(<span class="string">&quot;uniform_index&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.uniform_index)
-            .field(<span class="string">&quot;uniform_within_weight_sum&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.uniform_within_weight_sum)
+        f.debug_struct(<span class="string">"WeightedAliasIndex"</span>)
+            .field(<span class="string">"aliases"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.aliases)
+            .field(<span class="string">"no_alias_odds"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.no_alias_odds)
+            .field(<span class="string">"uniform_index"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.uniform_index)
+            .field(<span class="string">"uniform_within_weight_sum"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.uniform_within_weight_sum)
             .finish()
     }
 }
@@ -799,7 +799,7 @@
 <span class="doccomment">/// Trait that must be implemented for weights, that are used with
 /// [`WeightedAliasIndex`]. Currently no guarantees on the correctness of
 /// [`WeightedAliasIndex`] are given for custom implementations of this trait.
-</span><span class="attr">#[cfg_attr(doc_cfg, doc(cfg(feature = <span class="string">&quot;alloc&quot;</span>)))]
+</span><span class="attr">#[cfg_attr(doc_cfg, doc(cfg(feature = <span class="string">"alloc"</span>)))]
 </span><span class="kw">pub trait </span>AliasableWeight:
     Sized
     + Copy
@@ -832,7 +832,7 @@
     }
 }
 
-<span class="macro">macro_rules! </span>impl_weight_for_float {
+<span class="macro">macro_rules!</span> impl_weight_for_float {
     (<span class="macro-nonterminal">$T</span>: ident) =&gt; {
         <span class="kw">impl </span>AliasableWeight <span class="kw">for </span><span class="macro-nonterminal">$T </span>{
             <span class="kw">const </span>MAX: <span class="self">Self </span>= ::core::<span class="macro-nonterminal">$T::MAX</span>;
@@ -861,7 +861,7 @@
     }
 }
 
-<span class="macro">macro_rules! </span>impl_weight_for_int {
+<span class="macro">macro_rules!</span> impl_weight_for_int {
     (<span class="macro-nonterminal">$T</span>: ident) =&gt; {
         <span class="kw">impl </span>AliasableWeight <span class="kw">for </span><span class="macro-nonterminal">$T </span>{
             <span class="kw">const </span>MAX: <span class="self">Self </span>= ::core::<span class="macro-nonterminal">$T::MAX</span>;
