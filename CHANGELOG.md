@@ -1,6 +1,9 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 4.3.8
+- 10x speed up by removing the call to `the_only_one_subclone_present` from the fixed-population phase.
+
 ## 4.3.7
 ### BugFix
 - When switching from exp. to Moran, do not try to add background mutations to cell if they have their last division time greater than `TIME_AT_BIRTH`. This is a problem when `tau-exp` is not correctly set.
