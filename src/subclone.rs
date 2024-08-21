@@ -233,6 +233,8 @@ impl SubClones {
     pub fn the_only_one_subclone_present(&self) -> Option<CloneId> {
         //! returns `None` if more than one subclone is present else the clone
         //! id.
+        //!
+        //! **warning** this is very slow.
         for subclone in self.0.iter() {
             if subclone.cell_count() == self.compute_tot_cells() {
                 return Some(subclone.id);

@@ -293,13 +293,8 @@ impl Moran {
         }
         // remove a cell from a random subclone based on the frequencies of
         // the clones at the current state
-        let id2remove = if let Some(id) = self.subclones.the_only_one_subclone_present() {
-            id
-        } else {
-            let variants = Variants::variant_counts(&self.subclones);
-            WeightedIndex::new(variants).unwrap().sample(rng)
-        };
-        // remove a cell from the random subclone
+        let variants = Variants::variant_counts(&self.subclones);
+        let id2remove = WeightedIndex::new(variants).unwrap().sample(rng);
         let _ = self
             .subclones
             .get_mut_clone_unchecked(id2remove)
