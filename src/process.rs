@@ -174,13 +174,13 @@ impl AdvanceStep<MAX_SUBCLONES> for Exponential {
         //! The proliferation step is implemented as following:
         //!
         //! 1. select the cell that will proliferate next from the clone
-        //! with id `reaction` determined by the Gillespie algorithm
+        //!    with id `reaction` determined by the Gillespie algorithm
         //!
         //! 2. for the proliferating cell and its daughter cell:
         //!     * mutate genome by storing a neutral number of mutations
         //!
         //!     * assign to new subclone with a probability determined by the
-        //!     rate of mutations conferring a proliferative advantage
+        //!       rate of mutations conferring a proliferative advantage
         // The Gillespie sampler samples the clone that will proliferate next,
         // that is the clone with id `reaction.event`.
         // Pick random proliferating cells from this clone. **Note that this

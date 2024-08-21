@@ -27,20 +27,20 @@ pub enum Division {
 /// The proliferation step is implemented as following:
 ///
 /// 1. select the cell `c` that will proliferate next from the clone
-/// with id `reaction` determined by the Gillespie algorithm
+///    with id `reaction` determined by the Gillespie algorithm
 ///
 /// 2. draw and assign mb neutral background mutations to `c` from
-/// Poisson(DeltaT * mub), where mub is the backgound mutation rate
+///    Poisson(DeltaT * mub), where mub is the backgound mutation rate
 ///
 /// 3. draw and assign md neutral division mutations to `c` from
-/// Poisson(mud), where mud is the division mutation rate
+///    Poisson(mud), where mud is the division mutation rate
 ///
 /// 4. draw from a Bernoulli trial a fit mutation and in case assign
-/// `c` to a new clone. This clone must be empty and different from the
-/// old clone which `c` belonged to.
+///    `c` to a new clone. This clone must be empty and different from the
+///    old clone which `c` belonged to.
 ///
 /// 5. clone the proliferating cell `c` into `c1` and repeat step 3, 4
-/// with `c1` only if we simulated a symmetric division, see [`Division`].
+///    with `c1` only if we simulated a symmetric division, see [`Division`].
 pub struct Proliferation {
     pub neutral_mutation: NeutralMutations,
     pub division: Division,
@@ -70,8 +70,8 @@ impl Proliferation {
         //! For the last step, there are two possible scenarios:
         //!
         //! 1. if there is a new fit variant, then `cell` will be assigned to a
-        //! new **empty** random clone with an id different from `old_subclone_id`
-        //! and panics if there aren't any empty subclones left
+        //!    new **empty** random clone with an id different from `old_subclone_id`
+        //!    and panics if there aren't any empty subclones left
         //! 2. else, reassign `cell` to the old subclone with id `old_subclone_id`
         let mut stem_cell = proliferating_cell(subclones, proliferating_subclone, verbosity, rng);
         let p = (distributions.u
