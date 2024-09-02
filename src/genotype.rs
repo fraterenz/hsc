@@ -260,10 +260,10 @@ mod tests {
         let diamond = Uuid::new_v4();
         let thunder = Uuid::new_v4();
         // cells with variants
-        let cell1 = StemCell::with_mutations(vec![square, circle, star]);
-        let cell2 = StemCell::with_mutations(vec![square, circle, diamond]);
-        let cell3 = StemCell::with_mutations(vec![square, triangle, star]);
-        let cell4 = StemCell::with_mutations(vec![square, thunder]);
+        let cell1 = StemCell::with_mutations(vec![square, circle, star], 0);
+        let cell2 = StemCell::with_mutations(vec![square, circle, diamond], 1);
+        let cell3 = StemCell::with_mutations(vec![square, triangle, star], 2);
+        let cell4 = StemCell::with_mutations(vec![square, thunder], 3);
 
         // compute sfs and sort it by jcells
         let mut sfs = Sfs::from_cells(&[&cell1, &cell2, &cell3, &cell4], 0)
@@ -293,10 +293,10 @@ mod tests {
         let diamond = Uuid::new_v4();
         let thunder = Uuid::new_v4();
         // cells with variants
-        let cell1 = StemCell::with_mutations(vec![square, circle, star]);
-        let cell2 = StemCell::with_mutations(vec![square, circle, diamond]);
-        let cell3 = StemCell::with_mutations(vec![square, triangle, star]);
-        let cell4 = StemCell::with_mutations(vec![square, circle, thunder]);
+        let cell1 = StemCell::with_mutations(vec![square, circle, star], 0);
+        let cell2 = StemCell::with_mutations(vec![square, circle, diamond], 1);
+        let cell3 = StemCell::with_mutations(vec![square, triangle, star], 2);
+        let cell4 = StemCell::with_mutations(vec![square, circle, thunder], 3);
 
         // compute sfs and sort it by jcells
         let mut sfs = Sfs::from_cells(&[&cell1, &cell2, &cell3, &cell4], 0)

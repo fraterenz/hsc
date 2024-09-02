@@ -3,6 +3,8 @@ use rand::Rng;
 
 use crate::genotype::{NeutralMutationPoisson, Variant};
 
+pub type StemCellId = usize;
+
 /// Hematopoietic stem and progenitor cells (HSPCs) are a rare population of
 /// precursor cells that possess the capacity for self-renewal and multilineage
 /// differentiation.
@@ -11,6 +13,7 @@ use crate::genotype::{NeutralMutationPoisson, Variant};
 #[derive(Debug, Clone)]
 pub struct StemCell {
     pub variants: Vec<Variant>,
+    pub id: StemCellId,
     /// the last time at which the cell has divided
     last_division_t: f32,
 }
@@ -18,22 +21,23 @@ pub struct StemCell {
 impl Default for StemCell {
     fn default() -> Self {
         //! Creates a stem cell without any neutral mutations.
-        Self::new()
+        Self::new(StemCellId::default())
     }
 }
 
 impl StemCell {
-    pub fn new() -> StemCell {
+    pub fn new(id: StemCellId) -> StemCell {
         //! Construct a new cell without any neutral mutations.
         StemCell {
+            id,
             variants: Vec::new(),
             last_division_t: 0.,
         }
     }
 
-    pub fn with_mutations(mutations: Vec<Variant>) -> StemCell {
+    pub fn with_mutations(mutations: Vec<Variant>, id: StemCellId) -> StemCell {
         assert!(!mutations.is_empty());
-        let mut cell = StemCell::new();
+        let mut cell = StemCell::new(id);
         cell.variants = mutations;
         cell
     }
@@ -135,30 +139,30 @@ mod tests {
     #[should_panic]
     #[test]
     fn new_cell_with_empty_mutations_test() {
-        StemCell::with_mutations(vec![]);
+        StemCell::with_mutations(vec![], 2);
     }
 
     #[quickcheck]
-    fn new_cell_with_mutations_test(nb_mutations: NonZeroU8) -> bool {
+    fn new_cell_with_mutations_test(nb_mutations: NonZeroU8, id: StemCellId) -> bool {
         let mutations = (0..nb_mutations.get()).map(|_| Uuid::new_v4()).collect();
-        let cell = StemCell::with_mutations(mutations);
+        let cell = StemCell::with_mutations(mutations, id);
         cell.has_mutations() && nb_mutations.get() as usize == cell.burden()
     }
 
     #[quickcheck]
-    fn mutate_test(nb_mutations: NonZeroU8) -> bool {
-        let mut cell = StemCell::new();
+    fn mutate_test(nb_mutations: NonZeroU8, id: StemCellId) -> bool {
+        let mut cell = StemCell::new(id);
         let mutations = (0..nb_mutations.get()).map(|_| Uuid::new_v4()).collect();
         mutate(&mut cell, mutations);
         nb_mutations.get() as usize == cell.burden()
     }
 
     #[quickcheck]
-    fn assign_background_mutations_test(seed: u64) -> bool {
+    fn assign_background_mutations_test(seed: u64, id: StemCellId) -> bool {
         let rng = &mut ChaCha8Rng::seed_from_u64(seed);
         let mutations = vec![Variant::new_v4()];
         let time = 9.1;
-        let mut stem_cell = StemCell::with_mutations(mutations.clone());
+        let mut stem_cell = StemCell::with_mutations(mutations.clone(), id);
         let poissons = NeutralMutationPoisson::new(1.1, 12f32).unwrap();
 
         assign_background_mutations(&mut stem_cell, time, &poissons, rng, 0);
@@ -166,8 +170,8 @@ mod tests {
     }
 
     #[quickcheck]
-    fn interdivision_time_test(time: NonZeroU8) -> bool {
-        let mut stem_cell = StemCell::new();
+    fn interdivision_time_test(time: NonZeroU8, id: StemCellId) -> bool {
+        let mut stem_cell = StemCell::new(id);
         stem_cell.last_division_t = time.get() as f32;
 
         (stem_cell.interdivision_time(time.get() as f32).unwrap()).abs() < f32::EPSILON
@@ -176,7 +180,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn interdivision_time_panic_test() {
-        let mut stem_cell = StemCell::new();
+        let mut stem_cell = StemCell::new(3);
         stem_cell.last_division_t = 1.;
 
         stem_cell.interdivision_time(0.1).unwrap();

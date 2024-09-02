@@ -3,7 +3,7 @@ use rand::Rng;
 use rand_distr::{Bernoulli, Distribution};
 
 use crate::{
-    stemcell::{assign_background_mutations, assign_divisional_mutations},
+    stemcell::{assign_background_mutations, assign_divisional_mutations, StemCell, StemCellId},
     subclone::{next_clone, proliferating_cell, CloneId, Distributions, SubClones},
 };
 
@@ -44,18 +44,31 @@ pub enum Division {
 pub struct Proliferation {
     pub neutral_mutation: NeutralMutations,
     pub division: Division,
+    // counter of cells used to generate new cells
+    last_id: StemCellId,
 }
 
 impl Proliferation {
-    pub fn new(neutral_mutation: NeutralMutations, division: Division) -> Self {
+    pub fn new(
+        neutral_mutation: NeutralMutations,
+        division: Division,
+        cells: &[&StemCell],
+    ) -> Self {
+        //! Create a new Proliferation scheme.
+        //!
+        //! ## Panics
+        //! When the slice `cells` is empty.
+        assert!(!cells.is_empty());
+        let last_id = cells.iter().map(|&cell| cell.id).max().unwrap();
         Proliferation {
             neutral_mutation,
             division,
+            last_id,
         }
     }
 
     pub fn proliferate(
-        &self,
+        &mut self,
         subclones: &mut SubClones,
         time: f32,
         proliferating_subclone: CloneId,
@@ -108,7 +121,10 @@ impl Proliferation {
                     }
                     vec![stem_cell]
                 } else {
-                    vec![stem_cell.clone(), stem_cell]
+                    let mut new_cell = stem_cell.clone();
+                    self.last_id += 1;
+                    new_cell.id = self.last_id;
+                    vec![stem_cell, new_cell]
                 }
             }
             Division::Symmetric => vec![stem_cell.clone(), stem_cell],

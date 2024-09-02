@@ -338,7 +338,7 @@ impl Default for SubClones {
         //! Create new subclones each having one cell (this creates also the cells).
         let subclones = std::array::from_fn(|i| {
             let mut subclone = SubClone::new(i, 2);
-            subclone.assign_cell(StemCell::new());
+            subclone.assign_cell(StemCell::new(i));
             subclone
         });
         Self(subclones)
@@ -387,7 +387,7 @@ impl Variants {
         //!     [1. / MAX_SUBCLONES as f32; MAX_SUBCLONES]
         //! );
         //!
-        //! let subclones = SubClones::new(vec![StemCell::new()], MAX_SUBCLONES, 0);
+        //! let subclones = SubClones::new(vec![StemCell::new(1)], MAX_SUBCLONES, 0);
         //! let mut variant_fraction = [0.; MAX_SUBCLONES];
         //! variant_fraction[0] = 1.;
         //!
@@ -444,7 +444,7 @@ pub fn proliferating_cell(
 mod tests {
     use std::num::NonZeroU8;
 
-    use crate::tests::LambdaFromNonZeroU8;
+    use crate::{stemcell::StemCellId, tests::LambdaFromNonZeroU8};
 
     use super::*;
     use quickcheck_macros::quickcheck;
@@ -453,9 +453,9 @@ mod tests {
     use rand_distr::Uniform;
 
     #[quickcheck]
-    fn assign_cell_test(id: usize) -> bool {
+    fn assign_cell_test(id: usize, id_cell: StemCellId) -> bool {
         let mut neutral_clone = SubClone { cells: vec![], id };
-        let cell = StemCell::new();
+        let cell = StemCell::new(id_cell);
         assert!(neutral_clone.cells.is_empty());
 
         neutral_clone.assign_cell(cell);
@@ -491,9 +491,9 @@ mod tests {
     }
 
     #[quickcheck]
-    fn division_no_new_clone(seed: u64, cells_present: NonZeroU8) -> bool {
+    fn division_no_new_clone(seed: u64, cells_present: NonZeroU8, id: StemCellId) -> bool {
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
-        let mut cell = StemCell::new();
+        let mut cell = StemCell::new(id);
         cell.set_last_division_time(1.1).unwrap();
 
         let cells = vec![cell; cells_present.get() as usize];
@@ -505,9 +505,9 @@ mod tests {
     }
 
     #[quickcheck]
-    fn division_new_clone(seed: u64, cells_present: NonZeroU8) -> bool {
+    fn division_new_clone(seed: u64, cells_present: NonZeroU8, id: StemCellId) -> bool {
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
-        let mut cell = StemCell::new();
+        let mut cell = StemCell::new(id);
         cell.set_last_division_time(1.1).unwrap();
 
         let cells = vec![cell; cells_present.get() as usize];
@@ -524,7 +524,7 @@ mod tests {
         let mut rng = ChaCha8Rng::seed_from_u64(26);
 
         let subclones = SubClones::default();
-        let mut cell = StemCell::new();
+        let mut cell = StemCell::new(3);
         cell.set_last_division_time(1.).unwrap();
 
         next_clone(&subclones, 0, 1., &mut rng, 0);

@@ -551,7 +551,7 @@ mod tests {
                 path: PathBuf::default(),
                 snapshots: VecDeque::default(),
             },
-            SubClones::new(vec![StemCell::new(); cells.get() as usize], 3, 0),
+            SubClones::new(vec![StemCell::new(1); cells.get() as usize], 3, 0),
             0f32,
             SavingOptions {
                 filename: PathBuf::default(),
@@ -653,7 +653,7 @@ mod tests {
     fn create_exp(fit_variants: bool, cells: NonZeroU64) -> Exponential {
         let mu = if fit_variants { 0.999 } else { 0. };
         Exponential::new(
-            SubClones::new(vec![StemCell::new(); cells.get() as usize], 3, 0),
+            SubClones::new(vec![StemCell::new(1); cells.get() as usize], 3, 0),
             Distributions::new(Probs::new(10., 1., mu, 1., cells.get(), 0), 0),
             Proliferation::default(),
             0,

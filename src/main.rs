@@ -76,9 +76,11 @@ fn main() {
         let cells = if app.options_exponential.is_some() {
             // add a neutral mutation such that we have a clonal variant
             let mutation = Uuid::new_v4();
-            vec![StemCell::with_mutations(vec![mutation])]
+            vec![StemCell::with_mutations(vec![mutation], 0)]
         } else {
-            vec![StemCell::new(); app.options_moran.gillespie_options.max_cells as usize - 1]
+            (0..(app.options_moran.gillespie_options.max_cells as usize - 1))
+                .map(StemCell::new)
+                .collect()
         };
         let subclones = SubClones::new(
             cells,
@@ -129,7 +131,8 @@ fn main() {
             } else {
                 Division::Asymmetric(Bernoulli::new(options.asymmetric as f64).unwrap())
             };
-            let proliferation = Proliferation::new(neutral_mutation, division);
+            let proliferation =
+                Proliferation::new(neutral_mutation, division, &subclones.get_cells());
             let mut exp = Exponential::new(
                 subclones,
                 distributions_exp,
@@ -201,7 +204,8 @@ fn main() {
             );
             let moran_distributions =
                 Distributions::new(probs_moran, app.options_moran.gillespie_options.verbosity);
-            let proliferation = Proliferation::new(neutral_mutation, division);
+            let proliferation =
+                Proliferation::new(neutral_mutation, division, &subclones.get_cells());
             Moran::new(
                 app.options_moran.process_options.clone(),
                 subclones,

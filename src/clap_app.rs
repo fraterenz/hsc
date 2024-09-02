@@ -115,9 +115,10 @@ pub struct ExponentialPhase {
 
 #[derive(Debug, Parser)] // requires `derive` feature
 #[command(
-    name = "hsc",
+    name = "hsc-phylotree",
     version,
-    about = "Simulate heamatopoietic stem-cell dynamics"
+    about = "Simulate heamatopoietic stem-cell dynamics",
+    after_help = "Simulate heamatopoietic stem-cell phylogenetic trees subject to birth-death process with positively selected clonal expansions"
 )]
 pub struct Cli {
     #[command(subcommand)]
