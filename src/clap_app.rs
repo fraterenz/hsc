@@ -1,15 +1,15 @@
 use anyhow::{bail, ensure};
-use clap::{ArgAction, Args, Parser, Subcommand};
+use clap::{ArgAction, Args, Parser};
 use hsc::{
-    process::{ProcessOptions, Snapshot},
-    subclone::{from_mean_std_to_shape_scale, Fitness},
-    ProbsPerYear,
+    process::{SaveOptions, SimulationOptions, Snapshot},
+    subclone::{from_mean_std_to_shape_scale, Distributions, Fitness},
+    Probs, ProbsPerYear,
 };
 use num_traits::{Float, NumCast};
 use sosa::{IterTime, NbIndividuals, Options};
 use std::{collections::VecDeque, ops::RangeInclusive, path::PathBuf};
 
-use crate::{AppOptions, SimulationOptionsExp, SimulationOptionsMoran};
+use crate::AppOptions;
 
 #[derive(Clone, Debug)]
 pub enum Parallel {
@@ -58,61 +58,6 @@ fn fitness_in_range(s: &str) -> Result<f32, String> {
     }
 }
 
-#[derive(Debug, Subcommand)]
-enum Commands {
-    /// The dynamics in a fixed-size population
-    Moran(MoranPhase),
-    /// The dynamics in an exponential growing population followed by a fixed-size population
-    ExpMoran(ExponentialThenMoran),
-}
-
-#[derive(Args, Debug, Clone)]
-pub struct ExponentialThenMoran {
-    #[command(flatten)]
-    exponential: ExponentialPhase,
-    #[command(flatten)]
-    moran: MoranPhase,
-}
-
-#[derive(Args, Debug, Clone)]
-pub struct MoranPhase {
-    /// Average fit mutations arising in 1 year, units: division / year.
-    #[arg(long, default_value_t = 4.)]
-    pub mu: f32,
-    /// Rate of accumulation of neutral background mutations per year in the fixed-size population phase
-    #[arg(long, default_value_t = 14.)]
-    pub mu_background: f32,
-    /// Rate of accumulation of neutral mutations upon division per year in the fixed-size population phase
-    #[arg(long, default_value_t = 1.14)]
-    pub mu_division: f32,
-    /// Inter-division time for the wild-type cells in the fixed-size population phase
-    #[arg(long, default_value_t = 1.)]
-    pub tau: f32,
-    /// Probability of asymmetric division in the fixed-size population phase
-    #[arg(long, default_value_t = 0.)]
-    pub asymmetric: f32,
-}
-
-#[derive(Args, Debug, Clone)]
-#[group(required = false, multiple = true)]
-pub struct ExponentialPhase {
-    /// Average fit mutations arising in 1 year, units: division / year.
-    #[arg(long, default_value_t = 4.)]
-    pub mu_exp: f32,
-    /// Rate of accumulation of neutral background mutations per year
-    #[arg(long, default_value_t = 33.)]
-    pub mu_background_exp: f32,
-    /// Rate of accumulation of neutral mutations upon division per year
-    #[arg(long, default_value_t = 1.14)]
-    pub mu_division_exp: f32,
-    /// Inter-division time for the wild-type cells
-    #[arg(long, default_value_t = 0.065)]
-    pub tau_exp: f32,
-    /// Probability of asymmetric division
-    #[arg(long, default_value_t = 0.)]
-    pub asymmetric_exp: f32,
-}
-
 #[derive(Debug, Parser)] // requires `derive` feature
 #[command(
     name = "hsc-phylotree",
@@ -121,8 +66,6 @@ pub struct ExponentialPhase {
     after_help = "Simulate heamatopoietic stem-cell phylogenetic trees subject to birth-death process with positively selected clonal expansions"
 )]
 pub struct Cli {
-    #[command(subcommand)]
-    command: Commands,
     /// The years simulated will be `years + 1`, that is simulations start at
     /// year zero and the end at year `year + 1`
     #[arg(short, long, default_value_t = 9)]
@@ -180,6 +123,37 @@ pub struct Cli {
     /// See help for `snapshots` for more details.
     #[arg(long, requires = "snapshots", num_args = 0.., value_delimiter = ',', require_equals = true)]
     subsamples: Option<Vec<usize>>,
+    /// Average fit mutations arising in 1 year, units: division / year.
+    #[arg(long, default_value_t = 4.)]
+    pub mu: f32,
+    /// Rate of accumulation of neutral background mutations per year in the fixed-size population phase
+    #[arg(long, default_value_t = 14.)]
+    pub mu_background: f32,
+    /// Rate of accumulation of neutral mutations upon division per year in the fixed-size population phase
+    #[arg(long, default_value_t = 1.14)]
+    pub mu_division: f32,
+    /// Inter-division time for the wild-type cells in the fixed-size population phase
+    #[arg(long, default_value_t = 1.)]
+    pub tau: f32,
+    /// Probability of asymmetric division in the fixed-size population phase
+    #[arg(long, default_value_t = 0.)]
+    pub asymmetric: f32,
+
+    /// Average fit mutations arising in 1 year, units: division / year.
+    #[arg(long, default_value_t = 4.)]
+    pub mu_exp: f32,
+    /// Rate of accumulation of neutral background mutations per year
+    #[arg(long, default_value_t = 33.)]
+    pub mu_background_exp: f32,
+    /// Rate of accumulation of neutral mutations upon division per year
+    #[arg(long, default_value_t = 1.14)]
+    pub mu_division_exp: f32,
+    /// Inter-division time for the wild-type cells
+    #[arg(long, default_value_t = 0.065)]
+    pub tau_exp: f32,
+    /// Probability of asymmetric division
+    #[arg(long, default_value_t = 0.)]
+    pub asymmetric_exp: f32,
 }
 
 fn build_snapshots_from_time(n_snapshots: usize, time: f32) -> Vec<f32> {
@@ -284,77 +258,72 @@ impl Cli {
         );
 
         // Moran
-        let process_options = ProcessOptions {
-            path: cli.path.clone(),
+        let options_save = SaveOptions {
+            path2dir: cli.path.clone(),
             snapshots: snapshots.clone(),
+            save_sfs_only: cli.save_sfs_only,
+            save_population: cli.save_population,
         };
-        let (options_moran, options_exponential) = match &cli.command {
-            Commands::Moran(moran) => {
-                let options_moran = SimulationOptionsMoran {
-                    process_options,
-                    gillespie_options: Options {
-                        max_iter_time: IterTime {
-                            iter: max_iter,
-                            time: years as f32,
-                        },
-                        max_cells,
-                        init_iter: 0,
-                        verbosity,
-                    },
-                    save_sfs_only: cli.save_sfs_only,
-                    save_population: cli.save_population,
-                    tau: moran.tau,
-                    probs_per_year: ProbsPerYear {
-                        mu_background: moran.mu_background,
-                        mu_division: moran.mu_division,
-                        mu: moran.mu,
-                    },
-                    asymmetric: moran.asymmetric,
-                };
-                (options_moran, None)
-            }
-            Commands::ExpMoran(exp_moran) => {
-                let options_moran = SimulationOptionsMoran {
-                    process_options,
-                    gillespie_options: Options {
-                        max_iter_time: IterTime {
-                            iter: max_iter,
-                            time: years as f32,
-                        },
-                        max_cells,
-                        init_iter: 0,
-                        verbosity,
-                    },
-                    save_sfs_only: cli.save_sfs_only,
-                    save_population: cli.save_population,
-                    tau: exp_moran.moran.tau,
-                    probs_per_year: ProbsPerYear {
-                        mu_background: exp_moran.moran.mu_background,
-                        mu_division: exp_moran.moran.mu_division,
-                        mu: exp_moran.moran.mu,
-                    },
-                    asymmetric: exp_moran.moran.asymmetric,
-                };
-                let options_exponential = SimulationOptionsExp {
-                    gillespie_options: Options {
-                        max_iter_time: IterTime {
-                            iter: usize::MAX,
-                            time: f32::INFINITY,
-                        },
-                        max_cells: max_cells - 1,
-                        init_iter: 0,
-                        verbosity,
-                    },
-                    tau: exp_moran.exponential.tau_exp,
-                    probs_per_year: ProbsPerYear {
-                        mu_background: exp_moran.exponential.mu_background_exp,
-                        mu_division: exp_moran.exponential.mu_division_exp,
-                        mu: exp_moran.exponential.mu_exp,
-                    },
-                    asymmetric: exp_moran.exponential.asymmetric_exp,
-                };
-                (options_moran, Some(options_exponential))
-            }
+        // convert into rates per division
+        let probs_exp = Probs::new(
+            cli.mu_background_exp,
+            cli.mu_division_exp,
+            cli.mu_exp,
+            cli.asymmetric_exp,
+            max_cells,
+            verbosity,
+        );
+        let distributions_exp = Distributions::new(probs_exp, verbosity);
+
+        // convert into rates per division
+        let probs_moran = Probs::new(
+            cli.mu_background,
+            cli.mu_division,
+            cli.mu,
+            cli.asymmetric,
+            max_cells - 1,
+            verbosity,
+        );
+        let moran_distributions = Distributions::new(probs_moran, verbosity);
+        let options_moran = SimulationOptions {
+            gillespie_options: Options {
+                max_iter_time: IterTime {
+                    iter: max_iter,
+                    time: years as f32,
+                },
+                max_cells,
+                init_iter: 0,
+                verbosity,
+            },
+            background: !cli.no_background,
+            distributions: moran_distributions,
+            tau: cli.tau,
+            probs_per_year: ProbsPerYear {
+                mu_background: cli.mu_background,
+                mu_division: cli.mu_division,
+                mu: cli.mu,
+            },
+            asymmetric: cli.asymmetric,
+        };
+        let options_exponential = SimulationOptions {
+            gillespie_options: Options {
+                max_iter_time: IterTime {
+                    iter: usize::MAX,
+                    time: f32::INFINITY,
+                },
+                max_cells: max_cells - 1,
+                init_iter: 0,
+                verbosity,
+            },
+            tau: cli.tau_exp,
+            probs_per_year: ProbsPerYear {
+                mu_background: cli.mu_background_exp,
+                mu_division: cli.mu_division_exp,
+                mu: cli.mu_exp,
+            },
+            background: !cli.no_background,
+            distributions: distributions_exp,
+            asymmetric: cli.asymmetric_exp,
         };
 
         let fitness = if let Some(mean_std) = cli.fitness.mean_std {
@@ -388,7 +357,7 @@ impl Cli {
             snapshots,
             options_moran,
             options_exponential,
-            background: !cli.no_background,
+            options_save,
             verbosity: cli.verbosity,
         })
     }

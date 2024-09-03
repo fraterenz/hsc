@@ -1,15 +1,206 @@
 use crate::genotype::{MutationalBurden, Sfs};
-use crate::proliferation::{NeutralMutations, Proliferation};
+use crate::proliferation::{Division, NeutralMutations, Proliferation};
 use crate::stemcell::{assign_background_mutations, StemCell};
-use crate::subclone::{save_variant_fraction, CloneId, Distributions, SubClones, Variants};
-use crate::{MAX_SUBCLONES, TIME_AT_BIRTH};
-use anyhow::Context;
+use crate::subclone::{
+    save_variant_fraction, CloneId, Distributions, Fitness, SubClones, Variants,
+};
+use crate::tree::PhyloTree;
+use crate::{ProbsPerYear, MAX_SUBCLONES, TIME_AT_BIRTH};
+use anyhow::{ensure, Context};
+use chrono::Utc;
 use rand::Rng;
-use rand_distr::{Distribution, WeightedIndex};
-use sosa::{AdvanceStep, CurrentState, NextReaction};
+use rand_distr::{Bernoulli, Distribution, WeightedIndex};
+use sosa::{
+    simulate, write2file, AdvanceStep, CurrentState, NbIndividuals, NextReaction, Options,
+    StopReason,
+};
 use std::collections::VecDeque;
 use std::fs;
 use std::path::PathBuf;
+use uuid::Uuid;
+
+#[derive(Clone, Debug)]
+pub struct SimulationOptions {
+    pub tau: f32,
+    pub probs_per_year: ProbsPerYear,
+    pub gillespie_options: Options,
+    pub asymmetric: f32,
+    pub background: bool,
+    pub distributions: Distributions,
+}
+
+#[derive(Clone, Default, Debug)]
+pub struct SaveOptions {
+    pub save_sfs_only: bool,
+    pub save_population: bool,
+    pub snapshots: VecDeque<Snapshot>,
+    pub path2dir: PathBuf,
+}
+
+/// A pure-birth process with exponential growth followed by a fixed-size
+/// birth-death process (Moran process).
+// Those attributes are shared between exp and moran
+pub struct HscDynamics {
+    pub verbosity: u8,
+    pub id: usize,
+    pub max_cells: NbIndividuals,
+}
+
+impl HscDynamics {
+    pub fn new(verbosity: u8, max_cells: NbIndividuals, id: usize) -> Self {
+        HscDynamics {
+            verbosity,
+            id,
+            max_cells,
+        }
+    }
+
+    pub fn simulate(
+        &mut self,
+        options_exp: SimulationOptions,
+        options_moran: SimulationOptions,
+        options_save: SaveOptions,
+        fitness: Fitness,
+        rng: &mut impl Rng,
+    ) -> anyhow::Result<()> {
+        //! We start with one cell assigned to the neutral clone and simulate
+        //! until XYZ cells have been generated according to a stochastic
+        //! pure-birth process.
+        //! We next switch to a birth-death fixed size population Moran
+        //! process, and simulated for a certain number of years.
+        //!
+        //! We assume the Exp and Moran phases have the same fitness.
+        ensure!(
+            self.max_cells == options_exp.gillespie_options.max_cells + 1
+                && self.max_cells == options_moran.gillespie_options.max_cells
+        );
+
+        // INIT the hsc dynamics: pure-birth exponential growing phase
+        let counter_divisions = 0;
+        let first_cell = StemCell::with_mutations(vec![Uuid::new_v4()], counter_divisions);
+        let tree = PhyloTree::with_cell(first_cell.id);
+        let cells = vec![first_cell];
+        let subclones = SubClones::new(
+            cells,
+            (self.max_cells + 1) as usize, // TODO +1?
+            self.verbosity,
+        );
+        let state = &mut CurrentState {
+            population: Variants::variant_counts(&subclones),
+        };
+        let possible_reactions = subclones.gillespie_set_of_reactions();
+        let (mean, std) = fitness.get_mean_std();
+        let filename = format!(
+            "{}mu_{}mean_{}std_{}tau_{}cells_{}idx",
+            options_moran.probs_per_year.mu,
+            mean,
+            std,
+            options_moran.tau,
+            options_moran.gillespie_options.max_cells - 1,
+            self.id
+        )
+        .replace('.', "dot")
+        .into();
+        let neutral_mutation = if options_exp.background {
+            NeutralMutations::UponDivisionAndBackground
+        } else {
+            NeutralMutations::UponDivision
+        };
+        let rates = subclones.gillespie_rates(&fitness, 1.0 / options_exp.tau, rng);
+        let division = if (options_exp.asymmetric - 0.).abs() < f32::EPSILON {
+            Division::Symmetric
+        } else {
+            Division::Asymmetric(Bernoulli::new(options_exp.asymmetric as f64).unwrap())
+        };
+        let proliferation = Proliferation::new(neutral_mutation, division, &subclones.get_cells());
+        let mut exp = Exponential {
+            subclones,
+            counter_divisions,
+            verbosity: self.verbosity,
+            distributions: options_exp.distributions,
+            proliferation,
+            time: 0.,
+            tree,
+        };
+
+        // SIMULATE EXP
+        if options_exp.gillespie_options.verbosity > 0 {
+            println!("{} start simulating exp. phase", Utc::now());
+        }
+        let stop = simulate(
+            state,
+            &rates,
+            &possible_reactions,
+            &mut exp,
+            &options_exp.gillespie_options,
+            rng,
+        );
+        ensure!(stop == StopReason::MaxIndividualsReached);
+
+        // MORAN
+        if options_moran.gillespie_options.verbosity > 0 {
+            println!("{} switching to moran", Utc::now());
+        }
+        let mut moran =
+            exp.switch_to_moran(options_moran.distributions, options_save, filename, rng);
+        // save at the end of the exp phase
+        moran
+            .save(
+                moran.time,
+                &SavingCells::WholePopulation,
+                moran.save_sfs_only,
+                rng,
+            )
+            .expect("cannot save simulation at the end of the exponential phase");
+        if options_moran.gillespie_options.verbosity > 0 {
+            println!("{} simulating Moran phase", Utc::now());
+        }
+        let stop = simulate(
+            state,
+            &rates,
+            &possible_reactions,
+            &mut moran,
+            &options_moran.gillespie_options,
+            rng,
+        );
+        if options_moran.gillespie_options.verbosity > 0 {
+            println!("{} End of the Moran phase", Utc::now());
+        }
+        match stop {
+            StopReason::MaxTimeReached => {
+                if options_moran.gillespie_options.verbosity > 1 {
+                    println!("Moran simulation {} stopped because {:#?}", self.id, stop);
+                }
+            },
+            StopReason::MaxItersReached => println!("the simulation stopped earlier than expected because the max number of iterations has been reached"),
+            a => unreachable!("the simulation has stopped because of {:#?}", a),
+        }
+        moran
+            .save(
+                moran.time,
+                &SavingCells::WholePopulation,
+                moran.save_sfs_only,
+                rng,
+            )
+            .unwrap();
+
+        write2file(
+            &rates.0,
+            &moran
+                .path2dir
+                .join("rates")
+                .join(format!("{}.csv", self.id)),
+            None,
+            false,
+        )
+        .expect("cannot save the fitness of the subclones");
+        Ok(())
+    }
+
+    pub fn save() {
+        todo!()
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 pub enum SavingCells {
@@ -35,17 +226,12 @@ pub struct SavingOptions {
     pub save_population: bool,
 }
 
-#[derive(Debug, Clone)]
-pub struct ProcessOptions {
-    pub path: PathBuf,
-    pub snapshots: VecDeque<Snapshot>,
-}
-
 #[derive(Hash, PartialEq, Eq)]
 pub enum Stats2Save {
     Burden,
     Sfs,
     VariantFraction,
+    Tree,
 }
 
 #[derive(Debug, Clone)]
@@ -67,19 +253,28 @@ pub struct Exponential {
     pub distributions: Distributions,
     pub proliferation: Proliferation,
     pub time: f32,
+    tree: PhyloTree,
 }
 
 impl Exponential {
     pub fn new(
-        initial_subclones: SubClones,
         distributions: Distributions,
         proliferation: Proliferation,
         verbosity: u8,
     ) -> Exponential {
+        //! Create a new exponential pure-birth process starting with one cell
+        //! which will be assigned to the neutral clone.
+        let counter_divisions = 0;
+        let mutation = Uuid::new_v4();
+        let first_cell = StemCell::with_mutations(vec![mutation], counter_divisions);
+        let tree = PhyloTree::with_cell(first_cell.id);
+        let cells = vec![first_cell];
+        let subclones = SubClones::new(cells, 1_000_000, verbosity);
         let hsc = Exponential {
-            subclones: initial_subclones,
+            subclones,
+            tree,
             distributions,
-            counter_divisions: 0,
+            counter_divisions,
             proliferation,
             verbosity,
             time: 0f32,
@@ -92,11 +287,9 @@ impl Exponential {
 
     pub fn switch_to_moran(
         mut self,
-        process_options: ProcessOptions,
         distributions: Distributions,
+        save_options: SaveOptions,
         filename: PathBuf,
-        save_sfs_only: bool,
-        save_population: bool,
         rng: &mut impl Rng,
     ) -> Moran {
         //! End the exponential growing phase and switch to a fixed-size
@@ -136,29 +329,21 @@ impl Exponential {
                 stem_cell.set_last_division_time(0f32).unwrap();
             }
         }
-        let mut moran = Moran {
+        Moran {
             subclones: self.subclones,
             counter_divisions: self.counter_divisions,
+            tree: self.tree,
             // restart the time
             time: 0.,
-            snapshots: process_options.snapshots,
-            path2dir: process_options.path,
             verbosity: self.verbosity,
             filename,
             distributions,
-            save_sfs_only,
-            save_population,
+            save_sfs_only: save_options.save_sfs_only,
+            save_population: save_options.save_population,
+            snapshots: save_options.snapshots,
+            path2dir: save_options.path2dir,
             proliferation: self.proliferation,
-        };
-        moran
-            .save(
-                moran.time,
-                &SavingCells::WholePopulation,
-                moran.save_sfs_only,
-                rng,
-            )
-            .expect("cannot save simulation at the end of the exponential phase");
-        moran
+        }
     }
 }
 
@@ -187,14 +372,17 @@ impl AdvanceStep<MAX_SUBCLONES> for Exponential {
         // removes the cells from the clone with id `reaction.event`.**
         self.counter_divisions += 1;
         self.time += reaction.time;
-        self.proliferation.proliferate(
-            &mut self.subclones,
-            self.time,
-            reaction.event,
-            &self.distributions,
-            rng,
-            self.verbosity,
-        );
+        self.proliferation
+            .proliferate(
+                &mut self.subclones,
+                &mut self.tree,
+                self.time,
+                reaction.event,
+                &self.distributions,
+                rng,
+                self.verbosity,
+            )
+            .unwrap();
     }
 
     fn update_state(&self, state: &mut CurrentState<MAX_SUBCLONES>) {
@@ -220,63 +408,14 @@ pub struct Moran {
     pub save_sfs_only: bool,
     pub save_population: bool,
     pub proliferation: Proliferation,
-}
-
-impl Default for Moran {
-    fn default() -> Self {
-        let process_options = ProcessOptions {
-            path: PathBuf::from("./output"),
-            snapshots: VecDeque::default(),
-        };
-
-        Moran::new(
-            process_options,
-            SubClones::default(),
-            0.,
-            SavingOptions {
-                filename: PathBuf::default(),
-                save_sfs_only: false,
-                save_population: true,
-            },
-            Distributions::default(),
-            Proliferation::default(),
-            1,
-        )
-    }
+    tree: PhyloTree,
 }
 
 impl Moran {
-    /// A Moran process with wild-type subclone with neutral fitness, to which
-    /// all cells will be assigned.
-    pub fn new(
-        process_options: ProcessOptions,
-        initial_subclones: SubClones,
-        time: f32,
-        saving_options: SavingOptions,
-        distributions: Distributions,
-        proliferation: Proliferation,
-        verbosity: u8,
-    ) -> Moran {
-        let hsc = Moran {
-            subclones: initial_subclones,
-            distributions,
-            counter_divisions: 0,
-            path2dir: process_options.path,
-            time,
-            snapshots: process_options.snapshots,
-            filename: saving_options.filename,
-            verbosity,
-            save_sfs_only: saving_options.save_sfs_only,
-            save_population: saving_options.save_population,
-            proliferation,
-        };
-        if verbosity > 1 {
-            println!("process created: {:#?}", hsc);
-        }
-        hsc
-    }
-
-    fn keep_const_population_upon_symmetric_division(&mut self, rng: &mut impl Rng) {
+    fn keep_const_population_upon_symmetric_division(
+        &mut self,
+        rng: &mut impl Rng,
+    ) -> anyhow::Result<()> {
         //! If an symmetric division is performed, need to remove a random cell
         //! from the population.
         //! The cell having just proliferated can be removed as well, any cell
@@ -295,15 +434,16 @@ impl Moran {
         // the clones at the current state
         let variants = Variants::variant_counts(&self.subclones);
         let id2remove = WeightedIndex::new(variants).unwrap().sample(rng);
-        let _ = self
+        let cell2remove = self
             .subclones
             .get_mut_clone_unchecked(id2remove)
             .random_cell(rng)
-            .with_context(|| "found empty subclone")
-            .unwrap();
+            .with_context(|| "found empty subclone")?;
+        self.tree.remove_cell_from_tree(cell2remove.id)?;
         if self.verbosity > 2 {
             println!("removing one cell from clone {}", id2remove);
         }
+        Ok(())
     }
 
     pub fn make_path(
@@ -317,6 +457,7 @@ impl Moran {
             Stats2Save::VariantFraction => path2dir.join("variant_fraction"),
             Stats2Save::Burden => path2dir.join("burden"),
             Stats2Save::Sfs => path2dir.join("sfs"),
+            Stats2Save::Tree => path2dir.join("tree"),
         };
         let mut timepoint = format!("{:.1}", time).replace('.', "dot");
         timepoint.push_str("years");
@@ -370,6 +511,13 @@ impl Moran {
                 &self.make_path(Stats2Save::VariantFraction, nb_cells, time)?,
                 self.verbosity,
             )?;
+            self.tree
+                .create_tree_without_dead_cells(&cells, self.verbosity)?
+                .to_file(
+                    &self
+                        .make_path(Stats2Save::Tree, nb_cells, time)?
+                        .with_extension("txt"),
+                )?;
         }
 
         if self.verbosity > 0 {
@@ -486,17 +634,21 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
         // id `reaction.event`.**
         self.time += reaction.time;
         self.counter_divisions += 1;
-        self.proliferation.proliferate(
-            &mut self.subclones,
-            self.time,
-            reaction.event,
-            &self.distributions,
-            rng,
-            self.verbosity,
-        );
+        self.proliferation
+            .proliferate(
+                &mut self.subclones,
+                &mut self.tree,
+                self.time,
+                reaction.event,
+                &self.distributions,
+                rng,
+                self.verbosity,
+            )
+            .unwrap();
 
         // remove a cell from the population
-        self.keep_const_population_upon_symmetric_division(rng);
+        self.keep_const_population_upon_symmetric_division(rng)
+            .unwrap();
 
         if self.verbosity > 2 {
             println!("{} cells", self.subclones.compute_tot_cells());
@@ -510,8 +662,6 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
 
 #[cfg(test)]
 mod tests {
-    use std::num::{NonZeroU64, NonZeroU8};
-
     use quickcheck_macros::quickcheck;
     use rand::SeedableRng;
     use rand_chacha::ChaCha8Rng;
@@ -530,37 +680,30 @@ mod tests {
         process: Moran,
     }
 
-    fn create_moran_fit_variants(cells: NonZeroU64) -> MoranFitVariant {
+    fn create_moran_fit_variants() -> MoranFitVariant {
         MoranFitVariant {
-            tot_cells: cells.get(),
-            process: create_moran(true, cells),
+            tot_cells: 1,
+            process: create_moran(true),
         }
     }
 
-    fn create_moran_no_fit_variants(cells: NonZeroU64) -> MoranNoFitVariant {
+    fn create_moran_no_fit_variants() -> MoranNoFitVariant {
         MoranNoFitVariant {
-            tot_cells: cells.get(),
-            process: create_moran(false, cells),
+            tot_cells: 1,
+            process: create_moran(false),
         }
     }
 
-    fn create_moran(fit_variants: bool, cells: NonZeroU64) -> Moran {
+    fn create_moran(fit_variants: bool) -> Moran {
         let mu = if fit_variants { 0.999 } else { 0. };
-        Moran::new(
-            ProcessOptions {
-                path: PathBuf::default(),
-                snapshots: VecDeque::default(),
-            },
-            SubClones::new(vec![StemCell::new(1); cells.get() as usize], 3, 0),
-            0f32,
-            SavingOptions {
-                filename: PathBuf::default(),
-                save_sfs_only: true,
-                save_population: true,
-            },
-            Distributions::new(Probs::new(1., 1., mu, 1., cells.get(), 0), 0),
-            Proliferation::default(),
-            0,
+        let distributions = Distributions::new(Probs::new(1., 1., mu, 1., 1, 0), 0);
+        let save_options = SaveOptions::default();
+        let rng = &mut ChaCha8Rng::seed_from_u64(243);
+        create_exp(fit_variants).switch_to_moran(
+            distributions,
+            save_options,
+            PathBuf::default(),
+            rng,
         )
     }
 
@@ -578,8 +721,8 @@ mod tests {
     }
 
     #[quickcheck]
-    fn advance_moran_no_fit_variant_test(cells: NonZeroU8, seed: u64) {
-        let mut moran = create_moran_no_fit_variants(NonZeroU64::new(cells.get() as u64).unwrap());
+    fn advance_moran_no_fit_variant_test(seed: u64) {
+        let mut moran = create_moran_no_fit_variants();
         let reaction = NextReaction {
             time: 12.2,
             event: 0,
@@ -598,11 +741,11 @@ mod tests {
     }
 
     #[quickcheck]
-    fn advance_moran_test(cells: NonZeroU8, seed: u64, new_clone: bool) {
-        let mut moran = create_moran_fit_variants(NonZeroU64::new(cells.get() as u64).unwrap());
+    fn advance_moran_test(seed: u64, new_clone: bool) {
+        let mut moran = create_moran_fit_variants();
         let reaction = if new_clone {
             NextReaction {
-                time: cells.get() as f32 * 0.9999,
+                time: 1f32 * 0.9999,
                 event: 0,
             }
         } else {
@@ -636,25 +779,24 @@ mod tests {
         process: Exponential,
     }
 
-    fn create_exp_fit_variants(cells: NonZeroU64) -> ExpFitVariant {
+    fn create_exp_fit_variants() -> ExpFitVariant {
         ExpFitVariant {
-            tot_cells: cells.get(),
-            process: create_exp(true, cells),
+            tot_cells: 1,
+            process: create_exp(true),
         }
     }
 
-    fn create_exp_no_fit_variants(cells: NonZeroU64) -> ExpNoFitVariant {
+    fn create_exp_no_fit_variants() -> ExpNoFitVariant {
         ExpNoFitVariant {
-            tot_cells: cells.get(),
-            process: create_exp(false, cells),
+            tot_cells: 1,
+            process: create_exp(false),
         }
     }
 
-    fn create_exp(fit_variants: bool, cells: NonZeroU64) -> Exponential {
+    fn create_exp(fit_variants: bool) -> Exponential {
         let mu = if fit_variants { 0.999 } else { 0. };
         Exponential::new(
-            SubClones::new(vec![StemCell::new(1); cells.get() as usize], 3, 0),
-            Distributions::new(Probs::new(10., 1., mu, 1., cells.get(), 0), 0),
+            Distributions::new(Probs::new(10., 1., mu, 1., 1, 0), 0),
             Proliferation::default(),
             0,
         )
@@ -670,8 +812,8 @@ mod tests {
     }
 
     #[quickcheck]
-    fn advance_exp_no_fit_variant_test(cells: NonZeroU8, seed: u64) {
-        let mut exp = create_exp_no_fit_variants(NonZeroU64::new(cells.get() as u64).unwrap());
+    fn advance_exp_no_fit_variant_test(seed: u64) {
+        let mut exp = create_exp_no_fit_variants();
         let reaction = NextReaction {
             time: 12.2,
             event: 0,
@@ -689,11 +831,11 @@ mod tests {
     }
 
     #[quickcheck]
-    fn advance_exp_test(cells: NonZeroU8, seed: u64, new_clone: bool) {
-        let mut exp = create_exp_fit_variants(NonZeroU64::new(cells.get() as u64).unwrap());
+    fn advance_exp_test(seed: u64, new_clone: bool) {
+        let mut exp = create_exp_fit_variants();
         let reaction = if new_clone {
             NextReaction {
-                time: cells.get() as f32 * 0.9999,
+                time: 1f32 * 0.9999,
                 event: 0,
             }
         } else {

@@ -363,11 +363,11 @@ impl Variants {
         //! The total variant count is the number of cells in all subclones.
         //! ```
         //! use hsc::MAX_SUBCLONES;
-        //! # use hsc::{stemcell::StemCell, process::{Moran}, subclone::Variants};
-        //! // create a process with one cell in each `MAX_SUBCLONES` subclones
-        //! let mut hsc = Moran::default();
+        //! # use hsc::{stemcell::StemCell, subclone::{SubClones, Variants}};
+        //! // Create new subclones each having one cell
+        //! let subclones = SubClones::default();
         //!
-        //! assert_eq!(Variants::variant_counts(&hsc.subclones), [1; MAX_SUBCLONES]);
+        //! assert_eq!(Variants::variant_counts(&subclones), [1; MAX_SUBCLONES]);
         //! ```
         std::array::from_fn(|i| subclones.0[i].cell_count())
     }
@@ -377,13 +377,12 @@ impl Variants {
         //!
         //! ```
         //! use hsc::MAX_SUBCLONES;
-        //! use hsc::subclone::SubClones;
-        //! # use hsc::{stemcell::StemCell, process::{Moran}, subclone::Variants};
-        //! // create a process with one cell in each `MAX_SUBCLONES` subclones
-        //! let mut hsc = Moran::default();
+        //! # use hsc::{stemcell::StemCell, subclone::{SubClones, Variants}};
+        //! // Create new subclones each having one cell
+        //! let subclones = SubClones::default();
         //!
         //! assert_eq!(
-        //!     Variants::variant_fractions(&hsc.subclones),
+        //!     Variants::variant_fractions(&subclones),
         //!     [1. / MAX_SUBCLONES as f32; MAX_SUBCLONES]
         //! );
         //!

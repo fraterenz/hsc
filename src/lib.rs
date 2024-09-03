@@ -28,6 +28,8 @@ pub mod proliferation;
 pub mod stemcell;
 /// The classes defining the proliferative advantage.
 pub mod subclone;
+/// The phylogenetic tree constructed during the simulations.
+pub mod tree;
 
 /// Maximal number of fit clones that can arise during the simulation.
 ///

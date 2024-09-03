@@ -5,6 +5,7 @@ use rand_distr::{Bernoulli, Distribution};
 use crate::{
     stemcell::{assign_background_mutations, assign_divisional_mutations, StemCell, StemCellId},
     subclone::{next_clone, proliferating_cell, CloneId, Distributions, SubClones},
+    tree::PhyloTree,
 };
 
 #[derive(Debug, Clone, Default)]
@@ -70,12 +71,13 @@ impl Proliferation {
     pub fn proliferate(
         &mut self,
         subclones: &mut SubClones,
+        tree: &mut PhyloTree,
         time: f32,
         proliferating_subclone: CloneId,
         distributions: &Distributions,
         rng: &mut impl Rng,
         verbosity: u8,
-    ) {
+    ) -> anyhow::Result<()> {
         //! Sample a random cell from the subclones with id
         //! `proliferating_subclone`, assign neutral mutations (background and
         //! those upon proliferation) and finally assign `cell` to a subclone.
@@ -113,6 +115,10 @@ impl Proliferation {
                 verbosity,
             );
         }
+        if verbosity > 1 {
+            println!("Adding the cell on a new node");
+        }
+        tree.put_cell_on_new_node(stem_cell.id)?;
         let cells = match self.division {
             Division::Asymmetric(prob) => {
                 if prob.sample(rng) {
@@ -124,10 +130,23 @@ impl Proliferation {
                     let mut new_cell = stem_cell.clone();
                     self.last_id += 1;
                     new_cell.id = self.last_id;
+                    if verbosity > 1 {
+                        println!("Adding the sibling cell on a new node");
+                    }
+                    tree.assign_sibling(new_cell.id, stem_cell.id)?;
                     vec![stem_cell, new_cell]
                 }
             }
-            Division::Symmetric => vec![stem_cell.clone(), stem_cell],
+            Division::Symmetric => {
+                let mut new_cell = stem_cell.clone();
+                self.last_id += 1;
+                new_cell.id = self.last_id;
+                if verbosity > 1 {
+                    println!("Adding the sibling cell on a new node");
+                }
+                tree.assign_sibling(new_cell.id, stem_cell.id)?;
+                vec![stem_cell, new_cell]
+            }
         };
         for mut stem_cell in cells {
             assign_divisional_mutations(
@@ -144,6 +163,7 @@ impl Proliferation {
                 .get_mut_clone_unchecked(clone_id)
                 .assign_cell(stem_cell);
         }
+        Ok(())
     }
 }
 
