@@ -168,7 +168,7 @@ impl HscDynamics {
         }
         match stop {
             StopReason::MaxTimeReached => {
-                if options_moran.gillespie_options.verbosity > 1 {
+                if options_moran.gillespie_options.verbosity > 0 {
                     println!("Moran simulation {} stopped because {:#?}", self.id, stop);
                 }
             },
@@ -439,7 +439,8 @@ impl Moran {
             .get_mut_clone_unchecked(id2remove)
             .random_cell(rng)
             .with_context(|| "found empty subclone")?;
-        self.tree.remove_cell_from_tree(cell2remove.id)?;
+        self.tree
+            .remove_cell_from_tree(cell2remove.id, self.verbosity)?;
         if self.verbosity > 2 {
             println!("removing one cell from clone {}", id2remove);
         }
@@ -511,13 +512,21 @@ impl Moran {
                 &self.make_path(Stats2Save::VariantFraction, nb_cells, time)?,
                 self.verbosity,
             )?;
-            self.tree
-                .create_tree_without_dead_cells(&cells, self.verbosity)?
-                .to_file(
-                    &self
-                        .make_path(Stats2Save::Tree, nb_cells, time)?
-                        .with_extension("txt"),
-                )?;
+            if self.verbosity > 0 {
+                println!("Saving the tree");
+            }
+            let mut pruned = self
+                .tree
+                .create_tree_without_dead_cells(&cells, self.verbosity)?;
+            pruned.name_leaves_with_cell_idx()?;
+            if self.verbosity > 0 {
+                println!("Name leaf nodes with idx of cells");
+            }
+            pruned.tree.to_file(
+                &self
+                    .make_path(Stats2Save::Tree, nb_cells, time)?
+                    .with_extension("txt"),
+            )?;
         }
 
         if self.verbosity > 0 {

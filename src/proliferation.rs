@@ -106,6 +106,7 @@ impl Proliferation {
                 println!("cell {:#?} is dividing", stem_cell);
             }
         }
+        let mutational_distance = stem_cell.variants.len();
         if let NeutralMutations::UponDivisionAndBackground = self.neutral_mutation {
             assign_background_mutations(
                 &mut stem_cell,
@@ -118,51 +119,126 @@ impl Proliferation {
         if verbosity > 1 {
             println!("Adding the cell on a new node");
         }
-        tree.put_cell_on_new_node(stem_cell.id)?;
-        let cells = match self.division {
+        match self.division {
             Division::Asymmetric(prob) => {
                 if prob.sample(rng) {
                     if verbosity > 1 {
                         println!("asymmetric division");
                     }
-                    vec![stem_cell]
+                    assign_divisional_mutations(
+                        &mut stem_cell,
+                        &distributions.neutral_poisson,
+                        rng,
+                        verbosity,
+                    );
+                    stem_cell
+                        .set_last_division_time(time)
+                        .with_context(|| "wrong time")
+                        .unwrap();
+                    tree.put_cell_on_new_node(
+                        stem_cell.id,
+                        (stem_cell.variants.len() - mutational_distance) as f64,
+                        verbosity,
+                    )?;
+                    subclones
+                        .get_mut_clone_unchecked(clone_id)
+                        .assign_cell(stem_cell);
                 } else {
+                    assign_divisional_mutations(
+                        &mut stem_cell,
+                        &distributions.neutral_poisson,
+                        rng,
+                        verbosity,
+                    );
+                    stem_cell
+                        .set_last_division_time(time)
+                        .with_context(|| "wrong time")
+                        .unwrap();
+                    tree.put_cell_on_new_node(
+                        stem_cell.id,
+                        (stem_cell.variants.len() - mutational_distance) as f64,
+                        verbosity,
+                    )?;
+
                     let mut new_cell = stem_cell.clone();
                     self.last_id += 1;
                     new_cell.id = self.last_id;
                     if verbosity > 1 {
                         println!("Adding the sibling cell on a new node");
                     }
-                    tree.assign_sibling(new_cell.id, stem_cell.id)?;
-                    vec![stem_cell, new_cell]
+                    assign_divisional_mutations(
+                        &mut new_cell,
+                        &distributions.neutral_poisson,
+                        rng,
+                        verbosity,
+                    );
+                    new_cell
+                        .set_last_division_time(time)
+                        .with_context(|| "wrong time")
+                        .unwrap();
+                    tree.assign_sibling(
+                        new_cell.id,
+                        stem_cell.id,
+                        (new_cell.variants.len() - mutational_distance) as f64,
+                        verbosity,
+                    )?;
+
+                    subclones
+                        .get_mut_clone_unchecked(clone_id)
+                        .assign_cell(stem_cell);
+                    subclones
+                        .get_mut_clone_unchecked(clone_id)
+                        .assign_cell(new_cell);
                 }
             }
             Division::Symmetric => {
+                assign_divisional_mutations(
+                    &mut stem_cell,
+                    &distributions.neutral_poisson,
+                    rng,
+                    verbosity,
+                );
+                stem_cell
+                    .set_last_division_time(time)
+                    .with_context(|| "wrong time")
+                    .unwrap();
+                tree.put_cell_on_new_node(
+                    stem_cell.id,
+                    (stem_cell.variants.len() - mutational_distance) as f64,
+                    verbosity,
+                )?;
+
                 let mut new_cell = stem_cell.clone();
                 self.last_id += 1;
                 new_cell.id = self.last_id;
                 if verbosity > 1 {
                     println!("Adding the sibling cell on a new node");
                 }
-                tree.assign_sibling(new_cell.id, stem_cell.id)?;
-                vec![stem_cell, new_cell]
+                assign_divisional_mutations(
+                    &mut new_cell,
+                    &distributions.neutral_poisson,
+                    rng,
+                    verbosity,
+                );
+                new_cell
+                    .set_last_division_time(time)
+                    .with_context(|| "wrong time")
+                    .unwrap();
+                tree.assign_sibling(
+                    new_cell.id,
+                    stem_cell.id,
+                    (new_cell.variants.len() - mutational_distance) as f64,
+                    verbosity,
+                )?;
+
+                subclones
+                    .get_mut_clone_unchecked(clone_id)
+                    .assign_cell(stem_cell);
+                subclones
+                    .get_mut_clone_unchecked(clone_id)
+                    .assign_cell(new_cell);
             }
         };
-        for mut stem_cell in cells {
-            assign_divisional_mutations(
-                &mut stem_cell,
-                &distributions.neutral_poisson,
-                rng,
-                verbosity,
-            );
-            stem_cell
-                .set_last_division_time(time)
-                .with_context(|| "wrong time")
-                .unwrap();
-            subclones
-                .get_mut_clone_unchecked(clone_id)
-                .assign_cell(stem_cell);
-        }
         Ok(())
     }
 }

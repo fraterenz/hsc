@@ -47,7 +47,12 @@ impl PhyloTree {
         &mut self,
         cell_id: StemCellId,
         sibling_id: StemCellId,
+        edge: f64,
+        verbosity: u8,
     ) -> anyhow::Result<()> {
+        if verbosity > 1 {
+            println!("create new node");
+        }
         let parent_id = self
             .tree
             .get(self.leaves.get(&sibling_id).unwrap())?
@@ -57,34 +62,67 @@ impl PhyloTree {
 
         let mut node = Node::new();
         node.id = self.last_id;
-        self.tree.add_child(node, parent_id, None)?;
+        self.tree.add_child(node, parent_id, Some(edge))?;
+        if verbosity > 1 {
+            println!(
+                "assign cell with id {} to new node with id {} which is sibling of cell with id {}",
+                cell_id, self.last_id, sibling_id,
+            );
+        }
         ensure!(self.leaves.insert(cell_id, self.last_id).is_none());
         Ok(())
     }
 
-    pub fn put_cell_on_new_node(&mut self, cell_id: StemCellId) -> anyhow::Result<()> {
+    pub fn put_cell_on_new_node(
+        &mut self,
+        cell_id: StemCellId,
+        edge: f64,
+        verbosity: u8,
+    ) -> anyhow::Result<()> {
         //! Update the tree with a new node and affect the cell with `cell_id`
         //! to it.
-        // create new node
+        if verbosity > 1 {
+            println!("create new node");
+        }
         let parent_id = self.tree.get(self.leaves.get(&cell_id).unwrap())?.id;
         self.last_id += 1;
         let mut node = Node::new();
         node.id = self.last_id;
-        self.tree.add_child(node, parent_id, None)?;
+        self.tree.add_child(node, parent_id, Some(edge))?;
 
         // update leaves
+        if verbosity > 1 {
+            println!(
+                "assign cell with id {} to new node with id {}",
+                cell_id, self.last_id
+            );
+        }
         self.leaves
             .insert(cell_id, self.last_id)
             .with_context(|| "the proliferating cell is not registered as a leaf")?;
         Ok(())
     }
 
-    pub fn remove_cell_from_tree(&mut self, cell_id: StemCellId) -> anyhow::Result<()> {
+    pub fn remove_cell_from_tree(
+        &mut self,
+        cell_id: StemCellId,
+        verbosity: u8,
+    ) -> anyhow::Result<()> {
         //! Remove a cell from the tree, do not change the tree's topology as
         //! we still the node where the cell was for the other alive lineages.
+        if verbosity > 1 {
+            println!("removing cell with id {cell_id} from the leaves");
+        }
         self.leaves
             .remove(&cell_id)
             .with_context(|| "the cell to remove is not registered as a leaf")?;
+        Ok(())
+    }
+
+    pub fn name_leaves_with_cell_idx(&mut self) -> anyhow::Result<()> {
+        for (cell_id, node_id) in self.leaves.iter() {
+            self.tree.get_mut(node_id)?.name = Some(cell_id.to_string());
+        }
         Ok(())
     }
 
@@ -92,7 +130,7 @@ impl PhyloTree {
         &self,
         cells: &[&StemCell],
         verbosity: u8,
-    ) -> anyhow::Result<Tree> {
+    ) -> anyhow::Result<Self> {
         //! Use `cells` to select only the leaves of interest, dropping all the
         //! other leaves.
         let mut cell2prune = self.leaves.clone();
@@ -104,22 +142,18 @@ impl PhyloTree {
             }
             pruned.prune(node_id)?;
         }
-        for (cell_id, node_id) in self.leaves.iter() {
-            pruned.get_mut(node_id)?.name = Some(cell_id.to_string());
-        }
-        pruned.compress()?;
-        Ok(pruned)
+        pruned.compress().with_context(|| "cannot compress")?;
+        // pruned.rescale(
+        //     1. / pruned
+        //         .length()
+        //         .with_context(|| "cannot get lenght of the tree")?,
+        // );
+        Ok(PhyloTree {
+            tree: pruned,
+            last_id: self.last_id,
+            leaves: self.leaves.clone(),
+        })
     }
-}
-
-pub fn proliferate_cell_with_id(
-    parent: &StemCell,
-    daughter: &StemCell,
-    tree: &mut PhyloTree,
-) -> anyhow::Result<()> {
-    tree.put_cell_on_new_node(parent.id)?;
-    tree.assign_sibling(daughter.id, parent.id)?;
-    Ok(())
 }
 
 #[cfg(test)]
@@ -151,10 +185,10 @@ mod tests {
     }
 
     #[quickcheck]
-    fn put_cell_on_new_node_test(id: usize) -> bool {
+    fn put_cell_on_new_node_test(id: usize, edge: f64) -> bool {
         let parent = StemCell::with_mutations(vec![Uuid::new_v4(), Uuid::new_v4()], id);
         let mut tree = PhyloTree::with_cell(parent.id);
-        tree.put_cell_on_new_node(id).is_ok()
+        tree.put_cell_on_new_node(id, edge, 0).is_ok()
     }
 
     #[test]
@@ -162,7 +196,7 @@ mod tests {
     fn put_cell_on_new_node_wrong_id_test() {
         let parent = StemCell::with_mutations(vec![Uuid::new_v4(), Uuid::new_v4()], 0);
         let mut tree = PhyloTree::with_cell(parent.id);
-        tree.put_cell_on_new_node(4).unwrap();
+        tree.put_cell_on_new_node(4, 3., 0).unwrap();
     }
 
     #[test]
@@ -170,18 +204,19 @@ mod tests {
     fn assign_sibling_already_there_test() {
         let parent = StemCell::with_mutations(vec![Uuid::new_v4(), Uuid::new_v4()], 0);
         let mut tree = PhyloTree::with_cell(parent.id);
-        tree.assign_sibling(parent.id, parent.id).unwrap();
+        tree.assign_sibling(parent.id, parent.id, 3., 0).unwrap();
     }
 
     #[quickcheck]
-    fn assign_sibling_test(idx: TwoIDs) -> bool {
+    fn assign_sibling_test(idx: TwoIDs, edge: f64) -> bool {
         let (id1, id2) = (idx.0 .0, idx.0 .1);
         let stem_cell = StemCell::with_mutations(vec![Uuid::new_v4(), Uuid::new_v4()], id1);
         let sibling = StemCell::with_mutations(vec![Uuid::new_v4()], id2);
         let mut tree = PhyloTree::with_cell(sibling.id);
-        tree.put_cell_on_new_node(sibling.id).unwrap();
+        tree.put_cell_on_new_node(sibling.id, edge, 0).unwrap();
 
-        tree.assign_sibling(stem_cell.id, sibling.id).unwrap();
+        tree.assign_sibling(stem_cell.id, sibling.id, edge, 0)
+            .unwrap();
         let node1 = tree.tree.get(tree.leaves.get(&id1).unwrap()).unwrap();
         let parent1 = node1.parent.unwrap();
         let node2 = tree.tree.get(tree.leaves.get(&id2).unwrap()).unwrap();
@@ -197,7 +232,7 @@ mod tests {
     fn remove_cell_from_tree_test(id: usize) -> bool {
         let cell = StemCell::with_mutations(vec![Uuid::new_v4(), Uuid::new_v4()], id);
         let mut tree = PhyloTree::with_cell(cell.id);
-        tree.remove_cell_from_tree(id).is_ok()
+        tree.remove_cell_from_tree(id, 0).is_ok()
     }
 
     #[test]
@@ -205,11 +240,11 @@ mod tests {
     fn remove_cell_from_tree_wrong_id_test() {
         let cell = StemCell::with_mutations(vec![Uuid::new_v4(), Uuid::new_v4()], 0);
         let mut tree = PhyloTree::with_cell(cell.id);
-        tree.remove_cell_from_tree(4).unwrap();
+        tree.remove_cell_from_tree(4, 0).unwrap();
     }
 
     #[quickcheck]
-    fn proliferate_cell_with_id_test(idx: TwoIDs) -> bool {
+    fn proliferate_cell_with_id_test(idx: TwoIDs, edge: f64) -> bool {
         let (id1, id2) = (idx.0 .0, idx.0 .1);
         let mut parent = StemCell::new(id1);
         let mut tree = PhyloTree::with_cell(parent.id);
@@ -220,7 +255,9 @@ mod tests {
         daughter.variants.push(Uuid::new_v4());
         parent.variants.push(Uuid::new_v4());
 
-        proliferate_cell_with_id(&parent, &daughter, &mut tree).unwrap();
+        tree.put_cell_on_new_node(parent.id, edge, 0).unwrap();
+        tree.assign_sibling(daughter.id, parent.id, edge, 0)
+            .unwrap();
         let mut leaves = tree.tree.get_leaves();
         leaves.sort_unstable();
         let exp_leaves = [1, 2];
@@ -235,79 +272,68 @@ mod tests {
             && tree.tree.is_binary().is_ok()
     }
 
-    #[test]
-    fn create_tree_without_dead_cells_keep_all() {
-        let original = "((A,(C,E)D)B,(H,Z)G)F;";
-        let phylotree = Tree::from_newick(original).unwrap();
-        let cell_idx = vec![2, 40, 10, 1, 2];
-        let node_idx = vec![2, 4, 5, 7, 8];
-        assert_eq!(phylotree.get_leaves(), node_idx);
-        let leaves: HashMap<StemCellId, NodeId> =
-            cell_idx.clone().into_iter().zip(node_idx).collect();
+    #[derive(Clone, Debug)]
+    struct TreeTest {
+        phylo: PhyloTree,
+        cell_idx: Vec<usize>,
+    }
+    impl TreeTest {
+        fn new() -> Self {
+            let original = "((A:1.2,(C:1.2,E:0.1)D:0.05)B:1.2,(H:1.1,(Z:2)I:3)G:2)F:0;";
+            let phylotree = Tree::from_newick(original).unwrap();
+            let cell_idx = vec![2, 40, 10, 1, 3];
+            let node_idx = vec![2, 4, 5, 7, 9];
+            assert_eq!(phylotree.get_leaves(), node_idx);
+            let leaves: HashMap<StemCellId, NodeId> =
+                cell_idx.clone().into_iter().zip(node_idx).collect();
 
-        let tree = PhyloTree {
-            tree: phylotree,
-            last_id: 0,
-            leaves,
-        };
-
-        let cells2keep: Vec<StemCell> = cell_idx.into_iter().map(StemCell::new).collect();
-        let mut cells2keep_ref: Vec<&StemCell> = Vec::new();
-        for cell in cells2keep.iter() {
-            cells2keep_ref.push(cell);
+            TreeTest {
+                phylo: PhyloTree {
+                    tree: phylotree,
+                    last_id: 0,
+                    leaves,
+                },
+                cell_idx,
+            }
         }
-        let pruned = tree
-            .create_tree_without_dead_cells(&cells2keep_ref, 0)
-            .unwrap();
-
-        assert_eq!(pruned.to_newick().unwrap(), tree.tree.to_newick().unwrap());
     }
 
     #[test]
-    fn create_tree_without_dead_cells_keep_all_collapsed() {
-        let original = "((A,(C,E)D)B,((H),(Z)I)G)F;";
-        let phylotree = Tree::from_newick(original).unwrap();
-        let cell_idx = vec![2, 40, 10, 1, 2];
-        let node_idx = vec![2, 4, 5, 8, 10];
-        assert_eq!(phylotree.get_leaves(), node_idx);
-        let leaves: HashMap<StemCellId, NodeId> =
-            cell_idx.clone().into_iter().zip(node_idx).collect();
-
-        let tree = PhyloTree {
-            tree: phylotree,
-            last_id: 0,
-            leaves,
-        };
-
-        let cells2keep: Vec<StemCell> = cell_idx.into_iter().map(StemCell::new).collect();
+    fn create_tree_without_dead_cells_keep_all() {
+        let phylo = TreeTest::new();
+        let cells2keep: Vec<StemCell> = phylo
+            .clone()
+            .cell_idx
+            .into_iter()
+            .map(StemCell::new)
+            .collect();
         let mut cells2keep_ref: Vec<&StemCell> = Vec::new();
         for cell in cells2keep.iter() {
             cells2keep_ref.push(cell);
         }
-        let pruned = tree
+        let pruned = phylo
+            .clone()
+            .phylo
             .create_tree_without_dead_cells(&cells2keep_ref, 0)
             .unwrap();
 
-        assert_eq!(pruned.to_newick().unwrap(), "((A,(C,E)D)B,(H,Z)G)F;",);
+        let mut expected = phylo.phylo.tree;
+        expected.compress().unwrap();
+        assert_eq!(
+            pruned.tree.to_newick().unwrap(),
+            expected.to_newick().unwrap()
+        );
     }
 
     #[test]
     fn create_tree_without_dead_cells_remove_h_all() {
-        let original = "((A,(C,E)D)B,(H,Z)G)F;";
-        let phylotree = Tree::from_newick(original).unwrap();
-        let cell_idx = vec![2, 40, 10, 1];
-        let node_idx = vec![2, 4, 5, 7, 8];
-        assert_eq!(phylotree.get_leaves(), node_idx);
-        let leaves: HashMap<StemCellId, NodeId> =
-            cell_idx.clone().into_iter().zip(node_idx).collect();
-
-        let tree = PhyloTree {
-            tree: phylotree,
-            last_id: 0,
-            leaves,
-        };
-
-        let cells2keep: Vec<StemCell> = cell_idx.into_iter().map(StemCell::new).collect();
+        let phylo = TreeTest::new();
+        let cells2keep: Vec<StemCell> = phylo
+            .clone()
+            .cell_idx
+            .into_iter()
+            .map(StemCell::new)
+            .collect();
         let mut cells2keep_ref: Vec<&StemCell> = Vec::new();
         for cell in cells2keep.iter() {
             // remove H
@@ -315,30 +341,29 @@ mod tests {
                 cells2keep_ref.push(cell);
             }
         }
-        let pruned = tree
+        let pruned = phylo
+            .phylo
             .create_tree_without_dead_cells(&cells2keep_ref, 0)
             .unwrap();
 
-        assert_eq!(pruned.to_newick().unwrap(), "((A,(C,E)D)B,Z)F;");
+        assert_eq!(
+            pruned
+                .tree
+                .to_formatted_newick(phylotree::tree::NewickFormat::OnlyNames)
+                .unwrap(),
+            "((A,(C,E)D)B,Z)F;"
+        );
     }
 
     #[test]
     fn create_tree_without_dead_cells_remove_c_all() {
-        let original = "((A,(C,E)D)B,(H,Z)G)F;";
-        let phylotree = Tree::from_newick(original).unwrap();
-        let cell_idx = vec![2, 40, 10, 1];
-        let node_idx = vec![2, 4, 5, 7, 8];
-        assert_eq!(phylotree.get_leaves(), node_idx);
-        let leaves: HashMap<StemCellId, NodeId> =
-            cell_idx.clone().into_iter().zip(node_idx).collect();
-
-        let tree = PhyloTree {
-            tree: phylotree,
-            last_id: 0,
-            leaves,
-        };
-
-        let cells2keep: Vec<StemCell> = cell_idx.into_iter().map(StemCell::new).collect();
+        let phylo = TreeTest::new();
+        let cells2keep: Vec<StemCell> = phylo
+            .clone()
+            .cell_idx
+            .into_iter()
+            .map(StemCell::new)
+            .collect();
         let mut cells2keep_ref: Vec<&StemCell> = Vec::new();
         for cell in cells2keep.iter() {
             // remove c
@@ -346,30 +371,29 @@ mod tests {
                 cells2keep_ref.push(cell);
             }
         }
-        let pruned = tree
+        let pruned = phylo
+            .phylo
             .create_tree_without_dead_cells(&cells2keep_ref, 0)
             .unwrap();
 
-        assert_eq!(pruned.to_newick().unwrap(), "((A,E)B,(H,Z)G)F;");
+        assert_eq!(
+            pruned
+                .tree
+                .to_formatted_newick(phylotree::tree::NewickFormat::OnlyNames)
+                .unwrap(),
+            "((A,E)B,(H,Z)G)F;"
+        );
     }
 
     #[test]
     fn create_tree_without_dead_cells_remove_a_all() {
-        let original = "((A,(C,E)D)B,(H,Z)G)F;";
-        let phylotree = Tree::from_newick(original).unwrap();
-        let cell_idx = vec![2, 40, 10, 1];
-        let node_idx = vec![2, 4, 5, 7, 8];
-        assert_eq!(phylotree.get_leaves(), node_idx);
-        let leaves: HashMap<StemCellId, NodeId> =
-            cell_idx.clone().into_iter().zip(node_idx).collect();
-
-        let tree = PhyloTree {
-            tree: phylotree,
-            last_id: 0,
-            leaves,
-        };
-
-        let cells2keep: Vec<StemCell> = cell_idx.into_iter().map(StemCell::new).collect();
+        let phylo = TreeTest::new();
+        let cells2keep: Vec<StemCell> = phylo
+            .clone()
+            .cell_idx
+            .into_iter()
+            .map(StemCell::new)
+            .collect();
         let mut cells2keep_ref: Vec<&StemCell> = Vec::new();
         for cell in cells2keep.iter() {
             // remove a
@@ -377,10 +401,17 @@ mod tests {
                 cells2keep_ref.push(cell);
             }
         }
-        let pruned = tree
+        let pruned = phylo
+            .phylo
             .create_tree_without_dead_cells(&cells2keep_ref, 0)
             .unwrap();
 
-        assert_eq!(pruned.to_newick().unwrap(), "((H,Z)G,(C,E)D)F;");
+        assert_eq!(
+            pruned
+                .tree
+                .to_formatted_newick(phylotree::tree::NewickFormat::OnlyNames)
+                .unwrap(),
+            "((H,Z)G,(C,E)D)F;"
+        );
     }
 }
