@@ -104,6 +104,9 @@ impl PhyloTree {
             }
             pruned.prune(node_id)?;
         }
+        for (cell_id, node_id) in self.leaves.iter() {
+            pruned.get_mut(node_id)?.name = Some(cell_id.to_string());
+        }
         pruned.compress()?;
         Ok(pruned)
     }
