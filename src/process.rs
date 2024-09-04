@@ -143,15 +143,6 @@ impl HscDynamics {
         }
         let mut moran =
             exp.switch_to_moran(options_moran.distributions, options_save, filename, rng);
-        // save at the end of the exp phase
-        moran
-            .save(
-                moran.time,
-                &SavingCells::WholePopulation,
-                moran.save_sfs_only,
-                rng,
-            )
-            .expect("cannot save simulation at the end of the exponential phase");
         if options_moran.gillespie_options.verbosity > 0 {
             println!("{} simulating Moran phase", Utc::now());
         }
@@ -427,9 +418,6 @@ impl Moran {
         //!     2. else, compute the variant counts
         //!     3. and sample from any clone based on the weights defined by
         //!     the variant counts
-        if self.verbosity > 2 {
-            println!("keeping the cell population constant");
-        }
         // remove a cell from a random subclone based on the frequencies of
         // the clones at the current state
         let variants = Variants::variant_counts(&self.subclones);
@@ -441,8 +429,11 @@ impl Moran {
             .with_context(|| "found empty subclone")?;
         self.tree
             .remove_cell_from_tree(cell2remove.id, self.verbosity)?;
-        if self.verbosity > 2 {
-            println!("removing one cell from clone {}", id2remove);
+        if self.verbosity > 1 {
+            println!(
+                "keep the cell pop constant by removing cell with id {} from clone {}",
+                cell2remove.id, id2remove
+            );
         }
         Ok(())
     }

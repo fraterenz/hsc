@@ -164,7 +164,10 @@ impl Proliferation {
                     self.last_id += 1;
                     new_cell.id = self.last_id;
                     if verbosity > 1 {
-                        println!("Adding the sibling cell on a new node");
+                        println!(
+                            "adding the sibling cell with id {} on a new node",
+                            self.last_id
+                        );
                     }
                     assign_divisional_mutations(
                         &mut new_cell,
@@ -212,7 +215,10 @@ impl Proliferation {
                 self.last_id += 1;
                 new_cell.id = self.last_id;
                 if verbosity > 1 {
-                    println!("Adding the sibling cell on a new node");
+                    println!(
+                        "adding the sibling cell with id {} on a new node",
+                        self.last_id
+                    );
                 }
                 assign_divisional_mutations(
                     &mut new_cell,
