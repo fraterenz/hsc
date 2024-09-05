@@ -83,12 +83,22 @@ pub fn assign_divisional_mutations(
 ) {
     let mutations = neutral_poisson.new_muts_upon_division(rng);
     if let Some(mutations) = mutations {
-        if verbosity > 2 {
-            println!("assigning {:#?} to cell {:#?}", mutations, stem_cell);
+        if verbosity > 1 {
+            println!(
+                "assigning {} divisional mutations to cell {}",
+                mutations.len(),
+                stem_cell.id
+            );
+            if verbosity > 2 {
+                println!(
+                    "assigning {:#?} dividisional mutations to cell {:#?}",
+                    mutations, stem_cell
+                );
+            }
         }
         mutate(stem_cell, mutations);
-    } else if verbosity > 2 {
-        println!("no mutations to assign to cell {:#?}", stem_cell);
+    } else if verbosity > 1 {
+        println!("no divisional mutations to assign to cell {}", stem_cell.id);
     }
 }
 

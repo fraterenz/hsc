@@ -1,6 +1,9 @@
-use anyhow::{ensure, Context};
+use anyhow::{bail, ensure, Context};
 use phylotree::tree::{Node, NodeId, Tree};
-use std::collections::HashMap;
+use std::{
+    collections::{HashMap, HashSet},
+    path::Path,
+};
 
 use crate::stemcell::{StemCell, StemCellId};
 
@@ -43,34 +46,52 @@ impl PhyloTree {
         }
     }
 
+    fn add_cell_from_parent_node(
+        &mut self,
+        cell_id: StemCellId,
+        parent_id: NodeId,
+        edge: f64,
+        verbosity: u8,
+    ) -> anyhow::Result<bool> {
+        //! Returns whether the cell was already present in the system as a
+        //! leaf node.
+        if verbosity > 1 {
+            println!("create new node");
+        }
+        self.last_id += 1;
+
+        let mut node = Node::new();
+        node.id = self.last_id;
+        if verbosity > 1 {
+            println!(
+                "create new node with id {}, with parent {} located at {} mutational distance",
+                node.id, parent_id, edge
+            );
+        }
+        self.tree.add_child(node, parent_id, Some(edge))?;
+        Ok(self.leaves.insert(cell_id, self.last_id).is_some())
+        // .with_context(|| "the proliferating cell is not registered as a leaf")?;
+    }
+
     pub fn assign_sibling(
         &mut self,
         cell_id: StemCellId,
         sibling_id: StemCellId,
         edge: f64,
         verbosity: u8,
-    ) -> anyhow::Result<()> {
-        if verbosity > 1 {
-            println!("create new node");
-        }
-        let parent_id = self
-            .tree
-            .get(self.leaves.get(&sibling_id).unwrap())?
-            .parent
-            .unwrap();
-        self.last_id += 1;
-
-        let mut node = Node::new();
-        node.id = self.last_id;
-        self.tree.add_child(node, parent_id, Some(edge))?;
+    ) -> anyhow::Result<bool> {
+        //! Returns whether the cell was already present in the system as a
+        //! leaf node.
+        let sibling = self.tree.get(self.leaves.get(&sibling_id).unwrap())?;
+        ensure!(sibling.is_tip());
+        let parent_id = sibling.parent.unwrap();
         if verbosity > 1 {
             println!(
-                "assign cell with id {} to new node with id {} which is sibling of cell with id {}",
-                cell_id, self.last_id, sibling_id,
+                "assign cell with id {} to new node which is sibling of cell with id {}",
+                cell_id, sibling_id,
             );
         }
-        ensure!(self.leaves.insert(cell_id, self.last_id).is_none());
-        Ok(())
+        self.add_cell_from_parent_node(cell_id, parent_id, edge, verbosity)
     }
 
     pub fn put_cell_on_new_node(
@@ -78,29 +99,26 @@ impl PhyloTree {
         cell_id: StemCellId,
         edge: f64,
         verbosity: u8,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<bool> {
         //! Update the tree with a new node and affect the cell with `cell_id`
         //! to it.
-        if verbosity > 1 {
-            println!("create new node");
-        }
-        let parent_id = self.tree.get(self.leaves.get(&cell_id).unwrap())?.id;
-        self.last_id += 1;
-        let mut node = Node::new();
-        node.id = self.last_id;
-        self.tree.add_child(node, parent_id, Some(edge))?;
-
-        // update leaves
-        if verbosity > 1 {
-            println!(
-                "assign cell with id {} to new node with id {}",
-                cell_id, self.last_id
-            );
-        }
-        self.leaves
-            .insert(cell_id, self.last_id)
-            .with_context(|| "the proliferating cell is not registered as a leaf")?;
-        Ok(())
+        //!
+        //! ## Returns
+        //! Whether the cell to add on the new node was already present in the
+        //! system as a leaf node.
+        let parent = self
+            .tree
+            .get(
+                self.leaves
+                    .get(&cell_id)
+                    .with_context(|| "cannot get cell from leaves")?,
+            )
+            .with_context(|| "cannot get node from the tree")?;
+        ensure!(
+            parent.is_tip(),
+            format!("parent node {} is not a leaf node", parent)
+        );
+        self.add_cell_from_parent_node(cell_id, parent.id, edge, verbosity)
     }
 
     pub fn remove_cell_from_tree(
@@ -109,13 +127,15 @@ impl PhyloTree {
         verbosity: u8,
     ) -> anyhow::Result<()> {
         //! Remove a cell from the tree, do not change the tree's topology as
-        //! we still the node where the cell was for the other alive lineages.
+        //! we still need the node which acts as an ancestral cell.
         if verbosity > 1 {
             println!("removing cell with id {cell_id} from the leaves");
         }
-        self.leaves
+        let removed = self
+            .leaves
             .remove(&cell_id)
             .with_context(|| "the cell to remove is not registered as a leaf")?;
+        ensure!(self.tree.get(&removed)?.is_tip());
         Ok(())
     }
 
@@ -133,15 +153,30 @@ impl PhyloTree {
     ) -> anyhow::Result<Self> {
         //! Use `cells` to select only the leaves of interest, dropping all the
         //! other leaves.
-        let mut cell2prune = self.leaves.clone();
-        cell2prune.retain(|&k, _| !cells.iter().any(|x| x.id == k));
-        let mut pruned = self.tree.clone();
-        for node_id in cell2prune.values() {
-            if verbosity > 1 {
-                println!("removing node with id {}", node_id);
-            }
-            pruned.prune(node_id)?;
+        // select leaves in self.leaves that are in `cells`
+        let mut leaves = self.leaves.clone();
+        leaves.retain(|&k, _| cells.iter().any(|x| x.id == k));
+        if verbosity > 0 {
+            println!("creating new tree with {} cells", cells.len());
         }
+        // get the node idx of those subset of leaves
+        let leaves: HashSet<NodeId> = leaves.into_values().collect();
+
+        let mut pruned = self.tree.clone();
+        while pruned
+            .get_leaves()
+            .iter()
+            .any(|leaf| !leaves.contains(leaf))
+        {
+            for leaf in pruned.get_leaves() {
+                if !leaves.contains(&leaf) {
+                    pruned
+                        .prune(&leaf)
+                        .with_context(|| format!("cannot remove node {}", leaf))?;
+                }
+            }
+        }
+
         pruned.compress().with_context(|| "cannot compress")?;
         // pruned.rescale(
         //     1. / pruned
@@ -154,6 +189,40 @@ impl PhyloTree {
             leaves: self.leaves.clone(),
         })
     }
+
+    pub fn get_mut_leaf(&mut self, cell_id: StemCellId) -> anyhow::Result<&mut Node> {
+        let node = self
+            .tree
+            .get_mut(
+                self.leaves
+                    .get_mut(&cell_id)
+                    .with_context(|| "cell not registered as leaf node")?,
+            )
+            .with_context(|| "cannot find leaf tree node")?;
+        if !node.is_tip() {
+            bail!("node found is not a leaf node")
+        }
+        Ok(node)
+    }
+}
+
+pub fn save_tree(
+    tree: &PhyloTree,
+    cells: &[&StemCell],
+    path: &Path,
+    verbosity: u8,
+) -> anyhow::Result<()> {
+    if verbosity > 0 {
+        println!("Saving the tree");
+    }
+    let mut pruned = tree.create_tree_without_dead_cells(cells, verbosity)?;
+    pruned.name_leaves_with_cell_idx()?;
+    // let pruned = tree.clone();
+    if verbosity > 1 {
+        println!("Name leaf nodes with idx of cells");
+    }
+    pruned.tree.to_file(path)?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -298,6 +367,21 @@ mod tests {
         }
     }
 
+    fn get_leaves_4test(
+        tree1: &TreeTest,
+        tree2: &PhyloTree,
+        cells: Vec<&StemCell>,
+    ) -> (Vec<NodeId>, Vec<NodeId>) {
+        let mut leaves_exp = cells
+            .into_iter()
+            .map(|cell| *tree1.phylo.leaves.get(&cell.id).unwrap())
+            .collect::<Vec<usize>>();
+        leaves_exp.sort_unstable();
+        let mut leaves = tree2.tree.get_leaves();
+        leaves.sort_unstable();
+        (leaves, leaves_exp)
+    }
+
     #[test]
     fn create_tree_without_dead_cells_keep_all() {
         let phylo = TreeTest::new();
@@ -317,12 +401,14 @@ mod tests {
             .create_tree_without_dead_cells(&cells2keep_ref, 0)
             .unwrap();
 
-        let mut expected = phylo.phylo.tree;
+        let mut expected = phylo.phylo.tree.clone();
         expected.compress().unwrap();
         assert_eq!(
             pruned.tree.to_newick().unwrap(),
             expected.to_newick().unwrap()
         );
+        let (leaves, leaves_exp) = get_leaves_4test(&phylo, &pruned, cells2keep_ref);
+        assert_eq!(leaves, leaves_exp);
     }
 
     #[test]
@@ -353,6 +439,8 @@ mod tests {
                 .unwrap(),
             "((A,(C,E)D)B,Z)F;"
         );
+        let (leaves, leaves_exp) = get_leaves_4test(&phylo, &pruned, cells2keep_ref);
+        assert_eq!(leaves, leaves_exp);
     }
 
     #[test]
@@ -383,6 +471,8 @@ mod tests {
                 .unwrap(),
             "((A,E)B,(H,Z)G)F;"
         );
+        let (leaves, leaves_exp) = get_leaves_4test(&phylo, &pruned, cells2keep_ref);
+        assert_eq!(leaves, leaves_exp);
     }
 
     #[test]
@@ -413,5 +503,39 @@ mod tests {
                 .unwrap(),
             "((H,Z)G,(C,E)D)F;"
         );
+        let (leaves, leaves_exp) = get_leaves_4test(&phylo, &pruned, cells2keep_ref);
+        assert_eq!(leaves, leaves_exp);
+    }
+
+    #[test]
+    fn create_tree_without_dead_cells_remove_a_and_c() {
+        let phylo = TreeTest::new();
+        let cells2keep: Vec<StemCell> = phylo
+            .clone()
+            .cell_idx
+            .into_iter()
+            .map(StemCell::new)
+            .collect();
+        let mut cells2keep_ref: Vec<&StemCell> = Vec::new();
+        for cell in cells2keep.iter() {
+            // remove a and c
+            if cell.id != 2 && cell.id != 40 {
+                cells2keep_ref.push(cell);
+            }
+        }
+        let pruned = phylo
+            .phylo
+            .create_tree_without_dead_cells(&cells2keep_ref, 0)
+            .unwrap();
+
+        assert_eq!(
+            pruned
+                .tree
+                .to_formatted_newick(phylotree::tree::NewickFormat::OnlyNames)
+                .unwrap(),
+            "((H,Z)G,E)F;"
+        );
+        let (leaves, leaves_exp) = get_leaves_4test(&phylo, &pruned, cells2keep_ref);
+        assert_eq!(leaves, leaves_exp);
     }
 }

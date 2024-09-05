@@ -1,4 +1,4 @@
-use anyhow::Context;
+use anyhow::{ensure, Context};
 use rand::Rng;
 use rand_distr::{Bernoulli, Distribution};
 
@@ -94,7 +94,7 @@ impl Proliferation {
                 .interdivision_time(time)
                 .with_context(|| "wrong interdivision time")
                 .unwrap()) as f64;
-        // the fit variant is sampled here
+        // the fit variant is sampled assuming a background mutation
         let clone_id = next_clone(subclones, proliferating_subclone, p, rng, verbosity);
         if verbosity > 1 {
             println!("proliferation at time {}", time);
@@ -106,7 +106,8 @@ impl Proliferation {
                 println!("cell {:#?} is dividing", stem_cell);
             }
         }
-        let mutational_distance = stem_cell.variants.len();
+        // the mutations of the ancestral cell
+        let nb_muts_old = stem_cell.variants.len();
         if let NeutralMutations::UponDivisionAndBackground = self.neutral_mutation {
             assign_background_mutations(
                 &mut stem_cell,
@@ -116,10 +117,8 @@ impl Proliferation {
                 verbosity,
             );
         }
-        if verbosity > 1 {
-            println!("Adding the cell on a new node");
-        }
-        match self.division {
+        // perform the division
+        let cells = match self.division {
             Division::Asymmetric(prob) => {
                 if prob.sample(rng) {
                     if verbosity > 1 {
@@ -131,121 +130,115 @@ impl Proliferation {
                         rng,
                         verbosity,
                     );
-                    stem_cell
-                        .set_last_division_time(time)
-                        .with_context(|| "wrong time")
-                        .unwrap();
-                    tree.put_cell_on_new_node(
-                        stem_cell.id,
-                        (stem_cell.variants.len() - mutational_distance) as f64,
-                        verbosity,
-                    )?;
-                    subclones
-                        .get_mut_clone_unchecked(clone_id)
-                        .assign_cell(stem_cell);
+                    let mutational_distance = (stem_cell.variants.len() - nb_muts_old) as f64;
+                    ensure!(
+                        tree.put_cell_on_new_node(stem_cell.id, mutational_distance, verbosity)?,
+                        "the proliferating cell is not registered as a leaf"
+                    );
+                    vec![stem_cell]
                 } else {
-                    assign_divisional_mutations(
+                    let new_cell = self.symmtetric_division_helper(
                         &mut stem_cell,
-                        &distributions.neutral_poisson,
+                        nb_muts_old,
+                        tree,
+                        distributions,
                         rng,
                         verbosity,
-                    );
-                    stem_cell
-                        .set_last_division_time(time)
-                        .with_context(|| "wrong time")
-                        .unwrap();
-                    tree.put_cell_on_new_node(
-                        stem_cell.id,
-                        (stem_cell.variants.len() - mutational_distance) as f64,
-                        verbosity,
                     )?;
-
-                    let mut new_cell = stem_cell.clone();
-                    self.last_id += 1;
-                    new_cell.id = self.last_id;
-                    if verbosity > 1 {
-                        println!(
-                            "adding the sibling cell with id {} on a new node",
-                            self.last_id
-                        );
-                    }
-                    assign_divisional_mutations(
-                        &mut new_cell,
-                        &distributions.neutral_poisson,
-                        rng,
-                        verbosity,
-                    );
-                    new_cell
-                        .set_last_division_time(time)
-                        .with_context(|| "wrong time")
-                        .unwrap();
-                    tree.assign_sibling(
-                        new_cell.id,
-                        stem_cell.id,
-                        (new_cell.variants.len() - mutational_distance) as f64,
-                        verbosity,
-                    )?;
-
-                    subclones
-                        .get_mut_clone_unchecked(clone_id)
-                        .assign_cell(stem_cell);
-                    subclones
-                        .get_mut_clone_unchecked(clone_id)
-                        .assign_cell(new_cell);
+                    vec![stem_cell, new_cell]
                 }
             }
             Division::Symmetric => {
-                assign_divisional_mutations(
+                let new_cell = self.symmtetric_division_helper(
                     &mut stem_cell,
-                    &distributions.neutral_poisson,
+                    nb_muts_old,
+                    tree,
+                    distributions,
                     rng,
                     verbosity,
-                );
-                stem_cell
-                    .set_last_division_time(time)
-                    .with_context(|| "wrong time")
-                    .unwrap();
-                tree.put_cell_on_new_node(
-                    stem_cell.id,
-                    (stem_cell.variants.len() - mutational_distance) as f64,
-                    verbosity,
                 )?;
-
-                let mut new_cell = stem_cell.clone();
-                self.last_id += 1;
-                new_cell.id = self.last_id;
-                if verbosity > 1 {
-                    println!(
-                        "adding the sibling cell with id {} on a new node",
-                        self.last_id
-                    );
-                }
-                assign_divisional_mutations(
-                    &mut new_cell,
-                    &distributions.neutral_poisson,
-                    rng,
-                    verbosity,
-                );
-                new_cell
-                    .set_last_division_time(time)
-                    .with_context(|| "wrong time")
-                    .unwrap();
-                tree.assign_sibling(
-                    new_cell.id,
-                    stem_cell.id,
-                    (new_cell.variants.len() - mutational_distance) as f64,
-                    verbosity,
-                )?;
-
-                subclones
-                    .get_mut_clone_unchecked(clone_id)
-                    .assign_cell(stem_cell);
-                subclones
-                    .get_mut_clone_unchecked(clone_id)
-                    .assign_cell(new_cell);
+                vec![stem_cell, new_cell]
             }
         };
+        // assign new cells to subclones: if new fit variant present, move cell
+        // to a new subclone, otherwise reassign both cells to the subclone of
+        // the ancestral cell (i.e. assume fit variants are only background
+        // mutations)
+        for mut stem_cell in cells {
+            stem_cell
+                .set_last_division_time(time)
+                .with_context(|| "wrong time")
+                .unwrap();
+            subclones
+                .get_mut_clone_unchecked(clone_id)
+                .assign_cell(stem_cell);
+        }
         Ok(())
+    }
+
+    fn symmtetric_division_helper(
+        &mut self,
+        stem_cell: &mut StemCell,
+        nb_muts_old: usize,
+        tree: &mut PhyloTree,
+        distributions: &Distributions,
+        rng: &mut impl Rng,
+        verbosity: u8,
+    ) -> anyhow::Result<StemCell> {
+        //! Creates a new leaf node to which `stem_cell` will be assigned with
+        //! a distance equal to the new mutations acquired.
+        //! The background mutations are not simulated but assumed to be
+        //! acquired somewhere else, whereas the divisional ones are simulated
+        //! here.
+        //!
+        //! Creates also a new cell by cloning the ancestral cell (i.e.
+        //! `stem_cell` before assigning divisional mutations) and put this
+        //! cell on a leaf node whose parent is the node of the ancestral cell.
+        //! As a results, the new cell will be a sibling of the new `stem_cell`,
+        //! i.e. the cell with divisional mutations assigned to a new node.
+        //!
+        //! ## Returns
+        //! A new cell which is a sibling of `stem_cell` and daughter of the
+        //! ancestral cell shared with `stem_cell`.
+        // clone before assigning divisional mutations
+        let mut new_cell = stem_cell.clone();
+        self.last_id += 1;
+        new_cell.id = self.last_id;
+
+        assign_divisional_mutations(stem_cell, &distributions.neutral_poisson, rng, verbosity);
+        // this takes into account also background mutations
+        let mutational_distance = stem_cell.variants.len() - nb_muts_old;
+        ensure!(
+            tree.put_cell_on_new_node(stem_cell.id, mutational_distance as f64, verbosity)?,
+            "the proliferating cell is not registered as a leaf"
+        );
+
+        assign_divisional_mutations(
+            &mut new_cell,
+            &distributions.neutral_poisson,
+            rng,
+            verbosity,
+        );
+        // nb_muts_old is the same for both cell as it comes from the
+        // ancestral cell
+        let mutational_distance = new_cell.variants.len() - nb_muts_old;
+        if verbosity > 1 {
+            println!(
+                "adding the sibling cell with id {} on a new node",
+                self.last_id
+            );
+        }
+        // a new cell is not registered as a leaf node yet
+        ensure!(
+            !tree.assign_sibling(
+                new_cell.id,
+                stem_cell.id,
+                mutational_distance as f64,
+                verbosity
+            )?,
+            "the new cell is already registered as a leaf"
+        );
+        Ok(new_cell)
     }
 }
 

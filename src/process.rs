@@ -4,7 +4,7 @@ use crate::stemcell::{assign_background_mutations, StemCell};
 use crate::subclone::{
     save_variant_fraction, CloneId, Distributions, Fitness, SubClones, Variants,
 };
-use crate::tree::PhyloTree;
+use crate::tree::{save_tree, PhyloTree};
 use crate::{ProbsPerYear, MAX_SUBCLONES, TIME_AT_BIRTH};
 use anyhow::{ensure, Context};
 use chrono::Utc;
@@ -503,20 +503,13 @@ impl Moran {
                 &self.make_path(Stats2Save::VariantFraction, nb_cells, time)?,
                 self.verbosity,
             )?;
-            if self.verbosity > 0 {
-                println!("Saving the tree");
-            }
-            let mut pruned = self
-                .tree
-                .create_tree_without_dead_cells(&cells, self.verbosity)?;
-            pruned.name_leaves_with_cell_idx()?;
-            if self.verbosity > 0 {
-                println!("Name leaf nodes with idx of cells");
-            }
-            pruned.tree.to_file(
+            save_tree(
+                &self.tree,
+                &cells,
                 &self
                     .make_path(Stats2Save::Tree, nb_cells, time)?
                     .with_extension("txt"),
+                self.verbosity,
             )?;
         }
 
@@ -557,6 +550,11 @@ impl Moran {
                     rng,
                     self.verbosity,
                 );
+                // update edges of tree as well
+                let node = self.tree.get_mut_leaf(stem_cell.id)?;
+                node.parent_edge = node
+                    .parent_edge
+                    .map(|edge| edge + stem_cell.variants.len() as f64);
             }
         }
         let population = self.subclones.get_cells_with_clones_idx();
