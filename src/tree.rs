@@ -147,29 +147,29 @@ impl PhyloTree {
     }
 
     pub fn create_tree_without_dead_cells(
-        &self,
+        self,
         cells: &[&StemCell],
         verbosity: u8,
     ) -> anyhow::Result<Self> {
         //! Use `cells` to select only the leaves of interest, dropping all the
-        //! other leaves.
+        //! other leaves and consuming `self`.
         // select leaves in self.leaves that are in `cells`
-        let mut leaves = self.leaves.clone();
+        let mut leaves = self.leaves;
         leaves.retain(|&k, _| cells.iter().any(|x| x.id == k));
         if verbosity > 0 {
             println!("creating new tree with {} cells", cells.len());
         }
         // get the node idx of those subset of leaves
-        let leaves: HashSet<NodeId> = leaves.into_values().collect();
+        let leaves_idx: HashSet<&NodeId> = leaves.values().collect();
 
         let mut pruned = self.tree.clone();
         while pruned
             .get_leaves()
             .iter()
-            .any(|leaf| !leaves.contains(leaf))
+            .any(|leaf| !leaves_idx.contains(leaf))
         {
             for leaf in pruned.get_leaves() {
-                if !leaves.contains(&leaf) {
+                if !leaves_idx.contains(&leaf) {
                     pruned
                         .prune(&leaf)
                         .with_context(|| format!("cannot remove node {}", leaf))?;
@@ -186,7 +186,7 @@ impl PhyloTree {
         Ok(PhyloTree {
             tree: pruned,
             last_id: self.last_id,
-            leaves: self.leaves.clone(),
+            leaves,
         })
     }
 
@@ -207,13 +207,14 @@ impl PhyloTree {
 }
 
 pub fn save_tree(
-    tree: &PhyloTree,
+    tree: PhyloTree,
     cells: &[&StemCell],
     path: &Path,
     verbosity: u8,
 ) -> anyhow::Result<()> {
+    //! Consumes the tree as we need to create a new tree with only some `cells`
     if verbosity > 0 {
-        println!("Saving the tree");
+        println!("saving the tree");
     }
     let mut pruned = tree.create_tree_without_dead_cells(cells, verbosity)?;
     pruned.name_leaves_with_cell_idx()?;
@@ -368,7 +369,7 @@ mod tests {
     }
 
     fn get_leaves_4test(
-        tree1: &TreeTest,
+        tree1: TreeTest,
         tree2: &PhyloTree,
         cells: Vec<&StemCell>,
     ) -> (Vec<NodeId>, Vec<NodeId>) {
@@ -407,7 +408,7 @@ mod tests {
             pruned.tree.to_newick().unwrap(),
             expected.to_newick().unwrap()
         );
-        let (leaves, leaves_exp) = get_leaves_4test(&phylo, &pruned, cells2keep_ref);
+        let (leaves, leaves_exp) = get_leaves_4test(phylo, &pruned, cells2keep_ref);
         assert_eq!(leaves, leaves_exp);
     }
 
@@ -428,6 +429,7 @@ mod tests {
             }
         }
         let pruned = phylo
+            .clone()
             .phylo
             .create_tree_without_dead_cells(&cells2keep_ref, 0)
             .unwrap();
@@ -439,7 +441,7 @@ mod tests {
                 .unwrap(),
             "((A,(C,E)D)B,Z)F;"
         );
-        let (leaves, leaves_exp) = get_leaves_4test(&phylo, &pruned, cells2keep_ref);
+        let (leaves, leaves_exp) = get_leaves_4test(phylo, &pruned, cells2keep_ref);
         assert_eq!(leaves, leaves_exp);
     }
 
@@ -460,6 +462,7 @@ mod tests {
             }
         }
         let pruned = phylo
+            .clone()
             .phylo
             .create_tree_without_dead_cells(&cells2keep_ref, 0)
             .unwrap();
@@ -471,7 +474,7 @@ mod tests {
                 .unwrap(),
             "((A,E)B,(H,Z)G)F;"
         );
-        let (leaves, leaves_exp) = get_leaves_4test(&phylo, &pruned, cells2keep_ref);
+        let (leaves, leaves_exp) = get_leaves_4test(phylo, &pruned, cells2keep_ref);
         assert_eq!(leaves, leaves_exp);
     }
 
@@ -492,6 +495,7 @@ mod tests {
             }
         }
         let pruned = phylo
+            .clone()
             .phylo
             .create_tree_without_dead_cells(&cells2keep_ref, 0)
             .unwrap();
@@ -503,7 +507,7 @@ mod tests {
                 .unwrap(),
             "((H,Z)G,(C,E)D)F;"
         );
-        let (leaves, leaves_exp) = get_leaves_4test(&phylo, &pruned, cells2keep_ref);
+        let (leaves, leaves_exp) = get_leaves_4test(phylo, &pruned, cells2keep_ref);
         assert_eq!(leaves, leaves_exp);
     }
 
@@ -524,6 +528,7 @@ mod tests {
             }
         }
         let pruned = phylo
+            .clone()
             .phylo
             .create_tree_without_dead_cells(&cells2keep_ref, 0)
             .unwrap();
@@ -535,7 +540,7 @@ mod tests {
                 .unwrap(),
             "((H,Z)G,E)F;"
         );
-        let (leaves, leaves_exp) = get_leaves_4test(&phylo, &pruned, cells2keep_ref);
+        let (leaves, leaves_exp) = get_leaves_4test(phylo, &pruned, cells2keep_ref);
         assert_eq!(leaves, leaves_exp);
     }
 }

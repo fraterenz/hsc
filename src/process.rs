@@ -504,7 +504,7 @@ impl Moran {
                 self.verbosity,
             )?;
             save_tree(
-                &self.tree,
+                self.tree.clone(),
                 &cells,
                 &self
                     .make_path(Stats2Save::Tree, nb_cells, time)?
