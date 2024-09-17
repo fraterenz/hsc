@@ -177,7 +177,13 @@ impl PhyloTree {
             }
         }
 
+        if verbosity > 0 {
+            println!("compressing the tree")
+        }
         pruned.compress().with_context(|| "cannot compress")?;
+        if verbosity > 0 {
+            println!("end tree compression")
+        }
         // pruned.rescale(
         //     1. / pruned
         //         .length()

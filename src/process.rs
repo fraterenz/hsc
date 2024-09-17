@@ -571,6 +571,9 @@ impl Moran {
                 population_as_well: populaiton_as_well,
             } => {
                 if *populaiton_as_well {
+                    if self.verbosity > 0 {
+                        println!("saving the full pop as well");
+                    }
                     self.save_it(time, population, save_sfs_only)
                         .with_context(|| "cannot save the full population")
                         .unwrap();
@@ -579,6 +582,9 @@ impl Moran {
                     .subclones
                     .get_cells_subsampled_with_clones_idx(*sample_size, rng);
                 assert_eq!(cells_with_idx.len(), *sample_size);
+                if self.verbosity > 0 {
+                    println!("saving the subsample");
+                }
                 self.save_it(time, cells_with_idx, save_sfs_only)
                     .with_context(|| "cannot save the subsample")
                     .unwrap();
