@@ -1,5 +1,6 @@
 use anyhow::{bail, ensure, Context};
 use phylotree::tree::{Node, NodeId, Tree};
+use sosa::write2file;
 use std::{
     collections::{HashMap, HashSet},
     path::Path,
@@ -55,17 +56,15 @@ impl PhyloTree {
     ) -> anyhow::Result<bool> {
         //! Returns whether the cell was already present in the system as a
         //! leaf node.
-        if verbosity > 1 {
-            println!("create new node");
-        }
         self.last_id += 1;
 
         let mut node = Node::new();
         node.id = self.last_id;
         if verbosity > 1 {
+            println!("create new node with id {}", node.id);
             println!(
-                "create new node with id {}, with parent {} located at {} mutational distance",
-                node.id, parent_id, edge
+                "add cell with id {} to new node with id {}, with parent {} located at {} mutational distance",
+                cell_id, node.id, parent_id, edge
             );
         }
         self.tree.add_child(node, parent_id, Some(edge))?;
@@ -102,23 +101,30 @@ impl PhyloTree {
     ) -> anyhow::Result<bool> {
         //! Update the tree with a new node and affect the cell with `cell_id`
         //! to it.
+        //! Do nothing if `edge` is 0.
         //!
         //! ## Returns
         //! Whether the cell to add on the new node was already present in the
         //! system as a leaf node.
-        let parent = self
-            .tree
-            .get(
-                self.leaves
-                    .get(&cell_id)
-                    .with_context(|| "cannot get cell from leaves")?,
-            )
-            .with_context(|| "cannot get node from the tree")?;
-        ensure!(
-            parent.is_tip(),
-            format!("parent node {} is not a leaf node", parent)
-        );
-        self.add_cell_from_parent_node(cell_id, parent.id, edge, verbosity)
+        if (edge - 0f64).abs() > f64::EPSILON {
+            let parent = self
+                .tree
+                .get(
+                    self.leaves
+                        .get(&cell_id)
+                        .with_context(|| "cannot get cell from leaves")?,
+                )
+                .with_context(|| "cannot get node from the tree")?;
+            ensure!(
+                parent.is_tip(),
+                format!("parent node {} is not a leaf node", parent)
+            );
+            return self.add_cell_from_parent_node(cell_id, parent.id, edge, verbosity);
+        }
+        if verbosity > 1 {
+            println!("do nothing as edge is 0, edge={}", edge);
+        }
+        Ok(true)
     }
 
     pub fn remove_cell_from_tree(
@@ -184,11 +190,6 @@ impl PhyloTree {
         if verbosity > 0 {
             println!("end tree compression")
         }
-        // pruned.rescale(
-        //     1. / pruned
-        //         .length()
-        //         .with_context(|| "cannot get lenght of the tree")?,
-        // );
         Ok(PhyloTree {
             tree: pruned,
             last_id: self.last_id,
@@ -210,6 +211,45 @@ impl PhyloTree {
         }
         Ok(node)
     }
+
+    pub fn assign_background_muts_to_tree(
+        &mut self,
+        stem_cell_id: usize,
+        background_muts: usize,
+        verbosity: u8,
+    ) -> anyhow::Result<()> {
+        //! Creates a new node
+        if verbosity > 0 {
+            println!("assigning background mutations to tree");
+            //dbg!(&self.tree.to_newick().unwrap());
+        }
+        self.put_cell_on_new_node(stem_cell_id, background_muts as f64, verbosity)?;
+        //dbg!(&self.tree.to_newick().unwrap());
+        Ok(())
+    }
+}
+
+pub fn get_dist_to_root(
+    tree: &Tree,
+    node_id: usize,
+    cache: &mut [Option<f64>],
+) -> anyhow::Result<f64> {
+    //! Compute branch lengths between a given leaf and the root using caching.
+    //! See [issue](https://github.com/lucblassel/phylotree-rs/issues/8).
+    if let Some(d) = cache[node_id] {
+        // Check if we have already computed the value
+        return Ok(d);
+    } else if tree.get(&node_id)?.is_root() {
+        // Check if current node is root
+        cache[node_id] = Some(0.);
+        return Ok(0.);
+    }
+    let node = tree.get(&node_id)?;
+    let parent = node.parent.context("Missing Parent node")?;
+    let mut d = node.parent_edge.context("Missing branch lengths")?;
+    d += get_dist_to_root(tree, parent, cache)?;
+    cache[node_id] = Some(d);
+    Ok(d)
 }
 
 pub fn save_tree(
@@ -228,6 +268,21 @@ pub fn save_tree(
     if verbosity > 1 {
         println!("Name leaf nodes with idx of cells");
     }
+    let mut cache = vec![None; pruned.tree.size()];
+    let dists_to_root = pruned
+        .tree
+        .get_leaves()
+        .iter()
+        .map(|leaf_id| get_dist_to_root(&pruned.tree, *leaf_id, &mut cache))
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    let filename = path.file_stem().unwrap();
+    write2file(
+        &dists_to_root,
+        &path.with_file_name(format!("{}_burden.csv", filename.to_str().unwrap())),
+        None,
+        false,
+    )?;
     pruned.tree.to_file(path)?;
     Ok(())
 }
@@ -548,5 +603,32 @@ mod tests {
         );
         let (leaves, leaves_exp) = get_leaves_4test(phylo, &pruned, cells2keep_ref);
         assert_eq!(leaves, leaves_exp);
+    }
+
+    #[test]
+    fn assign_background_muts_to_tree_test() {
+        let tree = Tree::from_newick("(:0,:2);").unwrap();
+        let leaves = HashMap::from([(0, 0), (1, 2)]);
+        let mut phylot = PhyloTree {
+            tree,
+            last_id: 2,
+            leaves,
+        };
+        phylot.assign_background_muts_to_tree(1, 2, 0).unwrap();
+        assert_eq!(phylot.tree.to_newick().unwrap(), "(:0,:4);");
+    }
+
+    #[test]
+    fn get_dist_to_root_test() {
+        let tree = Tree::from_newick("(:3,((:1):1,:0):2);").unwrap();
+        dbg!(tree.to_newick().unwrap());
+        let mut cache = vec![None; tree.size()];
+        let dists_to_root = tree
+            .get_leaves()
+            .iter()
+            .map(|leaf_id| get_dist_to_root(&tree, *leaf_id, &mut cache))
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(dists_to_root.iter().sum::<f64>() as usize, 3 + 4 + 2);
     }
 }

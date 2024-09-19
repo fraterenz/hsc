@@ -308,6 +308,7 @@ impl Exponential {
             }
             for stem_cell in self.subclones.get_mut_cells() {
                 if stem_cell.get_last_division_time() < &TIME_AT_BIRTH {
+                    let nb_muts_old = stem_cell.variants.len();
                     assign_background_mutations(
                         stem_cell,
                         TIME_AT_BIRTH,
@@ -315,11 +316,24 @@ impl Exponential {
                         rng,
                         self.verbosity,
                     );
+                    // update node edge with the background mutations
+                    self.tree
+                        .assign_background_muts_to_tree(
+                            stem_cell.id,
+                            stem_cell.variants.len() - nb_muts_old,
+                            self.verbosity,
+                        )
+                        .unwrap();
                 }
                 // this is required as we are restarting the time
                 stem_cell.set_last_division_time(0f32).unwrap();
             }
         }
+        self.tree
+            .tree
+            .compress()
+            .with_context(|| "cannot compress")
+            .unwrap();
         Moran {
             subclones: self.subclones,
             counter_divisions: self.counter_divisions,
@@ -543,6 +557,7 @@ impl Moran {
                 println!("updating the neutral background mutations for all cells");
             }
             for stem_cell in self.subclones.get_mut_cells() {
+                let nb_muts_old = stem_cell.variants.len();
                 assign_background_mutations(
                     stem_cell,
                     self.time,
@@ -550,11 +565,14 @@ impl Moran {
                     rng,
                     self.verbosity,
                 );
-                // update edges of tree as well
-                let node = self.tree.get_mut_leaf(stem_cell.id)?;
-                node.parent_edge = node
-                    .parent_edge
-                    .map(|edge| edge + stem_cell.variants.len() as f64);
+                // update node edge with the background mutations
+                self.tree
+                    .assign_background_muts_to_tree(
+                        stem_cell.id,
+                        stem_cell.variants.len() - nb_muts_old,
+                        self.verbosity,
+                    )
+                    .unwrap();
             }
         }
         let population = self.subclones.get_cells_with_clones_idx();

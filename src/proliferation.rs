@@ -99,14 +99,15 @@ impl Proliferation {
         if verbosity > 1 {
             println!("proliferation at time {}", time);
             println!(
-                "cell with last division time {} is dividing",
+                "cell with id {} and last division time {} is dividing",
+                stem_cell.id,
                 stem_cell.get_last_division_time()
             );
             if verbosity > 2 {
                 println!("cell {:#?} is dividing", stem_cell);
             }
         }
-        // the mutations of the ancestral cell
+        // the mutations of the ancestral cell TODO THINK
         let nb_muts_old = stem_cell.variants.len();
         if let NeutralMutations::UponDivisionAndBackground = self.neutral_mutation {
             assign_background_mutations(
@@ -116,7 +117,14 @@ impl Proliferation {
                 rng,
                 verbosity,
             );
+            // update node edge with the background mutations
+            tree.assign_background_muts_to_tree(
+                stem_cell.id,
+                stem_cell.variants.len() - nb_muts_old,
+                verbosity,
+            )?;
         }
+
         // perform the division
         let cells = match self.division {
             Division::Asymmetric(prob) => {
@@ -139,7 +147,6 @@ impl Proliferation {
                 } else {
                     let new_cell = self.symmtetric_division_helper(
                         &mut stem_cell,
-                        nb_muts_old,
                         tree,
                         distributions,
                         rng,
@@ -151,7 +158,6 @@ impl Proliferation {
             Division::Symmetric => {
                 let new_cell = self.symmtetric_division_helper(
                     &mut stem_cell,
-                    nb_muts_old,
                     tree,
                     distributions,
                     rng,
@@ -173,13 +179,13 @@ impl Proliferation {
                 .get_mut_clone_unchecked(clone_id)
                 .assign_cell(stem_cell);
         }
+        //dbg!(tree.tree.to_newick().unwrap());
         Ok(())
     }
 
     fn symmtetric_division_helper(
         &mut self,
         stem_cell: &mut StemCell,
-        nb_muts_old: usize,
         tree: &mut PhyloTree,
         distributions: &Distributions,
         rng: &mut impl Rng,
@@ -200,16 +206,26 @@ impl Proliferation {
         //! ## Returns
         //! A new cell which is a sibling of `stem_cell` and daughter of the
         //! ancestral cell shared with `stem_cell`.
+        // store mutations before division which are the same for both cells
+        let nb_muts_old = stem_cell.variants.len();
         // clone before assigning divisional mutations
         let mut new_cell = stem_cell.clone();
         self.last_id += 1;
         new_cell.id = self.last_id;
 
         assign_divisional_mutations(stem_cell, &distributions.neutral_poisson, rng, verbosity);
-        // this takes into account also background mutations
-        let mutational_distance = stem_cell.variants.len() - nb_muts_old;
+        if verbosity > 1 {
+            println!(
+                "putting dividing cell with id {} into new node",
+                stem_cell.id
+            );
+        }
         ensure!(
-            tree.put_cell_on_new_node(stem_cell.id, mutational_distance as f64, verbosity)?,
+            tree.put_cell_on_new_node(
+                stem_cell.id,
+                (stem_cell.variants.len() - nb_muts_old) as f64,
+                verbosity
+            )?,
             "the proliferating cell is not registered as a leaf"
         );
 
@@ -219,9 +235,6 @@ impl Proliferation {
             rng,
             verbosity,
         );
-        // nb_muts_old is the same for both cell as it comes from the
-        // ancestral cell
-        let mutational_distance = new_cell.variants.len() - nb_muts_old;
         if verbosity > 1 {
             println!(
                 "adding the sibling cell with id {} on a new node",
@@ -233,7 +246,7 @@ impl Proliferation {
             !tree.assign_sibling(
                 new_cell.id,
                 stem_cell.id,
-                mutational_distance as f64,
+                (new_cell.variants.len() - nb_muts_old) as f64,
                 verbosity
             )?,
             "the new cell is already registered as a leaf"

@@ -50,7 +50,7 @@ impl StemCell {
         self.variants.len()
     }
 
-    pub fn get_last_division_time(&mut self) -> &f32 {
+    pub fn get_last_division_time(&self) -> &f32 {
         &self.last_division_t
     }
 
