@@ -104,9 +104,7 @@ pub fn assign_background_mutations(
         .with_context(|| "wrong interdivision time")
         .unwrap();
     if verbosity > 1 {
-        println!(
-            "assigning background mutations with interdivision time {interdivison_time}"
-        );
+        println!("assigning background mutations with interdivision time {interdivison_time}");
     }
     // 2. draw background mutations and assign them to `c`
     if let Some(background) = neutral_poisson.new_muts_background(interdivison_time, rng, verbosity)

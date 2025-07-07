@@ -57,9 +57,7 @@ impl NeutralMutationPoisson {
             lambda_division,
             division: Poisson::new(lambda_division)
                 .with_context(|| {
-                    format!(
-                        "invalid value of lambda for the division mutations {lambda_division}"
-                    )
+                    format!("invalid value of lambda for the division mutations {lambda_division}")
                 })
                 .unwrap(),
         })

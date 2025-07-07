@@ -353,9 +353,7 @@ impl Moran {
 
         if !save_sfs_only {
             MutationalBurden::from_cells(&cells, self.verbosity)
-                .unwrap_or_else(|_| {
-                    panic!("cannot create burden for the timepoint at time {time}")
-                })
+                .unwrap_or_else(|_| panic!("cannot create burden for the timepoint at time {time}"))
                 .save(
                     &self.make_path(Stats2Save::Burden, nb_cells, time)?,
                     self.verbosity,
