@@ -82,13 +82,13 @@ impl Proliferation {
         // the fit variant is sampled here
         let clone_id = next_clone(subclones, proliferating_subclone, p, rng, verbosity);
         if verbosity > 1 {
-            println!("proliferation at time {}", time);
+            println!("proliferation at time {time}");
             println!(
                 "cell with last division time {} is dividing",
                 stem_cell.get_last_division_time()
             );
             if verbosity > 2 {
-                println!("cell {:#?} is dividing", stem_cell);
+                println!("cell {stem_cell:#?} is dividing");
             }
         }
         if let NeutralMutations::UponDivisionAndBackground = self.neutral_mutation {

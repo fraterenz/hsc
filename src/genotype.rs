@@ -58,8 +58,7 @@ impl NeutralMutationPoisson {
             division: Poisson::new(lambda_division)
                 .with_context(|| {
                     format!(
-                        "invalid value of lambda for the division mutations {}",
-                        lambda_division
+                        "invalid value of lambda for the division mutations {lambda_division}"
                     )
                 })
                 .unwrap(),
@@ -93,7 +92,7 @@ impl NeutralMutationPoisson {
             let background = Poisson::new(self.lambda_background * interdivison_time).unwrap();
             let nb_mutations = nb_neutral_mutations(&background, rng);
             if verbosity > 1 {
-                println!("{} background mutations", nb_mutations);
+                println!("{nb_mutations} background mutations");
             }
             generate_mutations(nb_mutations)
         } else {
@@ -146,7 +145,7 @@ impl Sfs {
         }
 
         if verbosity > 0 {
-            println!("sfs: {:#?}", sfs);
+            println!("sfs: {sfs:#?}");
         }
         Ok(Sfs(sfs))
     }
@@ -155,7 +154,7 @@ impl Sfs {
         let path2file = path2file.with_extension("json");
         let sfs = serde_json::to_string(&self.0).with_context(|| "cannot serialize the SFS")?;
         if verbosity > 0 {
-            println!("SFS in {:#?}", path2file)
+            println!("SFS in {path2file:#?}")
         }
         fs::write(path2file, sfs).with_context(|| "Cannot save the SFS ".to_string())?;
 
@@ -183,7 +182,7 @@ impl MutationalBurden {
         }
 
         if verbosity > 0 {
-            println!("burden: {:#?}", burden);
+            println!("burden: {burden:#?}");
         }
         Ok(MutationalBurden(burden))
     }
@@ -217,7 +216,7 @@ impl MutationalBurden {
         let burden =
             serde_json::to_string(&self.0).with_context(|| "cannot serialize the burden")?;
         if verbosity > 0 {
-            println!("saving burden in {:#?}", path2file);
+            println!("saving burden in {path2file:#?}");
         }
         fs::write(path2file, burden)
             .with_context(|| "Cannot save the total single cel burden".to_string())?;

@@ -85,7 +85,7 @@ impl Exponential {
             time: 0f32,
         };
         if verbosity > 1 {
-            println!("process created: {:#?}", hsc);
+            println!("process created: {hsc:#?}");
         }
         hsc
     }
@@ -271,7 +271,7 @@ impl Moran {
             proliferation,
         };
         if verbosity > 1 {
-            println!("process created: {:#?}", hsc);
+            println!("process created: {hsc:#?}");
         }
         hsc
     }
@@ -302,7 +302,7 @@ impl Moran {
             .with_context(|| "found empty subclone")
             .unwrap();
         if self.verbosity > 2 {
-            println!("removing one cell from clone {}", id2remove);
+            println!("removing one cell from clone {id2remove}");
         }
     }
 
@@ -312,18 +312,18 @@ impl Moran {
         cells: usize,
         time: f32,
     ) -> anyhow::Result<PathBuf> {
-        let path2dir = self.path2dir.join(format!("{}cells", cells));
+        let path2dir = self.path2dir.join(format!("{cells}cells"));
         let path2file = match tosave {
             Stats2Save::VariantFraction => path2dir.join("variant_fraction"),
             Stats2Save::Burden => path2dir.join("burden"),
             Stats2Save::Sfs => path2dir.join("sfs"),
         };
-        let mut timepoint = format!("{:.1}", time).replace('.', "dot");
+        let mut timepoint = format!("{time:.1}").replace('.', "dot");
         timepoint.push_str("years");
         let path2file = path2file.join(timepoint);
         fs::create_dir_all(&path2file).with_context(|| "Cannot create dir")?;
         if self.verbosity > 1 {
-            println!("creating dirs {:#?}", path2file);
+            println!("creating dirs {path2file:#?}");
         }
         Ok(path2file.join(self.filename.clone()))
     }
@@ -335,17 +335,17 @@ impl Moran {
         save_sfs_only: bool,
     ) -> anyhow::Result<()> {
         if self.verbosity > 0 {
-            println!("saving data at time {}", time);
+            println!("saving data at time {time}");
         }
         let cells: Vec<&StemCell> = cells_with_idx.iter().map(|ele| ele.0).collect();
         let nb_cells = cells.len();
 
         if self.verbosity > 0 {
-            println!("saving {} cells", nb_cells);
+            println!("saving {nb_cells} cells");
         }
 
         Sfs::from_cells(&cells, self.verbosity)
-            .unwrap_or_else(|_| panic!("cannot create SFS for timepoint at time {}", time))
+            .unwrap_or_else(|_| panic!("cannot create SFS for timepoint at time {time}"))
             .save(
                 &self.make_path(Stats2Save::Sfs, nb_cells, time)?,
                 self.verbosity,
@@ -354,7 +354,7 @@ impl Moran {
         if !save_sfs_only {
             MutationalBurden::from_cells(&cells, self.verbosity)
                 .unwrap_or_else(|_| {
-                    panic!("cannot create burden for the timepoint at time {}", time)
+                    panic!("cannot create burden for the timepoint at time {time}")
                 })
                 .save(
                     &self.make_path(Stats2Save::Burden, nb_cells, time)?,
@@ -389,7 +389,7 @@ impl Moran {
         rng: &mut impl Rng,
     ) -> anyhow::Result<()> {
         if self.verbosity > 0 {
-            println!("saving process at time {}", time);
+            println!("saving process at time {time}");
         }
         if let NeutralMutations::UponDivisionAndBackground = self.proliferation.neutral_mutation {
             // this is important: we update all background mutations at this
@@ -413,7 +413,7 @@ impl Moran {
         }
         let population = self.subclones.get_cells_with_clones_idx();
         if self.verbosity > 0 {
-            println!("saving {:#?}", saving_cells);
+            println!("saving {saving_cells:#?}");
         }
         match saving_cells {
             SavingCells::WholePopulation => self

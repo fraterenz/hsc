@@ -30,8 +30,7 @@ impl Distributions {
         };
         if verbosity > 1 {
             println!(
-                "creating distributions with u: {}, lambda_background: {}, lambda_division: {}",
-                u, background, division
+                "creating distributions with u: {u}, lambda_background: {background}, lambda_division: {division}"
             );
         }
 
@@ -180,12 +179,12 @@ pub fn next_clone(
         }
         assert!(counter <= MAX_SUBCLONES, "max number of clones reached");
         if verbosity > 1 {
-            println!("new fit variant: assign cell to clone {}", rnd_clone_id);
+            println!("new fit variant: assign cell to clone {rnd_clone_id}");
         }
         return rnd_clone_id;
     }
     if verbosity > 1 {
-        println!("no new fit variants with p {}", p,);
+        println!("no new fit variants with p {p}",);
     }
     old_subclone_id
 }
@@ -206,7 +205,7 @@ impl SubClones {
             std::array::from_fn(|i| SubClone::new(i, capacity));
         let tot_cells = cells.len();
         if verbosity > 1 {
-            println!("assigning {} cells to the wild-type clone", tot_cells);
+            println!("assigning {tot_cells} cells to the wild-type clone");
         }
         for cell in cells {
             subclones[0].assign_cell(cell);
@@ -412,7 +411,7 @@ pub fn save_variant_fraction(
     let path2file = path2file.with_extension("csv");
     let total_variant_frac = Variants::variant_fractions(subclones);
     if verbosity > 0 {
-        println!("total variant fraction in {:#?}", path2file)
+        println!("total variant fraction in {path2file:#?}")
     }
     write2file(&total_variant_frac, &path2file, None, false)?;
     Ok(())

@@ -98,7 +98,7 @@ impl Probs {
             Probs::Symmetric { u, probs_per_year }
         };
         if verbosity > 0 {
-            println!("probs {:#?}", probs);
+            println!("probs {probs:#?}");
         }
         assert!((0f32..1.).contains(&u), "Invalid u: u>=0 and u<1");
         assert!(
@@ -136,11 +136,11 @@ pub fn write2file<T: std::fmt::Display>(
 
     if !data.is_empty() {
         if let Some(h) = header {
-            writeln!(buffer, "{}", h)?;
+            writeln!(buffer, "{h}")?;
         }
 
         for ele in data.iter() {
-            write!(buffer, "{:.6},", ele)?;
+            write!(buffer, "{ele:.6},")?;
         }
 
         if endline {

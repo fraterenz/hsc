@@ -80,11 +80,11 @@ pub fn assign_divisional_mutations(
     let mutations = neutral_poisson.new_muts_upon_division(rng);
     if let Some(mutations) = mutations {
         if verbosity > 2 {
-            println!("assigning {:#?} to cell {:#?}", mutations, stem_cell);
+            println!("assigning {mutations:#?} to cell {stem_cell:#?}");
         }
         mutate(stem_cell, mutations);
     } else if verbosity > 2 {
-        println!("no mutations to assign to cell {:#?}", stem_cell);
+        println!("no mutations to assign to cell {stem_cell:#?}");
     }
 }
 
@@ -105,8 +105,7 @@ pub fn assign_background_mutations(
         .unwrap();
     if verbosity > 1 {
         println!(
-            "assigning background mutations with interdivision time {}",
-            interdivison_time
+            "assigning background mutations with interdivision time {interdivison_time}"
         );
     }
     // 2. draw background mutations and assign them to `c`

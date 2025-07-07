@@ -58,7 +58,7 @@ fn main() {
         .unwrap();
 
     if app.verbosity > 1 {
-        println!("app: {:#?}", app);
+        println!("app: {app:#?}");
     }
 
     println!(
@@ -239,7 +239,7 @@ fn main() {
         match stop {
             StopReason::MaxTimeReached => {
                 if app.options_moran.gillespie_options.verbosity > 1 {
-                    println!("Moran simulation {} stopped because {:#?}", idx, stop);
+                    println!("Moran simulation {idx} stopped because {stop:#?}");
                 }
             },
             StopReason::MaxItersReached => println!("the simulation stopped earlier than expected because the max number of iterations has been reached"),
@@ -251,7 +251,7 @@ fn main() {
         }
         write2file(
             &rates.0,
-            &moran.path2dir.join("rates").join(format!("{}.csv", idx)),
+            &moran.path2dir.join("rates").join(format!("{idx}.csv")),
             None,
             false,
         )
