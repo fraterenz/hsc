@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"attr":["replace_float_literals","replace_int_literals","replace_numeric_literals"]};

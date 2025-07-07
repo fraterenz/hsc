@@ -1,0 +1,90 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="A collection of (more or less) accurate floating point algorithms"><title>accurate - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../static.files/rustdoc-dd39b87e5fcfba68.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="accurate" data-themes="" data-resource-suffix="" data-rustdoc-version="1.80.1 (3f5fd8dd4 2024-08-06)" data-channel="1.80.1" data-search-js="search-d52510db62a78183.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-20a3ad099b048cf2.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../accurate/index.html">accurate</a><span class="version">0.3.1</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section><ul class="block"><li><a href="#modules">Modules</a></li></ul></section></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1>Crate <a class="mod" href="#">accurate</a><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><span class="out-of-band"><a class="src" href="../src/accurate/lib.rs.html#1-207">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>A collection of (more or less) accurate floating point algorithms</p>
+<p>This crate implements several algorithms for floating point summation and dot product. The
+algorithms are realized as types that implement the <code>SumAccumulator</code> and <code>DotAccumulator</code>
+trait.</p>
+<h2 id="basic-usage"><a class="doc-anchor" href="#basic-usage">§</a>Basic usage</h2>
+<p>Calculating a sum (or a dot product) begins by initializing an accumulator to zero:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>accurate::traits::<span class="kw-2">*</span>; <span class="comment">// Most functionality is derived from traits in this module
+</span><span class="kw">use </span>accurate::sum::NaiveSum; <span class="comment">// Chose a specific algorithm to perform summation / dot product
+
+</span><span class="kw">let </span>s = NaiveSum::&lt;f32&gt;::zero();</code></pre></div>
+<p>The accumulator traits are generic over the type of the underlying floating point numbers and
+the <code>zero()</code> constructor is supported if the number type implements the Zero trait.
+Alternatively the accumulator traits imply that an accumulator can be constructed <code>from()</code> an
+arbitrary value of the number type.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span>s = NaiveSum::from(<span class="number">42.0f64</span>);</code></pre></div>
+<p>The actual calculation is performed via the <code>Add&lt;F, Output = Self&gt;</code> trait that is also implied
+by the <code>SumAccumulator</code> trait, where <code>F</code> is the type of the floating point numbers.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>accurate::sum::Sum2;
+
+<span class="kw">let </span>s = Sum2::zero() + <span class="number">1.0f64 </span>+ <span class="number">2.0 </span>+ <span class="number">3.0</span>;</code></pre></div>
+<p>For dot products, the <code>DotAccumulator</code> trait implies <code>Add&lt;(F, F), Output = Self&gt;</code> to allow
+accumulation of the products of pairs into the final result.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>accurate::dot::NaiveDot;
+
+<span class="kw">let </span>d = NaiveDot::zero() + (<span class="number">1.0f64</span>, <span class="number">1.0f64</span>) + (<span class="number">2.0</span>, <span class="number">2.0</span>) + (<span class="number">3.0</span>, <span class="number">3.0</span>);</code></pre></div>
+<p>Once all of the terms have been accumulated, the result can be evaluated using the <code>sum()</code> and
+<code>dot()</code> methods respectively.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span>s = Sum2::zero() + <span class="number">1.0f64 </span>+ <span class="number">2.0 </span>+ <span class="number">3.0</span>;
+<span class="macro">assert_eq!</span>(<span class="number">6.0</span>, s.sum());
+
+<span class="kw">let </span>d = NaiveDot::zero() + (<span class="number">1.0f64</span>, <span class="number">1.0f64</span>) + (<span class="number">2.0</span>, <span class="number">2.0</span>) + (<span class="number">3.0</span>, <span class="number">3.0</span>);
+<span class="macro">assert_eq!</span>(<span class="number">14.0</span>, d.dot());</code></pre></div>
+<p>Both <code>sum()</code> and <code>dot()</code> take their argument by value, because the evaluation of the final
+result is in some cases a destructive operation on the internal state of the accumulator.
+However, the evaluation of partial results is supported by <code>clone()</code>ing the accumulator.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span>s = Sum2::zero() + <span class="number">1.0f32 </span>+ <span class="number">2.0</span>;
+<span class="macro">assert_eq!</span>(<span class="number">3.0</span>, s.clone().sum());
+<span class="kw">let </span>s = s + <span class="number">3.0</span>;
+<span class="macro">assert_eq!</span>(<span class="number">6.0</span>, s.sum());</code></pre></div>
+<h2 id="iterator-consumption"><a class="doc-anchor" href="#iterator-consumption">§</a>Iterator consumption</h2>
+<p>Accumulators can be used in <code>fold()</code> operations on iterators as one would expect.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>accurate::dot::Dot2;
+
+<span class="kw">let </span>s = <span class="macro">vec!</span>[<span class="number">1.0f32</span>, <span class="number">2.0</span>, <span class="number">3.0</span>].into_iter().fold(Sum2::zero(), |acc, x| acc + x);
+<span class="macro">assert_eq!</span>(<span class="number">6.0</span>, s.sum());
+
+<span class="kw">let </span>d = <span class="macro">vec!</span>[<span class="number">1.0f32</span>, <span class="number">2.0</span>, <span class="number">3.0</span>].into_iter()
+    .zip(<span class="macro">vec!</span>[<span class="number">1.0</span>, <span class="number">2.0</span>, <span class="number">3.0</span>].into_iter())
+    .fold(Dot2::zero(), |acc, xy| acc + xy);
+<span class="macro">assert_eq!</span>(<span class="number">14.0</span>, d.dot());</code></pre></div>
+<p>For convenience, the accumulator traits also define <code>absorb()</code> methods to absorb values from
+anything that implements <code>IntoIterator</code>.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code>
+<span class="kw">let </span>s = Sum2::zero().absorb(<span class="macro">vec!</span>[<span class="number">1.0f32</span>, <span class="number">2.0</span>, <span class="number">3.0</span>]);
+<span class="macro">assert_eq!</span>(<span class="number">6.0</span>, s.sum());
+
+<span class="kw">let </span>d = Dot2::zero().absorb(<span class="macro">vec!</span>[(<span class="number">1.0f32</span>, <span class="number">1.0</span>), (<span class="number">2.0</span>, <span class="number">2.0</span>), (<span class="number">3.0</span>, <span class="number">3.0</span>)]);
+<span class="macro">assert_eq!</span>(<span class="number">14.0</span>, d.dot());</code></pre></div>
+<p>And for even more convenience, suitable iterators are extended by a <code>sum_with_accumulator()</code>
+(and <code>dot_with_accumulator()</code>) method that directly evaluates to the result in the floating
+point number type.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code>
+<span class="kw">let </span>s = Sum2::zero().absorb(<span class="macro">vec!</span>[<span class="number">1.0f32</span>, <span class="number">2.0</span>, <span class="number">3.0</span>]);
+<span class="macro">assert_eq!</span>(<span class="number">6.0f64</span>, <span class="macro">vec!</span>[<span class="number">1.0</span>, <span class="number">2.0</span>, <span class="number">3.0</span>].into_iter().sum_with_accumulator::&lt;Sum2&lt;<span class="kw">_</span>&gt;&gt;());
+
+<span class="macro">assert_eq!</span>(<span class="number">14.0f64</span>, <span class="macro">vec!</span>[(<span class="number">1.0</span>, <span class="number">1.0</span>), (<span class="number">2.0</span>, <span class="number">2.0</span>), (<span class="number">3.0</span>, <span class="number">3.0</span>)].into_iter()
+    .dot_with_accumulator::&lt;Dot2&lt;<span class="kw">_</span>&gt;&gt;());</code></pre></div>
+<h2 id="parallel-computation"><a class="doc-anchor" href="#parallel-computation">§</a>Parallel computation</h2>
+<p>If compiled with the <code>parallel</code> feature enabled (which is the default) the <code>rayon</code> parallel
+iterator facilities are used to perform large calculations in parallel. Parallel calculations are
+performed through the <code>parallel_sum_with_accumulator()</code> and <code>parallel_dot_with_accumulator()</code>
+extension methods on parallel iterators.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">extern crate </span>rayon;
+
+<span class="kw">use </span>rayon::prelude::<span class="kw-2">*</span>;
+
+<span class="kw">let </span>xs = <span class="macro">vec!</span>[<span class="number">1.0f64</span>; <span class="number">100_000</span>];
+<span class="kw">let </span>s = xs.par_iter().map(|<span class="kw-2">&amp;</span>x| x).parallel_sum_with_accumulator::&lt;Sum2&lt;<span class="kw">_</span>&gt;&gt;();
+<span class="macro">assert_eq!</span>(<span class="number">100_000.0</span>, s);</code></pre></div>
+</div></details><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="mod" href="dot/index.html" title="mod accurate::dot">dot</a></div><div class="desc docblock-short">Algorithms for dot product</div></li><li><div class="item-name"><a class="mod" href="sum/index.html" title="mod accurate::sum">sum</a></div><div class="desc docblock-short">Algorithms for summation</div></li><li><div class="item-name"><a class="mod" href="traits/index.html" title="mod accurate::traits">traits</a></div><div class="desc docblock-short">Includes all traits of this crate</div></li><li><div class="item-name"><a class="mod" href="util/index.html" title="mod accurate::util">util</a></div><div class="desc docblock-short">Common infrastructure</div></li></ul></section></div></main></body></html>

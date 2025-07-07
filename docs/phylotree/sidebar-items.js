@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["TreeShape"],"fn":["generate_caterpillar","generate_tree","generate_yule"],"mod":["distance","distr","tree"]};

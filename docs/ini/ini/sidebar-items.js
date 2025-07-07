@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Error","EscapePolicy"],"struct":["Ini","ParseError","ParseOption","SectionIntoIter","SectionIterator","SectionMutIterator","SectionSetter"],"type":["Properties"]};

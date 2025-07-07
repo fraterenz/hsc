@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["escape_bytes","escape_key","ml_str","quote_str","to_string","to_vec","to_writer"],"struct":["Serializer"],"trait":["Formatter"]};

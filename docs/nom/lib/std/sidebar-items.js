@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"macro":["vec"],"mod":["alloc","borrow","boxed","cmp","collections","convert","fmt","hash","iter","mem","ops","option","prelude","result","slice","str","string","vec"]};

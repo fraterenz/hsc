@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["builder","graph","item","output","print_config","style","value"]};

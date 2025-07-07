@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Format","LineEnding"],"fn":["mask_header_tabs","mask_header_utf8","parse_fastx_file","parse_fastx_reader","parse_fastx_stdin","write_fasta","write_fastq"],"struct":["FastaReader","FastqReader","SequenceRecord"],"trait":["FastxReader"]};

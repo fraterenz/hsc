@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["print_graph","write_graph_with"]};

@@ -1,0 +1,1 @@
+searchState.loadedDescShard("numeric_literals", 0, "<strong>numeric_literals</strong> is a Rust library that provides …\nReplace any float literal with custom transformation code.\nReplace any integer literal with custom transformation …\nReplace any numeric literal with custom transformation …")
