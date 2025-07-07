@@ -1,6 +1,9 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 4.3.9
+- update depedencies
+
 ## 4.3.8
 - 10x speed up by removing the call to `the_only_one_subclone_present` from the fixed-population phase.
 

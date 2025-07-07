@@ -4,8 +4,7 @@ use crate::{stemcell::StemCell, write2file, MAX_SUBCLONES};
 use anyhow::{ensure, Context};
 use rand::seq::IteratorRandom;
 use rand::Rng;
-use rand_distr::Gamma;
-use rand_distr::{Bernoulli, Distribution};
+use rand_distr::{Bernoulli, Distribution, Gamma};
 use sosa::ReactionRates;
 use std::path::Path;
 
@@ -144,7 +143,9 @@ impl SubClone {
 
     pub fn random_cell(&mut self, rng: &mut impl Rng) -> anyhow::Result<StemCell> {
         ensure!(!self.cells.is_empty());
-        Ok(self.cells.swap_remove(rng.gen_range(0..self.cells.len())))
+        Ok(self
+            .cells
+            .swap_remove(rng.random_range(0..self.cells.len())))
     }
 
     pub fn cell_count(&self) -> u64 {
@@ -167,14 +168,14 @@ pub fn next_clone(
     // this will panic when u is not small and the cell hasn't divided much,
     // i.e. when p > 1
     if Bernoulli::new(p).unwrap().sample(rng) {
-        let mut rnd_clone_id = rng.gen_range(0..MAX_SUBCLONES);
+        let mut rnd_clone_id = rng.random_range(0..MAX_SUBCLONES);
         let mut counter = 0;
         // the new random clone cannot have `subclone_id` id and must be empty
         while (rnd_clone_id == old_subclone_id
             || !subclones.get_clone(rnd_clone_id).unwrap().is_empty())
             && counter <= MAX_SUBCLONES
         {
-            rnd_clone_id = rng.gen_range(0..MAX_SUBCLONES);
+            rnd_clone_id = rng.random_range(0..MAX_SUBCLONES);
             counter += 1;
         }
         assert!(counter <= MAX_SUBCLONES, "max number of clones reached");
@@ -447,9 +448,7 @@ mod tests {
 
     use super::*;
     use quickcheck_macros::quickcheck;
-    use rand::SeedableRng;
-    use rand_chacha::ChaCha8Rng;
-    use rand_distr::Uniform;
+    use rand::{rngs::SmallRng, SeedableRng};
 
     #[quickcheck]
     fn assign_cell_test(id: usize) -> bool {
@@ -463,10 +462,10 @@ mod tests {
 
     #[quickcheck]
     fn proliferating_cell_test(seed: u64, mut subclone_id: u8) -> bool {
-        let mut rng = ChaCha8Rng::seed_from_u64(seed);
+        let mut rng = SmallRng::seed_from_u64(seed);
         let mut subclones = SubClones::default();
         if subclone_id >= subclones.0.len() as u8 {
-            subclone_id = rng.sample(Uniform::new(0, subclones.0.len())) as u8;
+            subclone_id = 1;
         }
         let number_of_cells = subclones.0[subclone_id as usize].get_cells().len();
         let tot_cells = subclones.compute_tot_cells();
@@ -491,7 +490,7 @@ mod tests {
 
     #[quickcheck]
     fn division_no_new_clone(seed: u64, cells_present: NonZeroU8) -> bool {
-        let mut rng = ChaCha8Rng::seed_from_u64(seed);
+        let mut rng = SmallRng::seed_from_u64(seed);
         let mut cell = StemCell::new();
         cell.set_last_division_time(1.1).unwrap();
 
@@ -505,7 +504,7 @@ mod tests {
 
     #[quickcheck]
     fn division_new_clone(seed: u64, cells_present: NonZeroU8) -> bool {
-        let mut rng = ChaCha8Rng::seed_from_u64(seed);
+        let mut rng = SmallRng::seed_from_u64(seed);
         let mut cell = StemCell::new();
         cell.set_last_division_time(1.1).unwrap();
 
@@ -520,7 +519,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn assign_all_clones_occupied() {
-        let mut rng = ChaCha8Rng::seed_from_u64(26);
+        let mut rng = SmallRng::seed_from_u64(26);
 
         let subclones = SubClones::default();
         let mut cell = StemCell::new();

@@ -5,7 +5,8 @@ use crate::subclone::{save_variant_fraction, CloneId, Distributions, SubClones, 
 use crate::{MAX_SUBCLONES, TIME_AT_BIRTH};
 use anyhow::Context;
 use rand::Rng;
-use rand_distr::{Distribution, WeightedIndex};
+use rand_distr::weighted::WeightedIndex;
+use rand_distr::Distribution;
 use sosa::{AdvanceStep, CurrentState, NextReaction};
 use std::collections::VecDeque;
 use std::fs;
