@@ -4,7 +4,7 @@ version = "4.3.9"
 edition = "2021"
 
 [dependencies]
-anyhow = "1.0.86"
+anyhow = "1.0.98"
 chrono = "0.4"
 clap = { version = "4.5.40", features = ["derive"] }
 indicatif = { version = "*", features = ["rayon"] }
