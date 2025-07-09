@@ -3,7 +3,9 @@ use anyhow::Context;
 use chrono::Utc;
 use clap_app::Parallel;
 use hsc::{
-    process::{Exponential, Moran, ProcessOptions, SavingCells, SavingOptions, Snapshot},
+    process::{
+        switch_to_moran, Exponential, Moran, ProcessOptions, SavingCells, SavingOptions, Snapshot,
+    },
     proliferation::{Division, NeutralMutations, Proliferation},
     stemcell::StemCell,
     subclone::{Distributions, Fitness, SubClones, Variants},
@@ -15,17 +17,27 @@ use rand_chacha::ChaCha8Rng;
 use rand_distr::Bernoulli;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use sosa::{simulate, CurrentState, Options, StopReason};
-use std::collections::VecDeque;
+use std::{collections::VecDeque, num::NonZeroUsize, path::PathBuf};
 use uuid::Uuid;
 
 pub mod clap_app;
+
+#[derive(Clone, Debug)]
+pub enum GillespieOptions {
+    NoTreatment(Options),
+    Treatment {
+        before_treatment: Options,
+        after_treatment: Options,
+        cells_left: NonZeroUsize,
+    },
+}
 
 #[derive(Clone, Debug)]
 pub struct SimulationOptionsMoran {
     tau: f32,
     probs_per_year: ProbsPerYear,
     process_options: ProcessOptions,
-    gillespie_options: Options,
+    gillespie_options: GillespieOptions,
     save_sfs_only: bool,
     save_population: bool,
     asymmetric: f32,
@@ -71,6 +83,12 @@ fn main() {
     let run_simulations = |idx| {
         let rng = &mut ChaCha8Rng::seed_from_u64(app.seed);
         rng.set_stream(idx as u64);
+        let options_moran_gillespie = match &app.options_moran.gillespie_options {
+            GillespieOptions::Treatment {
+                before_treatment, ..
+            } => before_treatment,
+            GillespieOptions::NoTreatment(op) => op,
+        };
 
         // initial state
         let cells = if app.options_exponential.is_some() {
@@ -78,29 +96,29 @@ fn main() {
             let mutation = Uuid::new_v4();
             vec![StemCell::with_mutations(vec![mutation])]
         } else {
-            vec![StemCell::new(); app.options_moran.gillespie_options.max_cells as usize - 1]
+            vec![StemCell::new(); options_moran_gillespie.max_cells as usize - 1]
         };
         let subclones = SubClones::new(
             cells,
-            app.options_moran.gillespie_options.max_cells as usize - 1,
+            options_moran_gillespie.max_cells as usize - 1,
             app.verbosity,
         );
         let state = &mut CurrentState {
             population: Variants::variant_counts(&subclones),
         };
-        let possible_reactions = subclones.gillespie_set_of_reactions();
+        let possible_reactions = subclones.array_of_gillespie_reactions();
 
         let rates = subclones.gillespie_rates(&app.fitness, 1. / app.options_moran.tau, rng);
         let snapshots = app.snapshots.clone();
 
         let (mean, std) = app.fitness.get_mean_std();
-        let filename = format!(
+        let filename: PathBuf = format!(
             "{}mu_{}mean_{}std_{}tau_{}cells_{}idx",
             app.options_moran.probs_per_year.mu,
             mean,
             std,
             app.options_moran.tau,
-            app.options_moran.gillespie_options.max_cells - 1,
+            options_moran_gillespie.max_cells - 1,
             idx
         )
         .replace('.', "dot")
@@ -134,6 +152,8 @@ fn main() {
                 subclones,
                 distributions_exp,
                 proliferation,
+                0.,
+                hsc::process::ExponentialPhase::Development,
                 options.gillespie_options.verbosity,
             );
             if options.gillespie_options.verbosity > 0 {
@@ -164,26 +184,36 @@ fn main() {
                 app.options_moran.probs_per_year.mu_division,
                 app.options_moran.probs_per_year.mu,
                 app.options_moran.asymmetric,
-                app.options_moran.gillespie_options.max_cells - 1,
-                app.options_moran.gillespie_options.verbosity,
+                options_moran_gillespie.max_cells - 1,
+                options_moran_gillespie.verbosity,
             );
             let moran_distributions =
-                Distributions::new(probs_moran, app.options_moran.gillespie_options.verbosity);
+                Distributions::new(probs_moran, options_moran_gillespie.verbosity);
             if options.gillespie_options.verbosity > 0 {
                 println!("{} switching to moran", Utc::now());
             }
             // switch_to_moran start with time 0
-            exp.switch_to_moran(
+            let mut moran = switch_to_moran(
+                exp,
                 ProcessOptions {
                     path: app.options_moran.process_options.path.clone(),
                     snapshots,
                 },
                 moran_distributions,
-                filename,
+                filename.clone(),
                 app.options_moran.save_sfs_only,
                 app.options_moran.save_population,
                 rng,
-            )
+            );
+            moran
+                .save(
+                    moran.time,
+                    &SavingCells::WholePopulation,
+                    moran.save_sfs_only,
+                    rng,
+                )
+                .expect("cannot save simulation at the end of the exponential phase");
+            moran
         } else {
             let division = if (app.options_moran.asymmetric - 0.).abs() < f32::EPSILON {
                 Division::Symmetric
@@ -196,27 +226,27 @@ fn main() {
                 app.options_moran.probs_per_year.mu_division,
                 app.options_moran.probs_per_year.mu,
                 app.options_moran.asymmetric,
-                app.options_moran.gillespie_options.max_cells - 1,
-                app.options_moran.gillespie_options.verbosity,
+                options_moran_gillespie.max_cells - 1,
+                options_moran_gillespie.verbosity,
             );
             let moran_distributions =
-                Distributions::new(probs_moran, app.options_moran.gillespie_options.verbosity);
+                Distributions::new(probs_moran, options_moran_gillespie.verbosity);
             let proliferation = Proliferation::new(neutral_mutation, division);
             Moran::new(
                 app.options_moran.process_options.clone(),
                 subclones,
                 0.,
                 SavingOptions {
-                    filename,
+                    filename: filename.clone(),
                     save_sfs_only: app.options_moran.save_sfs_only,
                     save_population: app.options_moran.save_population,
                 },
                 moran_distributions,
                 proliferation,
-                app.options_moran.gillespie_options.verbosity,
+                options_moran_gillespie.verbosity,
             )
         };
-        if app.options_moran.gillespie_options.verbosity > 0 {
+        if options_moran_gillespie.verbosity > 0 {
             println!("{} simulating Moran phase", Utc::now());
         }
 
@@ -225,7 +255,7 @@ fn main() {
             &rates,
             &possible_reactions,
             &mut moran,
-            &app.options_moran.gillespie_options,
+            options_moran_gillespie,
             rng,
         );
         moran
@@ -236,9 +266,76 @@ fn main() {
                 rng,
             )
             .unwrap();
+        // treatment
+
+        let (moran, stop) = if let GillespieOptions::Treatment {
+            before_treatment: _,
+            after_treatment,
+            cells_left,
+        } = &app.options_moran.gillespie_options
+        {
+            let (moran_distributions, snapshots) =
+                (moran.distributions.clone(), moran.snapshots.clone());
+
+            // treatment subsamples the total population
+            let mut regrowth: Exponential = moran.into_subsampled(*cells_left, rng).into();
+            let stop = simulate(
+                state,
+                &rates,
+                &possible_reactions,
+                &mut regrowth,
+                after_treatment,
+                rng,
+            );
+            if regrowth.verbosity > 0 {
+                println!(
+                    "{} regrowing simulation {} stopped because {:#?}, nb cells {}",
+                    Utc::now(),
+                    idx,
+                    stop,
+                    regrowth.subclones.compute_tot_cells()
+                );
+            }
+
+            let mut moran = switch_to_moran(
+                regrowth,
+                ProcessOptions {
+                    path: app.options_moran.process_options.path.clone(),
+                    snapshots,
+                },
+                moran_distributions,
+                filename,
+                app.options_moran.save_sfs_only,
+                app.options_moran.save_population,
+                rng,
+            );
+            if options_moran_gillespie.verbosity > 0 {
+                println!("{} simulating Moran phase", Utc::now());
+            }
+
+            let stop = simulate(
+                state,
+                &rates,
+                &possible_reactions,
+                &mut moran,
+                options_moran_gillespie,
+                rng,
+            );
+            moran
+                .save(
+                    moran.time,
+                    &SavingCells::WholePopulation,
+                    moran.save_sfs_only,
+                    rng,
+                )
+                .unwrap();
+            (moran, stop)
+        } else {
+            (moran, stop)
+        };
         match stop {
             StopReason::MaxTimeReached => {
-                if app.options_moran.gillespie_options.verbosity > 1 {
+                if options_moran_gillespie.verbosity > 1 {
                     println!("Moran simulation {idx} stopped because {stop:#?}");
                 }
             },

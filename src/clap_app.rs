@@ -7,9 +7,9 @@ use hsc::{
 };
 use num_traits::{Float, NumCast};
 use sosa::{IterTime, NbIndividuals, Options};
-use std::{collections::VecDeque, ops::RangeInclusive, path::PathBuf};
+use std::{collections::VecDeque, num::NonZeroUsize, ops::RangeInclusive, path::PathBuf};
 
-use crate::{AppOptions, SimulationOptionsExp, SimulationOptionsMoran};
+use crate::{AppOptions, GillespieOptions, SimulationOptionsExp, SimulationOptionsMoran};
 
 #[derive(Clone, Debug)]
 pub enum Parallel {
@@ -157,6 +157,12 @@ pub struct Cli {
     /// Run sequentially each run instead of using rayon for parallelisation
     #[arg(long, action = ArgAction::SetTrue, default_value_t = false, conflicts_with = "debug")]
     sequential: bool,
+    /// The number of stem cells left upon treatment
+    #[arg(long, requires = "years_treatment")]
+    cells_treatment: Option<NonZeroUsize>,
+    /// The age in years at which the treatment started
+    #[arg(long, requires = "cells_treatment")]
+    years_treatment: Option<NonZeroUsize>,
     #[arg(long, requires = "subsamples", value_delimiter = ',', require_equals = true, num_args = 0..)]
     /// Snapshots to take to save the simulation, requires `subsamples`.
     ///
@@ -282,24 +288,59 @@ impl Cli {
             "the cells to subsample must be smaller or equal than the total population size"
         );
 
-        // Moran
         let process_options = ProcessOptions {
             path: cli.path.clone(),
             snapshots: snapshots.clone(),
         };
+
+        // treatment
+        let gillespie_options = match (cli.years_treatment, cli.cells_treatment) {
+            (None, None) => GillespieOptions::NoTreatment(Options {
+                max_iter_time: IterTime {
+                    iter: max_iter,
+                    time: years as f32,
+                },
+                max_cells,
+                init_iter: 0,
+                verbosity,
+            }),
+            (Some(years_tr), Some(cells_tr)) => {
+                ensure!(years_tr.get() < years);
+                ensure!((cells_tr.get() as u64) < max_cells);
+                let before_treatment = Options {
+                    max_iter_time: IterTime {
+                        iter: max_iter,
+                        time: years_tr.get() as f32,
+                    },
+                    max_cells,
+                    init_iter: 0,
+                    verbosity,
+                };
+                let after_treatment = Options {
+                    max_iter_time: IterTime {
+                        iter: max_iter,
+                        time: years as f32,
+                    },
+                    max_cells,
+                    init_iter: 0,
+                    verbosity,
+                };
+                GillespieOptions::Treatment {
+                    before_treatment,
+                    after_treatment,
+                    cells_left: cells_tr,
+                }
+            }
+
+            (_, _) => unreachable!("clapp ensures that both are set"),
+        };
+
+        // processes
         let (options_moran, options_exponential) = match &cli.command {
             Commands::Moran(moran) => {
                 let options_moran = SimulationOptionsMoran {
                     process_options,
-                    gillespie_options: Options {
-                        max_iter_time: IterTime {
-                            iter: max_iter,
-                            time: years as f32,
-                        },
-                        max_cells,
-                        init_iter: 0,
-                        verbosity,
-                    },
+                    gillespie_options,
                     save_sfs_only: cli.save_sfs_only,
                     save_population: cli.save_population,
                     tau: moran.tau,
@@ -315,15 +356,7 @@ impl Cli {
             Commands::ExpMoran(exp_moran) => {
                 let options_moran = SimulationOptionsMoran {
                     process_options,
-                    gillespie_options: Options {
-                        max_iter_time: IterTime {
-                            iter: max_iter,
-                            time: years as f32,
-                        },
-                        max_cells,
-                        init_iter: 0,
-                        verbosity,
-                    },
+                    gillespie_options,
                     save_sfs_only: cli.save_sfs_only,
                     save_population: cli.save_population,
                     tau: exp_moran.moran.tau,

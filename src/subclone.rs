@@ -6,6 +6,7 @@ use rand::seq::IteratorRandom;
 use rand::Rng;
 use rand_distr::{Bernoulli, Distribution, Gamma};
 use sosa::ReactionRates;
+use std::num::NonZeroUsize;
 use std::path::Path;
 
 /// Distribution probabilities for the simulations upon cell division.
@@ -230,28 +231,11 @@ impl SubClones {
         self.0.iter().map(|subclone| subclone.cell_count()).sum()
     }
 
-    pub fn the_only_one_subclone_present(&self) -> Option<CloneId> {
-        //! returns `None` if more than one subclone is present else the clone
-        //! id.
-        //!
-        //! **warning** this is very slow.
-        for subclone in self.0.iter() {
-            if subclone.cell_count() == self.compute_tot_cells() {
-                return Some(subclone.id);
-            }
-        }
-        None
-    }
-
-    pub fn get_clone(&self, id: usize) -> Option<&SubClone> {
+    pub(crate) fn get_clone(&self, id: usize) -> Option<&SubClone> {
         self.0.get(id)
     }
 
-    pub fn get_clone_unchecked(&self, id: usize) -> &SubClone {
-        &self.0[id]
-    }
-
-    pub fn get_mut_clone_unchecked(&mut self, id: usize) -> &mut SubClone {
+    pub(crate) fn get_mut_clone_unchecked(&mut self, id: usize) -> &mut SubClone {
         &mut self.0[id]
     }
 
@@ -259,8 +243,35 @@ impl SubClones {
         &self.0[0]
     }
 
-    pub fn gillespie_set_of_reactions(&self) -> [CloneId; MAX_SUBCLONES] {
+    pub fn array_of_gillespie_reactions(&self) -> [CloneId; MAX_SUBCLONES] {
         core::array::from_fn(|i| i)
+    }
+
+    pub(crate) fn into_subsampled(self, nb_cells: NonZeroUsize, rng: &mut impl Rng) -> Self {
+        //! Take a subsample of the population that is stored in these subclones.
+        let mut subclones = Self::new_empty();
+
+        for (cell, clone_id) in self
+            .0
+            .into_iter()
+            .flat_map(|subclone| {
+                // for all subclones get all the cells with the its subclone_id.
+                // This will return all the population of cells, as a vec of
+                // tuple with the first entry being a stem cell and the second
+                // entry the id of the clone to which the cell belongs.
+                // Then subsample this population, by getting a `nb_cells`
+                // ammount of tuples (cell, id).
+                subclone
+                    .cells
+                    .into_iter()
+                    .map(|cell| (cell, subclone.id))
+                    .collect::<Vec<(StemCell, usize)>>()
+            })
+            .choose_multiple(rng, nb_cells.get())
+        {
+            subclones.0[clone_id].cells.push(cell);
+        }
+        subclones
     }
 
     pub fn get_mut_cells(&mut self) -> Vec<&mut StemCell> {
@@ -277,21 +288,14 @@ impl SubClones {
             .collect()
     }
 
-    pub fn get_cells_with_clones_idx(&self) -> Vec<(&StemCell, usize)> {
+    pub(crate) fn get_cells_with_clones_idx(&self) -> Vec<(&StemCell, usize)> {
         self.0
             .iter()
             .flat_map(|subclone| subclone.get_cells_subclones_idx())
             .collect()
     }
 
-    pub fn get_cells_subsampled(&self, nb_cells: usize, rng: &mut impl Rng) -> Vec<&StemCell> {
-        self.0
-            .iter()
-            .flat_map(|subclone| subclone.get_cells())
-            .choose_multiple(rng, nb_cells)
-    }
-
-    pub fn get_cells_subsampled_with_clones_idx(
+    pub(crate) fn get_cells_subsampled_with_clones_idx(
         &self,
         nb_cells: usize,
         rng: &mut impl Rng,

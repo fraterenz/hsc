@@ -10,6 +10,7 @@ use rand_distr::Distribution;
 use sosa::{AdvanceStep, CurrentState, NextReaction};
 use std::collections::VecDeque;
 use std::fs;
+use std::num::NonZeroUsize;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy)]
@@ -36,7 +37,7 @@ pub struct SavingOptions {
     pub save_population: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ProcessOptions {
     pub path: PathBuf,
     pub snapshots: VecDeque<Snapshot>,
@@ -57,6 +58,83 @@ pub struct CellDivisionProbabilities {
     pub p: f64,
 }
 
+#[derive(Clone, Debug)]
+pub enum ExponentialPhase {
+    /// The embryonic phase up to birth
+    Development,
+    /// A regrowth exponential phase upon subsampling or treatment.
+    Regrowth,
+}
+
+pub fn switch_to_moran(
+    mut exponential: Exponential,
+    process_options: ProcessOptions,
+    distributions: Distributions,
+    filename: PathBuf,
+    save_sfs_only: bool,
+    save_population: bool,
+    rng: &mut impl Rng,
+) -> Moran {
+    //! End the exponential growing phase and switch to a fixed-size
+    //! population phase.
+    //!
+    //! There is a delay between birth and the end of the exponential phase,
+    //! since stem cells stop dividing exponentially before birth.
+    //! We add background mutations in this interval of time between the
+    //! end of the exponentially growing phase and the Moran process.
+    if exponential.verbosity > 0 {
+        println!("switching to Moran at time {}", exponential.time);
+    }
+    let (current_time, time_to_restart) = match exponential.phase {
+        ExponentialPhase::Development => (TIME_AT_BIRTH, 0f32),
+        ExponentialPhase::Regrowth => (exponential.time, exponential.time),
+    };
+    if let NeutralMutations::UponDivisionAndBackground = exponential.proliferation.neutral_mutation
+    {
+        // this is important: we update all background mutations at this
+        // time such that all cells are all on the same page.
+        // Since background mutations are implemented at each division, and
+        // cells do not proliferate at the same rate, we need to correct and
+        // update the background mutations at the timepoint corresponding
+        // to sampling step, i.e. before saving.
+        //
+        // Moreover there is delay between the end of the exp. growing phase
+        // and birth, hence we use `TIME_AT_BIRTH`. But this is true only for
+        // the Development phase.
+        if exponential.verbosity > 0 {
+            println!("updating the neutral background mutations for all cells");
+        }
+        // assign missing mutations
+        for stem_cell in exponential.subclones.get_mut_cells() {
+            if stem_cell.get_last_division_time() < &current_time {
+                assign_background_mutations(
+                    stem_cell,
+                    current_time,
+                    &exponential.distributions.neutral_poisson,
+                    rng,
+                    exponential.verbosity,
+                );
+            }
+            // restarting the time within cells
+            stem_cell.set_last_division_time(time_to_restart).unwrap();
+        }
+    }
+    Moran {
+        subclones: exponential.subclones,
+        counter_divisions: exponential.counter_divisions,
+        // restart the time within the process
+        time: time_to_restart,
+        snapshots: process_options.snapshots,
+        path2dir: process_options.path,
+        verbosity: exponential.verbosity,
+        filename,
+        distributions,
+        save_sfs_only,
+        save_population,
+        proliferation: exponential.proliferation,
+    }
+}
+
 /// Exponential growing process
 #[derive(Clone, Debug)]
 pub struct Exponential {
@@ -68,6 +146,7 @@ pub struct Exponential {
     pub distributions: Distributions,
     pub proliferation: Proliferation,
     pub time: f32,
+    pub phase: ExponentialPhase,
 }
 
 impl Exponential {
@@ -75,6 +154,8 @@ impl Exponential {
         initial_subclones: SubClones,
         distributions: Distributions,
         proliferation: Proliferation,
+        time: f32,
+        phase: ExponentialPhase,
         verbosity: u8,
     ) -> Exponential {
         let hsc = Exponential {
@@ -83,83 +164,32 @@ impl Exponential {
             counter_divisions: 0,
             proliferation,
             verbosity,
-            time: 0f32,
+            phase,
+            time,
         };
         if verbosity > 1 {
             println!("process created: {hsc:#?}");
         }
         hsc
     }
+}
 
-    pub fn switch_to_moran(
-        mut self,
-        process_options: ProcessOptions,
-        distributions: Distributions,
-        filename: PathBuf,
-        save_sfs_only: bool,
-        save_population: bool,
-        rng: &mut impl Rng,
-    ) -> Moran {
-        //! End the exponential growing phase and switch to a fixed-size
-        //! population phase.
+impl From<Moran> for Exponential {
+    fn from(value: Moran) -> Self {
+        //! Construct an exponential-growing process in [`ExponentialPhase::Regrowth`] mode.
         //!
-        //! There is a delay between birth and the end of the exponential phase,
-        //! since stem cells stop dividing exponentially before birth.
-        //! We add background mutations in this interval of time between the
-        //! end of the exponentially growing phase and the Moran process.
-        if self.verbosity > 0 {
-            println!("switching to Moran at time {}", self.time);
-        }
-        if let NeutralMutations::UponDivisionAndBackground = self.proliferation.neutral_mutation {
-            // this is important: we update all background mutations at this
-            // time such that all cells are all on the same page.
-            // Since background mutations are implemented at each division, and
-            // cells do not proliferate at the same rate, we need to correct and
-            // update the background mutations at the timepoint corresponding
-            // to sampling step, i.e. before saving.
-            //
-            // Moreover there is delay between the end of the exp. growing phase
-            // and birth, hence we use `TIME_AT_BIRTH`.
-            if self.verbosity > 0 {
-                println!("updating the neutral background mutations for all cells");
-            }
-            for stem_cell in self.subclones.get_mut_cells() {
-                if stem_cell.get_last_division_time() < &TIME_AT_BIRTH {
-                    assign_background_mutations(
-                        stem_cell,
-                        TIME_AT_BIRTH,
-                        &self.distributions.neutral_poisson,
-                        rng,
-                        self.verbosity,
-                    );
-                }
-                // this is required as we are restarting the time
-                stem_cell.set_last_division_time(0f32).unwrap();
-            }
-        }
-        let mut moran = Moran {
-            subclones: self.subclones,
-            counter_divisions: self.counter_divisions,
-            // restart the time
-            time: 0.,
-            snapshots: process_options.snapshots,
-            path2dir: process_options.path,
-            verbosity: self.verbosity,
-            filename,
-            distributions,
-            save_sfs_only,
-            save_population,
-            proliferation: self.proliferation,
-        };
-        moran
-            .save(
-                moran.time,
-                &SavingCells::WholePopulation,
-                moran.save_sfs_only,
-                rng,
-            )
-            .expect("cannot save simulation at the end of the exponential phase");
-        moran
+        //! This is useful when we undersample the Moran process to a smaller
+        //! population size (for example upon treatment, the number of cells is
+        //! reduced) and we want to grow back the population to its size before
+        //! the undersampling.
+        Exponential::new(
+            value.subclones,
+            value.distributions,
+            value.proliferation,
+            value.time,
+            ExponentialPhase::Regrowth,
+            value.verbosity,
+        )
     }
 }
 
@@ -307,7 +337,7 @@ impl Moran {
         }
     }
 
-    pub fn make_path(
+    pub(crate) fn make_path(
         &self,
         tosave: Stats2Save,
         cells: usize,
@@ -439,6 +469,14 @@ impl Moran {
         }
         Ok(())
     }
+
+    pub fn into_subsampled(self, nb_cells: NonZeroUsize, rng: &mut impl Rng) -> Self {
+        //! Take a subsample (without replacement) of the population of this
+        //! process using [`choose_multiple`](https://docs.rs/rand/latest/rand/seq/trait.IndexedRandom.html#method.choose_multiple).
+        let mut moran: Moran = self;
+        moran.subclones = moran.subclones.into_subsampled(nb_cells, rng);
+        moran
+    }
 }
 
 impl AdvanceStep<MAX_SUBCLONES> for Moran {
@@ -568,12 +606,12 @@ mod tests {
     }
 
     fn assert_not_all_cells_in_wild_type(moran: &Moran, cells: u64) {
-        assert_ne!(moran.subclones.get_clone_unchecked(0).cell_count(), cells);
+        assert_ne!(moran.subclones.get_clone(0).unwrap().cell_count(), cells);
     }
 
     fn assert_all_cells_in_wild_type(moran: &Moran, cells: u64) {
-        assert_eq!(moran.subclones.get_clone_unchecked(0).cell_count(), cells);
-        assert_eq!(moran.subclones.the_only_one_subclone_present().unwrap(), 0);
+        assert_eq!(moran.subclones.get_clone(0).unwrap().cell_count(), cells);
+        assert_eq!(the_only_one_subclone_present(&moran.subclones).unwrap(), 0);
     }
 
     #[quickcheck]
@@ -635,42 +673,50 @@ mod tests {
         process: Exponential,
     }
 
-    fn create_exp_fit_variants(cells: NonZeroU64) -> ExpFitVariant {
+    fn create_exp_fit_variants(cells: NonZeroU64, is_regrowth: bool) -> ExpFitVariant {
         ExpFitVariant {
             tot_cells: cells.get(),
-            process: create_exp(true, cells),
+            process: create_exp(true, cells, is_regrowth),
         }
     }
 
-    fn create_exp_no_fit_variants(cells: NonZeroU64) -> ExpNoFitVariant {
+    fn create_exp_no_fit_variants(cells: NonZeroU64, is_regrowth: bool) -> ExpNoFitVariant {
         ExpNoFitVariant {
             tot_cells: cells.get(),
-            process: create_exp(false, cells),
+            process: create_exp(false, cells, is_regrowth),
         }
     }
 
-    fn create_exp(fit_variants: bool, cells: NonZeroU64) -> Exponential {
+    fn create_exp(fit_variants: bool, cells: NonZeroU64, is_regrowht: bool) -> Exponential {
         let mu = if fit_variants { 0.999 } else { 0. };
+        let phase = if is_regrowht {
+            ExponentialPhase::Regrowth
+        } else {
+            ExponentialPhase::Development
+        };
         Exponential::new(
             SubClones::new(vec![StemCell::new(); cells.get() as usize], 3, 0),
             Distributions::new(Probs::new(10., 1., mu, 1., cells.get(), 0), 0),
             Proliferation::default(),
+            0.,
+            phase,
             0,
         )
     }
 
     fn assert_not_all_cells_in_wild_type_exp(exp: &Exponential, cells: u64) {
-        assert_ne!(exp.subclones.get_clone_unchecked(0).cell_count(), cells);
+        assert_ne!(exp.subclones.get_clone(0).unwrap().cell_count(), cells);
     }
 
     fn assert_all_cells_in_wild_type_exp(exp: &Exponential, cells: u64) {
-        assert_eq!(exp.subclones.get_clone_unchecked(0).cell_count(), cells);
-        assert_eq!(exp.subclones.the_only_one_subclone_present().unwrap(), 0);
+        assert_eq!(exp.subclones.get_clone(0).unwrap().cell_count(), cells);
+        assert_eq!(the_only_one_subclone_present(&exp.subclones).unwrap(), 0);
     }
 
     #[quickcheck]
     fn advance_exp_no_fit_variant_test(cells: NonZeroU8, seed: u64) {
-        let mut exp = create_exp_no_fit_variants(NonZeroU64::new(cells.get() as u64).unwrap());
+        let mut exp =
+            create_exp_no_fit_variants(NonZeroU64::new(cells.get() as u64).unwrap(), false);
         let reaction = NextReaction {
             time: 12.2,
             event: 0,
@@ -689,7 +735,7 @@ mod tests {
 
     #[quickcheck]
     fn advance_exp_test(cells: NonZeroU8, seed: u64, new_clone: bool) {
-        let mut exp = create_exp_fit_variants(NonZeroU64::new(cells.get() as u64).unwrap());
+        let mut exp = create_exp_fit_variants(NonZeroU64::new(cells.get() as u64).unwrap(), false);
         let reaction = if new_clone {
             NextReaction {
                 time: cells.get() as f32 * 0.9999,
@@ -714,5 +760,88 @@ mod tests {
         }
         let burden_after = genotype::MutationalBurden::from_exp(&exp.process, 0).unwrap();
         assert!(burden_before.0.keys().sum::<u16>() <= burden_after.0.keys().sum::<u16>());
+    }
+
+    #[quickcheck]
+    fn switch_to_moran_development_test(cells: NonZeroU8, seed: u64) {
+        let exp = create_exp_fit_variants(NonZeroU64::new(cells.get() as u64).unwrap(), false);
+        let burden_before = genotype::MutationalBurden::from_exp(&exp.process, 0).unwrap();
+        let old_cells = exp.process.subclones.compute_tot_cells();
+        assert_all_cells_in_wild_type_exp(&exp.process, exp.tot_cells);
+        let rng = &mut ChaCha8Rng::seed_from_u64(seed);
+        let moran = switch_to_moran(
+            exp.process,
+            ProcessOptions::default(),
+            Distributions::default(),
+            PathBuf::default(),
+            false,
+            false,
+            rng,
+        );
+
+        let burden_after = genotype::MutationalBurden::from_moran(&moran, 0).unwrap();
+        assert!(burden_before.0.keys().sum::<u16>() <= burden_after.0.keys().sum::<u16>());
+        assert_eq!(old_cells, moran.subclones.compute_tot_cells());
+    }
+
+    #[quickcheck]
+    fn switch_to_moran_regrowth_test(cells: NonZeroU8, seed: u64) {
+        let exp = create_exp_fit_variants(NonZeroU64::new(cells.get() as u64).unwrap(), true);
+        let burden_before = genotype::MutationalBurden::from_exp(&exp.process, 0).unwrap();
+        let old_cells = exp.process.subclones.compute_tot_cells();
+        assert_all_cells_in_wild_type_exp(&exp.process, exp.tot_cells);
+        let rng = &mut ChaCha8Rng::seed_from_u64(seed);
+        let moran = switch_to_moran(
+            exp.process,
+            ProcessOptions::default(),
+            Distributions::default(),
+            PathBuf::default(),
+            false,
+            false,
+            rng,
+        );
+
+        let burden_after = genotype::MutationalBurden::from_moran(&moran, 0).unwrap();
+        assert_eq!(
+            burden_before.0.keys().sum::<u16>(),
+            burden_after.0.keys().sum::<u16>()
+        );
+        assert_eq!(old_cells, moran.subclones.compute_tot_cells());
+    }
+
+    fn the_only_one_subclone_present(subclones: &SubClones) -> Option<CloneId> {
+        //! returns `None` if more than one subclone is present else the clone
+        //! id.
+        //!
+        //! **warning** this is very slow.
+        let tot_cells = subclones.compute_tot_cells();
+        (0..MAX_SUBCLONES).find(|&id| subclones.get_clone(id).unwrap().cell_count() == tot_cells)
+    }
+
+    #[quickcheck]
+    fn subsample_moran_to_same_size(seed: u64) {
+        let rng = &mut ChaCha8Rng::seed_from_u64(seed);
+        let moran = Moran::default();
+        let nb_cells_before = moran.subclones.get_cells().len();
+        let cells = nb_cells_before;
+        let subsampled = moran.into_subsampled(NonZeroUsize::new(cells).unwrap(), rng);
+        assert!(the_only_one_subclone_present(&subsampled.subclones).is_none());
+        assert!(nb_cells_before == subsampled.subclones.get_cells().len());
+    }
+
+    #[quickcheck]
+    fn subsample_moran(cells: NonZeroU8, seed: u64) {
+        let rng = &mut ChaCha8Rng::seed_from_u64(seed);
+        let moran = Moran::default();
+        let nb_cells_before = moran.subclones.get_cells().len();
+        let subsampled =
+            moran.into_subsampled(NonZeroUsize::new(cells.get() as usize).unwrap(), rng);
+        if cells.get() == 1 {
+            assert!(the_only_one_subclone_present(&subsampled.subclones).is_some());
+        } else {
+            assert!(the_only_one_subclone_present(&subsampled.subclones).is_none());
+        }
+        // this is always true as here we subsample to max 255 cells
+        assert!(nb_cells_before > subsampled.subclones.get_cells().len());
     }
 }
