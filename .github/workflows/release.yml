@@ -57,7 +57,7 @@ jobs:
             os: macos-latest
             build_tool: cargo
           - target: x86_64-pc-windows-msvc
-            os: windows-2019
+            os: windows-2022
             build_tool: cargo
     runs-on: ${{ matrix.os || 'ubuntu-20.04' }}
     steps:
