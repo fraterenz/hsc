@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["canonical","complement","minimizer","normalize"],"trait":["QualitySequence","Sequence"]};

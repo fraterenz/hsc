@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["save_tree"],"struct":["PhyloTree"]};

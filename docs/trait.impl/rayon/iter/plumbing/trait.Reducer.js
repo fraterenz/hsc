@@ -1,3 +1,0 @@
-(function() {var implementors = {
-"accurate":[["impl&lt;Acc&gt; <a class=\"trait\" href=\"rayon/iter/plumbing/trait.Reducer.html\" title=\"trait rayon::iter::plumbing::Reducer\">Reducer</a>&lt;Acc&gt; for <a class=\"struct\" href=\"accurate/util/struct.AddReducer.html\" title=\"struct accurate::util::AddReducer\">AddReducer</a><div class=\"where\">where\n    Acc: <a class=\"trait\" href=\"https://doc.rust-lang.org/1.80.1/core/ops/arith/trait.Add.html\" title=\"trait core::ops::arith::Add\">Add</a>&lt;Acc, Output = Acc&gt;,</div>"]]
-};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

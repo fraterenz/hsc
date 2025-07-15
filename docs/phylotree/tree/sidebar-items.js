@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["NewickFormat","NewickParseError","NodeError","TreeError"],"mod":["draw"],"struct":["Comparison","Node","Tree"],"type":["Edge","NodeId"]};

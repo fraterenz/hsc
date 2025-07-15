@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":["bitkmer","errors","kmer","parser","sequence"]};

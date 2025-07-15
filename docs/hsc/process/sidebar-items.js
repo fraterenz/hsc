@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["SavingCells","Stats2Save"],"struct":["CellDivisionProbabilities","Exponential","Moran","ProcessOptions","SavingOptions","Snapshot"]};
+window.SIDEBAR_ITEMS = {"enum":["ExponentialPhase","SavingCells","Stats2Save"],"fn":["switch_to_moran"],"struct":["CellDivisionProbabilities","Exponential","Moran","ProcessOptions","SavingOptions","Snapshot"]};

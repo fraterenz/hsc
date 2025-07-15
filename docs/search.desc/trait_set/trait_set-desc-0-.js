@@ -1,1 +1,0 @@
-searchState.loadedDescShard("trait_set", 0, "This crate provide support for trait aliases: a feature …\nCreates an alias for set of traits.")

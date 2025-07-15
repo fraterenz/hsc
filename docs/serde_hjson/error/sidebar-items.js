@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["Error","ErrorCode"],"type":["Result"]};

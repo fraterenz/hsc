@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"trait":["IFastSum","ParallelSumAccumulator","ParallelSumWithAccumulator","SumAccumulator","SumWithAccumulator"]};

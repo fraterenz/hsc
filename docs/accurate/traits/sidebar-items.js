@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"trait":["DotAccumulator","DotWithAccumulator","FloatFormat","HalfUlp","IFastSum","ParallelDotAccumulator","ParallelDotWithAccumulator","ParallelSumAccumulator","ParallelSumWithAccumulator","RawExponent","Round3","Split","SumAccumulator","SumWithAccumulator","TwoProduct","TwoSum"]};

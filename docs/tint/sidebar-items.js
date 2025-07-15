@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["compare_by_hsv","compare_by_rgb","load_rgb_buffer","load_rgb_file","names","read_buffer","read_file","xkcd"],"struct":["Color"],"type":["Colour"]};

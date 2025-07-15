@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["Char","Error"],"struct":["Reader","StreamPosition"],"type":["Result"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["ASCII_CHARS_PLUS","ASCII_CHARS_TICK","UTF_CHARS","UTF_CHARS_BOLD","UTF_CHARS_DASHED","UTF_CHARS_DOUBLE"],"enum":["OutputKind","StyleWhen"],"struct":["IndentChars","PrintConfig","StaticIndentChars"]};

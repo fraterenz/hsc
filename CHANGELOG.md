@@ -1,5 +1,7 @@
 # Changelog
 The semantic versioning is kind of random.
+## 4.3.10
+- enables subsampling from `Moran` followed by an exponential regrowth, and finally continues as `Moran` process.
 
 ## 4.3.9
 - update depedencies

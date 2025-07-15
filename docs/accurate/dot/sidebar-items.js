@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":["traits"],"struct":["Dot2","DotConsumer","DotFolder","DotK","NaiveDot","OnlineExactDot"],"type":["Dot3","Dot4","Dot5","Dot6","Dot7","Dot8","Dot9"]};

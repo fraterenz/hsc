@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["bitmer_to_bytes","canonical","minimizer","reverse_complement"],"struct":["BitNuclKmer"],"type":["BitKmer","BitKmerSeq"]};

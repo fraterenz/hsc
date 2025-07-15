@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["from_iter","from_reader","from_slice","from_str"],"struct":["Deserializer","StreamDeserializer"]};
