@@ -28,6 +28,7 @@ pub enum GillespieOptions {
     Treatment {
         before_treatment: Options,
         after_treatment: Options,
+        after_treatment_regrowth: Options,
         cells_left: NonZeroUsize,
     },
 }
@@ -266,11 +267,12 @@ fn main() {
                 rng,
             )
             .unwrap();
-        // treatment
 
+        // treatment
         let (moran, stop) = if let GillespieOptions::Treatment {
             before_treatment: _,
             after_treatment,
+            after_treatment_regrowth,
             cells_left,
         } = &app.options_moran.gillespie_options
         {
@@ -278,25 +280,41 @@ fn main() {
                 (moran.distributions.clone(), moran.snapshots.clone());
 
             // treatment subsamples the total population
+            if moran.verbosity > 0 {
+                println!("Subsample Moran at {cells_left} cells before starting to regrowth",);
+            }
             let mut regrowth: Exponential = moran.into_subsampled(*cells_left, rng).into();
+            if regrowth.verbosity > 0 {
+                println!(
+                    "{} restart exp growth with time {} from {} cells with options {:#?}",
+                    Utc::now(),
+                    regrowth.time,
+                    regrowth.subclones.get_cells().len(),
+                    &after_treatment_regrowth,
+                )
+            }
+            let state = &mut CurrentState {
+                population: Variants::variant_counts(&regrowth.subclones),
+            };
+
             let stop = simulate(
                 state,
                 &rates,
                 &possible_reactions,
                 &mut regrowth,
-                after_treatment,
+                after_treatment_regrowth,
                 rng,
             );
             if regrowth.verbosity > 0 {
                 println!(
-                    "{} regrowing simulation {} stopped because {:#?}, nb cells {}",
+                    "{} regrowing simulation {} stopped at time {} because {:#?} with nb cells {}",
                     Utc::now(),
                     idx,
+                    regrowth.time,
                     stop,
                     regrowth.subclones.compute_tot_cells()
                 );
             }
-
             let mut moran = switch_to_moran(
                 regrowth,
                 ProcessOptions {
@@ -309,8 +327,18 @@ fn main() {
                 app.options_moran.save_population,
                 rng,
             );
+            // hack required because simulate always starts at time 0, this is
+            // time relative to where the simulation is
+            let mut after_treatment_relative = after_treatment.clone();
+            after_treatment_relative.max_iter_time.time =
+                after_treatment.max_iter_time.time - moran.time;
             if options_moran_gillespie.verbosity > 0 {
-                println!("{} simulating Moran phase", Utc::now());
+                println!(
+                    "{} simulating Moran phase at time {} with {:#?}",
+                    Utc::now(),
+                    moran.time,
+                    after_treatment_relative,
+                );
             }
 
             let stop = simulate(
@@ -318,9 +346,17 @@ fn main() {
                 &rates,
                 &possible_reactions,
                 &mut moran,
-                options_moran_gillespie,
+                &after_treatment_relative,
                 rng,
             );
+            if options_moran_gillespie.verbosity > 0 {
+                println!(
+                    "{} end of Moran phase due to {:#?} at time {}, saving now",
+                    Utc::now(),
+                    stop,
+                    moran.time
+                );
+            }
             moran
                 .save(
                     moran.time,

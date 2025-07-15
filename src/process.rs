@@ -475,6 +475,10 @@ impl Moran {
         //! process using [`choose_multiple`](https://docs.rs/rand/latest/rand/seq/trait.IndexedRandom.html#method.choose_multiple).
         let mut moran: Moran = self;
         moran.subclones = moran.subclones.into_subsampled(nb_cells, rng);
+        if moran.verbosity > 0 {
+            println!("Subsampled {} cells", moran.subclones.get_cells().len())
+        }
+
         moran
     }
 }
@@ -499,8 +503,8 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
             let snapshot = self.snapshots.pop_front().unwrap();
             if self.verbosity > 0 {
                 println!(
-                    "saving state for timepoint at time {:#?} at simulation's time {} with {} cells",
-                    snapshot.time, self.time, snapshot.cells2sample
+                    "saving state for timepoint at simulation's time {} for timepoint at {:#?} with {} cells",
+                    self.time, snapshot.time, snapshot.cells2sample
                 );
             }
             let saving_cells =

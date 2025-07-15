@@ -142,7 +142,7 @@ impl Sfs {
                 .or_insert(1u64);
         }
 
-        if verbosity > 0 {
+        if verbosity > 1 {
             println!("sfs: {sfs:#?}");
         }
         Ok(Sfs(sfs))

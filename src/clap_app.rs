@@ -219,6 +219,7 @@ impl Cli {
         let (max_cells, years, verbosity) = if cli.debug {
             (11, 1, u8::MAX)
         } else {
+            // + 1 because in sosa we stop when >= MaxCells
             (cli.cells + 1, years, cli.verbosity)
         };
 
@@ -325,14 +326,24 @@ impl Cli {
                     init_iter: 0,
                     verbosity,
                 };
+                let after_treatment_regrowth = Options {
+                    max_iter_time: IterTime {
+                        iter: usize::MAX,
+                        time: f32::INFINITY,
+                    },
+                    max_cells: max_cells - 1,
+                    init_iter: 0,
+                    verbosity,
+                };
                 GillespieOptions::Treatment {
                     before_treatment,
                     after_treatment,
+                    after_treatment_regrowth,
                     cells_left: cells_tr,
                 }
             }
 
-            (_, _) => unreachable!("clapp ensures that both are set"),
+            (_, _) => unreachable!("clap ensures that both are set"),
         };
 
         // processes
