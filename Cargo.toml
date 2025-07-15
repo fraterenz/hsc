@@ -14,7 +14,7 @@ serde_json = "1.0"
 sosa = "3.0.3"
 rand = "0.9.1"
 rand_distr = "0.5.1"
-rayon = "1.9.0"
+rayon = "1.10.0"
 rustc-hash = "2.1.1"
 rand_chacha = "0.9.0"
 
