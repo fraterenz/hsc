@@ -23,14 +23,17 @@ use uuid::Uuid;
 pub mod clap_app;
 
 #[derive(Clone, Debug)]
+pub struct OptionsTreatment {
+    before_treatment: Options,
+    after_treatment: Options,
+    cells_left: NonZeroUsize,
+    regrowth_options: SimulationOptionsExp,
+}
+
+#[derive(Clone, Debug)]
 pub enum GillespieOptions {
     NoTreatment(Options),
-    Treatment {
-        before_treatment: Options,
-        after_treatment: Options,
-        after_treatment_regrowth: Options,
-        cells_left: NonZeroUsize,
-    },
+    Treatment(OptionsTreatment),
 }
 
 #[derive(Clone, Debug)]
@@ -85,9 +88,7 @@ fn main() {
         let rng = &mut ChaCha8Rng::seed_from_u64(app.seed);
         rng.set_stream(idx as u64);
         let options_moran_gillespie = match &app.options_moran.gillespie_options {
-            GillespieOptions::Treatment {
-                before_treatment, ..
-            } => before_treatment,
+            GillespieOptions::Treatment(op) => &op.before_treatment,
             GillespieOptions::NoTreatment(op) => op,
         };
 
@@ -109,7 +110,7 @@ fn main() {
         };
         let possible_reactions = subclones.array_of_gillespie_reactions();
 
-        let rates = subclones.gillespie_rates(&app.fitness, 1. / app.options_moran.tau, rng);
+        let rates_moran = subclones.gillespie_rates(&app.fitness, 1. / app.options_moran.tau, rng);
         let snapshots = app.snapshots.clone();
 
         let (mean, std) = app.fitness.get_mean_std();
@@ -253,7 +254,7 @@ fn main() {
 
         let stop = simulate(
             state,
-            &rates,
+            &rates_moran,
             &possible_reactions,
             &mut moran,
             options_moran_gillespie,
@@ -269,40 +270,43 @@ fn main() {
             .unwrap();
 
         // treatment
-        let (moran, stop) = if let GillespieOptions::Treatment {
-            before_treatment: _,
-            after_treatment,
-            after_treatment_regrowth,
-            cells_left,
-        } = &app.options_moran.gillespie_options
+        let (moran, stop) = if let GillespieOptions::Treatment(op) =
+            &app.options_moran.gillespie_options
         {
             let (moran_distributions, snapshots) =
                 (moran.distributions.clone(), moran.snapshots.clone());
 
             // treatment subsamples the total population
             if moran.verbosity > 0 {
-                println!("Subsample Moran at {cells_left} cells before starting to regrowth",);
+                println!(
+                    "Subsample Moran at {} cells before starting to regrowth",
+                    op.cells_left
+                );
             }
-            let mut regrowth: Exponential = moran.into_subsampled(*cells_left, rng).into();
+            let mut regrowth: Exponential = moran.into_subsampled(op.cells_left, rng).into();
             if regrowth.verbosity > 0 {
                 println!(
                     "{} restart exp growth with time {} from {} cells with options {:#?}",
                     Utc::now(),
                     regrowth.time,
                     regrowth.subclones.get_cells().len(),
-                    &after_treatment_regrowth,
+                    &op.regrowth_options.gillespie_options,
                 )
             }
             let state = &mut CurrentState {
                 population: Variants::variant_counts(&regrowth.subclones),
             };
+            let rates =
+                regrowth
+                    .subclones
+                    .gillespie_rates(&app.fitness, 1. / op.regrowth_options.tau, rng);
 
             let stop = simulate(
                 state,
                 &rates,
                 &possible_reactions,
                 &mut regrowth,
-                after_treatment_regrowth,
+                &op.regrowth_options.gillespie_options,
                 rng,
             );
             if regrowth.verbosity > 0 {
@@ -329,9 +333,9 @@ fn main() {
             );
             // hack required because simulate always starts at time 0, this is
             // time relative to where the simulation is
-            let mut after_treatment_relative = after_treatment.clone();
+            let mut after_treatment_relative = op.after_treatment.clone();
             after_treatment_relative.max_iter_time.time =
-                after_treatment.max_iter_time.time - moran.time;
+                op.after_treatment.max_iter_time.time - moran.time;
             if options_moran_gillespie.verbosity > 0 {
                 println!(
                     "{} simulating Moran phase at time {} with {:#?}",
@@ -343,7 +347,7 @@ fn main() {
 
             let stop = simulate(
                 state,
-                &rates,
+                &rates_moran,
                 &possible_reactions,
                 &mut moran,
                 &after_treatment_relative,
@@ -383,7 +387,7 @@ fn main() {
             println!("saving the SFS for all timepoints");
         }
         write2file(
-            &rates.0,
+            &rates_moran.0,
             &moran.path2dir.join("rates").join(format!("{idx}.csv")),
             None,
             false,

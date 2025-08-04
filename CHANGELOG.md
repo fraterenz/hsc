@@ -1,10 +1,13 @@
 # Changelog
 The semantic versioning is kind of random.
+## 4.3.11
+- for the regrowth phase, use the growth parameters of the first developmental exponential growth phase.
+
 ## 4.3.10
 - enables subsampling from `Moran` followed by an exponential regrowth, and finally continues as `Moran` process.
 
 ## 4.3.9
-- update depedencies
+- update dependencies
 
 ## 4.3.8
 - 10x speed up by removing the call to `the_only_one_subclone_present` from the fixed-population phase.

@@ -9,7 +9,9 @@ use num_traits::{Float, NumCast};
 use sosa::{IterTime, NbIndividuals, Options};
 use std::{collections::VecDeque, num::NonZeroUsize, ops::RangeInclusive, path::PathBuf};
 
-use crate::{AppOptions, GillespieOptions, SimulationOptionsExp, SimulationOptionsMoran};
+use crate::{
+    AppOptions, GillespieOptions, OptionsTreatment, SimulationOptionsExp, SimulationOptionsMoran,
+};
 
 #[derive(Clone, Debug)]
 pub enum Parallel {
@@ -335,11 +337,28 @@ impl Cli {
                     init_iter: 0,
                     verbosity,
                 };
-                GillespieOptions::Treatment {
-                    before_treatment,
-                    after_treatment,
-                    after_treatment_regrowth,
-                    cells_left: cells_tr,
+                // for now use the same as in exp process
+                if let Commands::ExpMoran(exp_moran) = &cli.command {
+                    let regrowth_options = SimulationOptionsExp {
+                        gillespie_options: after_treatment_regrowth,
+                        tau: exp_moran.exponential.tau_exp,
+                        probs_per_year: ProbsPerYear {
+                            mu_background: exp_moran.exponential.mu_background_exp,
+                            mu_division: exp_moran.exponential.mu_division_exp,
+                            mu: exp_moran.exponential.mu_exp,
+                        },
+                        asymmetric: exp_moran.exponential.asymmetric_exp,
+                    };
+                    GillespieOptions::Treatment(OptionsTreatment {
+                        before_treatment,
+                        after_treatment,
+                        regrowth_options,
+                        cells_left: cells_tr,
+                    })
+                } else {
+                    unreachable!(
+                        "clap ensures that if regrowth is present, exp phase should be present"
+                    );
                 }
             }
 
