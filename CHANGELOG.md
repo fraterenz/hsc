@@ -1,5 +1,10 @@
 # Changelog
 The semantic versioning is kind of random.
+
+## 4.3.12
+- update dependencies
+- increase the number of clones to 3000
+
 ## 4.3.11
 - for the regrowth phase, use the growth parameters of the first developmental exponential growth phase.
 

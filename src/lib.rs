@@ -34,7 +34,7 @@ pub mod subclone;
 /// If the parameters of the simulation provided by the user (e.g. fit mutation
 /// rate) are too extreme, the program will exit with error. To avoid this,
 /// increase here the number of clones.
-pub const MAX_SUBCLONES: usize = 1200;
+pub const MAX_SUBCLONES: usize = 3000;
 
 /// The time at birth measured in years used for background mutations in the
 /// exponential growing phase.
