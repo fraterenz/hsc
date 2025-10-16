@@ -1,1 +1,0 @@
-searchState.loadedDescShard("uuid_macro_internal", 0, "Implementation details for the <code>uuid!</code> macro.")

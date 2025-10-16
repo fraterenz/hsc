@@ -403,7 +403,7 @@ impl Variants {
         let tot_cells = subclones.compute_tot_cells();
         Variants::variant_counts(subclones)
             .into_iter()
-            .map(|frac| (frac as f32 / tot_cells as f32))
+            .map(|frac| frac as f32 / tot_cells as f32)
             .collect()
     }
 }
