@@ -9,7 +9,7 @@ chrono = "0.4"
 clap = { version = "4.5.49", features = ["derive"] }
 indicatif = { version = "*", features = ["rayon"] }
 num-traits = "0.2"
-serde = { version = "1.0.219", features = ["derive"] }
+serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0"
 sosa = "3.0.5"
 rand = "0.9.2"
