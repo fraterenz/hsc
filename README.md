@@ -3,7 +3,7 @@
 ![workflow](https://github.com/fraterenz/hsc/actions/workflows/test.yml/badge.svg)
 [![codecov](https://codecov.io/gh/fraterenz/hsc/branch/master/graph/badge.svg?token=6JTE5AV0QO)](https://codecov.io/gh/fraterenz/hsc)
 
-Stochastic simulations of genetic changes in blood production during ageing.
+Stochastic simulations of the genetic changes in blood occurring during ageing.
 
 ## HSC dynamics during ageing
 
@@ -14,9 +14,9 @@ As we age, however, fewer HSCs actively contribute to hematopoiesis. Some HSCs a
 
 `hsc` simulates this age-related loss of genetic heterogeneity assuming competing HSC clones. `hsc` simulates HSCs and mutations, and tracks over time:
 
-- all HSCs in the system
-- the mutations carried by each HSC
-- the contribution of each mutation-bearing clone to the system, with events modelled as a Poisson process.
+- the HSCs in the system
+- the neutral mutations carried by each HSC
+- the positively selected mutations defining fit clones
 
 See [here](output.md) for more information about the output of the simulations and [here](https://fraterenz.github.io/hsc/hsc/) for the documentation.
 
