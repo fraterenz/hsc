@@ -24,6 +24,8 @@ pub mod genotype;
 pub mod process;
 /// The proliferation of cells with the simulation of neutral and fit mutations.
 pub mod proliferation;
+/// Utilities to save the Markov processes.
+pub mod snapshots;
 /// The agents whose state defines the system simulated by the process.
 pub mod stemcell;
 /// The classes defining the proliferative advantage.

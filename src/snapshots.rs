@@ -1,0 +1,142 @@
+/// Utilities to save the Moran process.
+///
+/// We want to save at different timepoints (snapshots) some statistics or
+/// quantities of a Moran process, the only process that can be saved for now.
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
+
+use anyhow::Context;
+
+use crate::{
+    genotype::{MutationalBurden, Sfs},
+    stemcell::StemCell,
+    subclone::{save_variant_fraction, SubClones},
+};
+
+/// The statistics/measurements we want to save from the simulations.
+#[derive(Hash, PartialEq, Eq)]
+pub enum Stats2Save {
+    Burden,
+    Sfs,
+    VariantFraction,
+}
+
+/// Specify whether to save the whole population or a subsampling.
+#[derive(Debug, Clone, Copy)]
+pub enum SavingCells {
+    WholePopulation,
+    Subsampling {
+        sample_size: usize,
+        population_as_well: bool,
+    },
+}
+
+/// Specify when to save the measurements for a certain number of simulated cells.
+#[derive(Debug, Clone)]
+pub struct Snapshot {
+    /// The number of cells to subsample
+    pub cells2sample: usize,
+    /// The time at which we subsample
+    pub time: f32,
+}
+
+#[derive(Debug, Clone)]
+pub struct SavingOptions {
+    pub filename: PathBuf,
+    pub save_sfs_only: bool,
+    pub save_population: bool,
+}
+
+fn make_path(
+    path2dir: &Path,
+    filename: &Path,
+    tosave: Stats2Save,
+    cells: usize,
+    time: f32,
+    verbosity: u8,
+) -> anyhow::Result<PathBuf> {
+    let path2dir = path2dir.join(format!("{cells}cells"));
+    let path2file = match tosave {
+        Stats2Save::VariantFraction => path2dir.join("variant_fraction"),
+        Stats2Save::Burden => path2dir.join("burden"),
+        Stats2Save::Sfs => path2dir.join("sfs"),
+    };
+    let mut timepoint = format!("{time:.1}").replace('.', "dot");
+    timepoint.push_str("years");
+    let path2file = path2file.join(timepoint);
+    fs::create_dir_all(&path2file).with_context(|| "Cannot create dir")?;
+    if verbosity > 1 {
+        println!("creating dirs {path2file:#?}");
+    }
+    Ok(path2file.join(filename))
+}
+
+pub(crate) fn save_it(
+    path2dir: &Path,
+    filename: &Path,
+    time: f32,
+    cells_with_idx: Vec<(&StemCell, usize)>,
+    save_sfs_only: bool,
+    verbosity: u8,
+) -> anyhow::Result<()> {
+    if verbosity > 0 {
+        println!("saving data at time {time}");
+    }
+    let cells: Vec<&StemCell> = cells_with_idx.iter().map(|ele| ele.0).collect();
+    let nb_cells = cells.len();
+
+    if verbosity > 0 {
+        println!("saving {nb_cells} cells");
+    }
+
+    Sfs::from_cells(&cells, verbosity)
+        .unwrap_or_else(|_| panic!("cannot create SFS for timepoint at time {time}"))
+        .save(
+            &make_path(
+                path2dir,
+                filename,
+                Stats2Save::Sfs,
+                nb_cells,
+                time,
+                verbosity,
+            )?,
+            verbosity,
+        )?;
+
+    if !save_sfs_only {
+        MutationalBurden::from_cells(&cells, verbosity)
+            .unwrap_or_else(|_| panic!("cannot create burden for the timepoint at time {time}"))
+            .save(
+                &make_path(
+                    path2dir,
+                    filename,
+                    Stats2Save::Burden,
+                    nb_cells,
+                    time,
+                    verbosity,
+                )?,
+                verbosity,
+            )?;
+        save_variant_fraction(
+            &SubClones::from(
+                cells_with_idx
+                    .into_iter()
+                    .map(|(cell, id)| (cell.to_owned(), id))
+                    .collect::<Vec<(StemCell, usize)>>(),
+            ),
+            &make_path(
+                path2dir,
+                filename,
+                Stats2Save::VariantFraction,
+                nb_cells,
+                time,
+                verbosity,
+            )?,
+            verbosity,
+        )?;
+    }
+
+    Ok(())
+}

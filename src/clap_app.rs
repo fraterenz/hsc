@@ -1,7 +1,8 @@
 use anyhow::{bail, ensure};
 use clap::{ArgAction, Args, Parser, Subcommand};
 use hsc::{
-    process::{ProcessOptions, Snapshot},
+    process::ProcessOptions,
+    snapshots::Snapshot,
     subclone::{from_mean_std_to_shape_scale, Fitness},
     ProbsPerYear,
 };

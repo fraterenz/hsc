@@ -1,2 +1,2 @@
-window.ALL_CRATES = ["hsc"];
-//{"start":21,"fragment_lengths":[5]}
+window.ALL_CRATES = ["anstream","anstyle","anstyle_parse","anstyle_query","anyhow","cfg_if","chrono","clap","clap_builder","clap_derive","clap_lex","colorchoice","console","crossbeam_deque","crossbeam_epoch","crossbeam_utils","either","getrandom","heck","hsc","iana_time_zone","indicatif","itoa","libc","libm","memchr","memoffset","num_traits","once_cell","portable_atomic","ppv_lite86","proc_macro2","quote","rand","rand_chacha","rand_core","rand_distr","rayon","rayon_core","rustc_hash","scopeguard","serde","serde_core","serde_derive","serde_json","sosa","strsim","syn","thiserror","thiserror_impl","unicode_ident","unicode_width","unit_prefix","utf8parse","uuid","uuid_macro_internal","zmij"];
+//{"start":21,"fragment_lengths":[10,10,16,16,9,9,9,7,15,14,11,14,10,18,18,18,9,12,7,6,17,12,7,7,7,9,12,13,12,18,13,14,8,7,14,12,13,8,13,13,13,8,13,15,13,7,9,6,12,17,16,16,14,12,7,22,7]}

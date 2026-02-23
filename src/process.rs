@@ -1,7 +1,7 @@
-use crate::genotype::{MutationalBurden, Sfs};
 use crate::proliferation::{NeutralMutations, Proliferation};
-use crate::stemcell::{assign_background_mutations, StemCell};
-use crate::subclone::{save_variant_fraction, CloneId, Distributions, SubClones, Variants};
+use crate::snapshots::{save_it, SavingCells, SavingOptions, Snapshot};
+use crate::stemcell::assign_background_mutations;
+use crate::subclone::{CloneId, Distributions, SubClones, Variants};
 use crate::{MAX_SUBCLONES, TIME_AT_BIRTH};
 use anyhow::Context;
 use rand::Rng;
@@ -9,45 +9,13 @@ use rand_distr::weighted::WeightedIndex;
 use rand_distr::Distribution;
 use sosa::{AdvanceStep, CurrentState, NextReaction};
 use std::collections::VecDeque;
-use std::fs;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
-
-#[derive(Debug, Clone, Copy)]
-pub enum SavingCells {
-    WholePopulation,
-    Subsampling {
-        sample_size: usize,
-        population_as_well: bool,
-    },
-}
-
-#[derive(Debug, Clone)]
-pub struct Snapshot {
-    /// The number of cells to subsample
-    pub cells2sample: usize,
-    /// The time at which we subsample
-    pub time: f32,
-}
-
-#[derive(Debug, Clone)]
-pub struct SavingOptions {
-    pub filename: PathBuf,
-    pub save_sfs_only: bool,
-    pub save_population: bool,
-}
 
 #[derive(Debug, Clone, Default)]
 pub struct ProcessOptions {
     pub path: PathBuf,
     pub snapshots: VecDeque<Snapshot>,
-}
-
-#[derive(Hash, PartialEq, Eq)]
-pub enum Stats2Save {
-    Burden,
-    Sfs,
-    VariantFraction,
 }
 
 #[derive(Debug, Clone)]
@@ -337,79 +305,6 @@ impl Moran {
         }
     }
 
-    pub(crate) fn make_path(
-        &self,
-        tosave: Stats2Save,
-        cells: usize,
-        time: f32,
-    ) -> anyhow::Result<PathBuf> {
-        let path2dir = self.path2dir.join(format!("{cells}cells"));
-        let path2file = match tosave {
-            Stats2Save::VariantFraction => path2dir.join("variant_fraction"),
-            Stats2Save::Burden => path2dir.join("burden"),
-            Stats2Save::Sfs => path2dir.join("sfs"),
-        };
-        let mut timepoint = format!("{time:.1}").replace('.', "dot");
-        timepoint.push_str("years");
-        let path2file = path2file.join(timepoint);
-        fs::create_dir_all(&path2file).with_context(|| "Cannot create dir")?;
-        if self.verbosity > 1 {
-            println!("creating dirs {path2file:#?}");
-        }
-        Ok(path2file.join(self.filename.clone()))
-    }
-
-    fn save_it(
-        &self,
-        time: f32,
-        cells_with_idx: Vec<(&StemCell, usize)>,
-        save_sfs_only: bool,
-    ) -> anyhow::Result<()> {
-        if self.verbosity > 0 {
-            println!("saving data at time {time}");
-        }
-        let cells: Vec<&StemCell> = cells_with_idx.iter().map(|ele| ele.0).collect();
-        let nb_cells = cells.len();
-
-        if self.verbosity > 0 {
-            println!("saving {nb_cells} cells");
-        }
-
-        Sfs::from_cells(&cells, self.verbosity)
-            .unwrap_or_else(|_| panic!("cannot create SFS for timepoint at time {time}"))
-            .save(
-                &self.make_path(Stats2Save::Sfs, nb_cells, time)?,
-                self.verbosity,
-            )?;
-
-        if !save_sfs_only {
-            MutationalBurden::from_cells(&cells, self.verbosity)
-                .unwrap_or_else(|_| panic!("cannot create burden for the timepoint at time {time}"))
-                .save(
-                    &self.make_path(Stats2Save::Burden, nb_cells, time)?,
-                    self.verbosity,
-                )?;
-            save_variant_fraction(
-                &SubClones::from(
-                    cells_with_idx
-                        .into_iter()
-                        .map(|(cell, id)| (cell.to_owned(), id))
-                        .collect::<Vec<(StemCell, usize)>>(),
-                ),
-                &self.make_path(Stats2Save::VariantFraction, nb_cells, time)?,
-                self.verbosity,
-            )?;
-        }
-
-        if self.verbosity > 0 {
-            println!(
-                "saved measurements after {} mutational events",
-                self.counter_divisions
-            );
-        }
-        Ok(())
-    }
-
     pub fn save(
         &mut self,
         time: f32,
@@ -445,26 +340,46 @@ impl Moran {
             println!("saving {saving_cells:#?}");
         }
         match saving_cells {
-            SavingCells::WholePopulation => self
-                .save_it(time, population, save_sfs_only)
-                .with_context(|| "cannot save the full population")
-                .unwrap(),
+            SavingCells::WholePopulation => save_it(
+                &self.path2dir,
+                &self.filename,
+                time,
+                population,
+                save_sfs_only,
+                self.verbosity,
+            )
+            .with_context(|| "cannot save the full population")
+            .unwrap(),
             SavingCells::Subsampling {
                 sample_size,
                 population_as_well: populaiton_as_well,
             } => {
                 if *populaiton_as_well {
-                    self.save_it(time, population, save_sfs_only)
-                        .with_context(|| "cannot save the full population")
-                        .unwrap();
+                    save_it(
+                        &self.path2dir,
+                        &self.filename,
+                        time,
+                        population,
+                        save_sfs_only,
+                        self.verbosity,
+                    )
+                    .with_context(|| "cannot save the full population")
+                    .unwrap();
                 }
                 let cells_with_idx = self
                     .subclones
                     .get_cells_subsampled_with_clones_idx(*sample_size, rng);
                 assert_eq!(cells_with_idx.len(), *sample_size);
-                self.save_it(time, cells_with_idx, save_sfs_only)
-                    .with_context(|| "cannot save the subsample")
-                    .unwrap();
+                save_it(
+                    &self.path2dir,
+                    &self.filename,
+                    time,
+                    cells_with_idx,
+                    save_sfs_only,
+                    self.verbosity,
+                )
+                .with_context(|| "cannot save the subsample")
+                .unwrap();
             }
         }
         Ok(())
@@ -557,7 +472,7 @@ mod tests {
     use rand::SeedableRng;
     use rand_chacha::ChaCha8Rng;
 
-    use crate::{genotype, Probs};
+    use crate::{genotype, stemcell::StemCell, Probs};
 
     use super::*;
 

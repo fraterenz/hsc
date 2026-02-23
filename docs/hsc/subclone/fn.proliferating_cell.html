@@ -2,7 +2,7 @@
     subclones: &amp;mut <a class="struct" href="struct.SubClones.html" title="struct hsc::subclone::SubClones">SubClones</a>,
     subclone_id: <a class="type" href="type.CloneId.html" title="type hsc::subclone::CloneId">CloneId</a>,
     verbosity: <a class="primitive" href="https://doc.rust-lang.org/1.90.0/std/primitive.u8.html">u8</a>,
-    rng: &amp;mut impl <a class="trait" href="https://rust-random.github.io/rand/rand/rng/trait.Rng.html" title="trait rand::rng::Rng">Rng</a>,
+    rng: &amp;mut impl <a class="trait" href="../../rand/rng/trait.Rng.html" title="trait rand::rng::Rng">Rng</a>,
 ) -&gt; <a class="struct" href="../stemcell/struct.StemCell.html" title="struct hsc::stemcell::StemCell">StemCell</a></code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Determine which cells will proliferate by randomly selecting a cell
 from the subclone with id <code>subclone_id</code>.
 This will also remove the random selected cell from the subclone,

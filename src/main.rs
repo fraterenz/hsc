@@ -3,10 +3,9 @@ use anyhow::Context;
 use chrono::Utc;
 use clap_app::Parallel;
 use hsc::{
-    process::{
-        switch_to_moran, Exponential, Moran, ProcessOptions, SavingCells, SavingOptions, Snapshot,
-    },
+    process::{switch_to_moran, Exponential, Moran, ProcessOptions},
     proliferation::{Division, NeutralMutations, Proliferation},
+    snapshots::{SavingCells, SavingOptions, Snapshot},
     stemcell::StemCell,
     subclone::{Distributions, Fitness, SubClones, Variants},
     write2file, Probs, ProbsPerYear,
