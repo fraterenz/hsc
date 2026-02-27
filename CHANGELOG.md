@@ -1,6 +1,11 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 5.1.0
+- remove `save_sfs_only`
+### Added
+- new CLI argument `stats`
+
 ## 5.0.0
 - update dependencies
 - get rid of `verbosity` everywhere and use `log` instead

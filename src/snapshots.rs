@@ -8,6 +8,8 @@ use std::{
 };
 
 use anyhow::Context;
+use derive_builder::Builder;
+use enumset::{EnumSet, EnumSetType};
 use log::debug;
 
 use crate::{
@@ -17,7 +19,7 @@ use crate::{
 };
 
 /// The statistics/measurements we want to save from the simulations.
-#[derive(Hash, PartialEq, Eq)]
+#[derive(Hash, Debug, EnumSetType)]
 pub enum Stats2Save {
     Burden,
     Sfs,
@@ -47,8 +49,32 @@ pub struct Snapshot {
 #[derive(Debug, Clone)]
 pub struct SavingOptions {
     pub filename: PathBuf,
-    pub save_sfs_only: bool,
     pub save_population: bool,
+}
+
+#[derive(Debug, Copy, Clone, Builder)]
+pub struct StatsConfig {
+    #[builder(setter(custom), default)]
+    enabled: EnumSet<Stats2Save>,
+}
+
+impl Default for StatsConfig {
+    fn default() -> Self {
+        let mut enabled = EnumSet::empty();
+        enabled.insert(Stats2Save::Sfs);
+        StatsConfig { enabled }
+    }
+}
+
+impl StatsConfigBuilder {
+    pub fn stats(&mut self, stats: impl IntoIterator<Item = Stats2Save>) -> &mut Self {
+        let mut set = EnumSet::empty();
+        for s in stats {
+            set.insert(s);
+        }
+        self.enabled = Some(set);
+        self
+    }
 }
 
 fn make_path(
@@ -82,7 +108,7 @@ pub(crate) fn save_it(
     filename: &Path,
     time: f32,
     cells_with_idx: Vec<(&StemCell, usize)>,
-    save_sfs_only: bool,
+    stats: &StatsConfig,
 ) -> anyhow::Result<()> {
     debug!("saving data at time {time}");
     let cells: Vec<&StemCell> = cells_with_idx.iter().map(|ele| ele.0).collect();
@@ -90,20 +116,64 @@ pub(crate) fn save_it(
 
     debug!("saving {nb_cells} cells");
 
-    Sfs::from_cells(&cells)
-        .unwrap_or_else(|_| panic!("cannot create SFS for timepoint at time {time}"))
-        .save(
-            &make_path(path2dir, filename, Stats2Save::Sfs, nb_cells, time)?,
-            time,
-        )?;
+    if stats.enabled.contains(Stats2Save::Sfs) {
+        if stats.enabled.contains(Stats2Save::SingleCellMutations) {
+            let sc_mutations = SingleCellMutations::from_cells(&cells).unwrap_or_else(|_| {
+                panic!("cannot create single cell mutations for the timepoint at time {time}")
+            });
+            sc_mutations.save(
+                &make_path(
+                    path2dir,
+                    filename,
+                    Stats2Save::SingleCellMutations,
+                    nb_cells,
+                    time,
+                )?,
+                time,
+            )?;
+            Sfs::from_sc_mutations(&sc_mutations)
+                .unwrap_or_else(|_| panic!("cannot create SFS for timepoint at time {time}"))
+                .save(
+                    &make_path(path2dir, filename, Stats2Save::Sfs, nb_cells, time)?,
+                    time,
+                )?;
+        } else {
+            Sfs::from_cells(&cells)
+                .unwrap_or_else(|_| panic!("cannot create SFS for timepoint at time {time}"))
+                .save(
+                    &make_path(path2dir, filename, Stats2Save::Sfs, nb_cells, time)?,
+                    time,
+                )?;
+        }
+    }
 
-    if !save_sfs_only {
+    if stats.enabled.contains(Stats2Save::SingleCellMutations) {
+        SingleCellMutations::from_cells(&cells)
+            .unwrap_or_else(|_| {
+                panic!("cannot create single cell mutations for the timepoint at time {time}")
+            })
+            .save(
+                &make_path(
+                    path2dir,
+                    filename,
+                    Stats2Save::SingleCellMutations,
+                    nb_cells,
+                    time,
+                )?,
+                time,
+            )?;
+    }
+
+    if stats.enabled.contains(Stats2Save::Burden) {
         MutationalBurden::from_cells(&cells)
             .unwrap_or_else(|_| panic!("cannot create burden for the timepoint at time {time}"))
             .save(
                 &make_path(path2dir, filename, Stats2Save::Burden, nb_cells, time)?,
                 time,
             )?;
+    }
+
+    if stats.enabled.contains(Stats2Save::VariantFraction) {
         save_variant_fraction(
             &SubClones::from(
                 cells_with_idx
@@ -119,20 +189,6 @@ pub(crate) fn save_it(
                 time,
             )?,
         )?;
-        SingleCellMutations::from_cells(&cells)
-            .unwrap_or_else(|_| {
-                panic!("cannot create single cell mutations for the timepoint at time {time}")
-            })
-            .save(
-                &make_path(
-                    path2dir,
-                    filename,
-                    Stats2Save::SingleCellMutations,
-                    nb_cells,
-                    time,
-                )?,
-                time,
-            )?;
     }
 
     Ok(())

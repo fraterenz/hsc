@@ -1,5 +1,5 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/process.rs`."><title>process.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-aa0817cf.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="hsc" data-themes="" data-resource-suffix="" data-rustdoc-version="1.90.0 (1159e78c4 2025-09-14)" data-channel="1.90.0" data-search-js="search-fa3e91e5.js" data-settings-js="settings-5514c975.js" ><script src="../../static.files/storage-68b7e25d.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-eebb9057.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-32bb7600.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">hsc/</div>process.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span><span class="kw">crate</span>::proliferation::{NeutralMutations, Proliferation};
-<a href=#2 id=2 data-nosnippet>2</a><span class="kw">use </span><span class="kw">crate</span>::snapshots::{save_it, SavingCells, SavingOptions, Snapshot};
+<a href=#2 id=2 data-nosnippet>2</a><span class="kw">use </span><span class="kw">crate</span>::snapshots::{save_it, SavingCells, SavingOptions, Snapshot, StatsConfig};
 <a href=#3 id=3 data-nosnippet>3</a><span class="kw">use </span><span class="kw">crate</span>::stemcell::assign_background_mutations;
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span><span class="kw">crate</span>::subclone::{CloneId, Distributions, SubClones, Variants};
 <a href=#5 id=5 data-nosnippet>5</a><span class="kw">use crate</span>::{MAX_SUBCLONES, TIME_AT_BIRTH};
@@ -40,7 +40,7 @@
 <a href=#40 id=40 data-nosnippet>40</a>    process_options: ProcessOptions,
 <a href=#41 id=41 data-nosnippet>41</a>    distributions: Distributions,
 <a href=#42 id=42 data-nosnippet>42</a>    filename: PathBuf,
-<a href=#43 id=43 data-nosnippet>43</a>    save_sfs_only: bool,
+<a href=#43 id=43 data-nosnippet>43</a>    stats: StatsConfig,
 <a href=#44 id=44 data-nosnippet>44</a>    save_population: bool,
 <a href=#45 id=45 data-nosnippet>45</a>    rng: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>Rng,
 <a href=#46 id=46 data-nosnippet>46</a>) -&gt; Moran {
@@ -92,7 +92,7 @@
 <a href=#92 id=92 data-nosnippet>92</a>        path2dir: process_options.path,
 <a href=#93 id=93 data-nosnippet>93</a>        filename,
 <a href=#94 id=94 data-nosnippet>94</a>        distributions,
-<a href=#95 id=95 data-nosnippet>95</a>        save_sfs_only,
+<a href=#95 id=95 data-nosnippet>95</a>        stats,
 <a href=#96 id=96 data-nosnippet>96</a>        save_population,
 <a href=#97 id=97 data-nosnippet>97</a>        proliferation: exponential.proliferation,
 <a href=#98 id=98 data-nosnippet>98</a>    }
@@ -203,9 +203,9 @@
 <a href=#203 id=203 data-nosnippet>203</a>    <span class="kw">pub </span>distributions: Distributions,
 <a href=#204 id=204 data-nosnippet>204</a>    <span class="kw">pub </span>snapshots: VecDeque&lt;Snapshot&gt;,
 <a href=#205 id=205 data-nosnippet>205</a>    <span class="kw">pub </span>filename: PathBuf,
-<a href=#206 id=206 data-nosnippet>206</a>    <span class="kw">pub </span>save_sfs_only: bool,
-<a href=#207 id=207 data-nosnippet>207</a>    <span class="kw">pub </span>save_population: bool,
-<a href=#208 id=208 data-nosnippet>208</a>    <span class="kw">pub </span>proliferation: Proliferation,
+<a href=#206 id=206 data-nosnippet>206</a>    <span class="kw">pub </span>save_population: bool,
+<a href=#207 id=207 data-nosnippet>207</a>    <span class="kw">pub </span>proliferation: Proliferation,
+<a href=#208 id=208 data-nosnippet>208</a>    <span class="kw">pub </span>stats: StatsConfig,
 <a href=#209 id=209 data-nosnippet>209</a>}
 <a href=#210 id=210 data-nosnippet>210</a>
 <a href=#211 id=211 data-nosnippet>211</a><span class="kw">impl </span>Default <span class="kw">for </span>Moran {
@@ -221,9 +221,9 @@
 <a href=#221 id=221 data-nosnippet>221</a>            <span class="number">0.</span>,
 <a href=#222 id=222 data-nosnippet>222</a>            SavingOptions {
 <a href=#223 id=223 data-nosnippet>223</a>                filename: PathBuf::default(),
-<a href=#224 id=224 data-nosnippet>224</a>                save_sfs_only: <span class="bool-val">false</span>,
-<a href=#225 id=225 data-nosnippet>225</a>                save_population: <span class="bool-val">true</span>,
-<a href=#226 id=226 data-nosnippet>226</a>            },
+<a href=#224 id=224 data-nosnippet>224</a>                save_population: <span class="bool-val">true</span>,
+<a href=#225 id=225 data-nosnippet>225</a>            },
+<a href=#226 id=226 data-nosnippet>226</a>            StatsConfig::default(),
 <a href=#227 id=227 data-nosnippet>227</a>            Distributions::default(),
 <a href=#228 id=228 data-nosnippet>228</a>            Proliferation::default(),
 <a href=#229 id=229 data-nosnippet>229</a>        )
@@ -238,56 +238,56 @@
 <a href=#238 id=238 data-nosnippet>238</a>        initial_subclones: SubClones,
 <a href=#239 id=239 data-nosnippet>239</a>        time: f32,
 <a href=#240 id=240 data-nosnippet>240</a>        saving_options: SavingOptions,
-<a href=#241 id=241 data-nosnippet>241</a>        distributions: Distributions,
-<a href=#242 id=242 data-nosnippet>242</a>        proliferation: Proliferation,
-<a href=#243 id=243 data-nosnippet>243</a>    ) -&gt; Moran {
-<a href=#244 id=244 data-nosnippet>244</a>        <span class="kw">let </span>hsc = Moran {
-<a href=#245 id=245 data-nosnippet>245</a>            subclones: initial_subclones,
-<a href=#246 id=246 data-nosnippet>246</a>            distributions,
-<a href=#247 id=247 data-nosnippet>247</a>            counter_divisions: <span class="number">0</span>,
-<a href=#248 id=248 data-nosnippet>248</a>            path2dir: process_options.path,
-<a href=#249 id=249 data-nosnippet>249</a>            time,
-<a href=#250 id=250 data-nosnippet>250</a>            snapshots: process_options.snapshots,
-<a href=#251 id=251 data-nosnippet>251</a>            filename: saving_options.filename,
-<a href=#252 id=252 data-nosnippet>252</a>            save_sfs_only: saving_options.save_sfs_only,
-<a href=#253 id=253 data-nosnippet>253</a>            save_population: saving_options.save_population,
-<a href=#254 id=254 data-nosnippet>254</a>            proliferation,
-<a href=#255 id=255 data-nosnippet>255</a>        };
-<a href=#256 id=256 data-nosnippet>256</a>        <span class="macro">debug!</span>(<span class="string">"process created: {hsc:#?}"</span>);
-<a href=#257 id=257 data-nosnippet>257</a>        hsc
-<a href=#258 id=258 data-nosnippet>258</a>    }
-<a href=#259 id=259 data-nosnippet>259</a>
-<a href=#260 id=260 data-nosnippet>260</a>    <span class="kw">fn </span>keep_const_population_upon_symmetric_division(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rng: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>Rng) {
-<a href=#261 id=261 data-nosnippet>261</a>        <span class="doccomment">//! If an symmetric division is performed, need to remove a random cell
-<a href=#262 id=262 data-nosnippet>262</a>        //! from the population.
-<a href=#263 id=263 data-nosnippet>263</a>        //! The cell having just proliferated can be removed as well, any cell
-<a href=#264 id=264 data-nosnippet>264</a>        //! can be removed.
-<a href=#265 id=265 data-nosnippet>265</a>        //!
-<a href=#266 id=266 data-nosnippet>266</a>        //! We proceed as following:
-<a href=#267 id=267 data-nosnippet>267</a>        //!     1. check if there is only one clone in the population, then
-<a href=#268 id=268 data-nosnippet>268</a>        //!     remove a cell from this clone
-<a href=#269 id=269 data-nosnippet>269</a>        //!     2. else, compute the variant counts
-<a href=#270 id=270 data-nosnippet>270</a>        //!     3. and sample from any clone based on the weights defined by
-<a href=#271 id=271 data-nosnippet>271</a>        //!     the variant counts
-<a href=#272 id=272 data-nosnippet>272</a>        </span><span class="macro">trace!</span>(<span class="string">"keeping the cell population constant"</span>);
-<a href=#273 id=273 data-nosnippet>273</a>        <span class="comment">// remove a cell from a random subclone based on the frequencies of
-<a href=#274 id=274 data-nosnippet>274</a>        // the clones at the current state
-<a href=#275 id=275 data-nosnippet>275</a>        </span><span class="kw">let </span>variants = Variants::variant_counts(<span class="kw-2">&amp;</span><span class="self">self</span>.subclones);
-<a href=#276 id=276 data-nosnippet>276</a>        <span class="kw">let </span>id2remove = WeightedIndex::new(variants).unwrap().sample(rng);
-<a href=#277 id=277 data-nosnippet>277</a>        <span class="kw">let _ </span>= <span class="self">self
-<a href=#278 id=278 data-nosnippet>278</a>            </span>.subclones
-<a href=#279 id=279 data-nosnippet>279</a>            .get_mut_clone_unchecked(id2remove)
-<a href=#280 id=280 data-nosnippet>280</a>            .random_cell(rng)
-<a href=#281 id=281 data-nosnippet>281</a>            .with_context(|| <span class="string">"found empty subclone"</span>)
-<a href=#282 id=282 data-nosnippet>282</a>            .unwrap();
-<a href=#283 id=283 data-nosnippet>283</a>        <span class="macro">trace!</span>(<span class="string">"removing one cell from clone {id2remove}"</span>);
-<a href=#284 id=284 data-nosnippet>284</a>    }
-<a href=#285 id=285 data-nosnippet>285</a>
-<a href=#286 id=286 data-nosnippet>286</a>    <span class="kw">pub fn </span>save(
-<a href=#287 id=287 data-nosnippet>287</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-<a href=#288 id=288 data-nosnippet>288</a>        time: f32,
-<a href=#289 id=289 data-nosnippet>289</a>        saving_cells: <span class="kw-2">&amp;</span>SavingCells,
-<a href=#290 id=290 data-nosnippet>290</a>        save_sfs_only: bool,
+<a href=#241 id=241 data-nosnippet>241</a>        stats: StatsConfig,
+<a href=#242 id=242 data-nosnippet>242</a>        distributions: Distributions,
+<a href=#243 id=243 data-nosnippet>243</a>        proliferation: Proliferation,
+<a href=#244 id=244 data-nosnippet>244</a>    ) -&gt; Moran {
+<a href=#245 id=245 data-nosnippet>245</a>        <span class="kw">let </span>hsc = Moran {
+<a href=#246 id=246 data-nosnippet>246</a>            subclones: initial_subclones,
+<a href=#247 id=247 data-nosnippet>247</a>            distributions,
+<a href=#248 id=248 data-nosnippet>248</a>            counter_divisions: <span class="number">0</span>,
+<a href=#249 id=249 data-nosnippet>249</a>            path2dir: process_options.path,
+<a href=#250 id=250 data-nosnippet>250</a>            time,
+<a href=#251 id=251 data-nosnippet>251</a>            snapshots: process_options.snapshots,
+<a href=#252 id=252 data-nosnippet>252</a>            filename: saving_options.filename,
+<a href=#253 id=253 data-nosnippet>253</a>            stats,
+<a href=#254 id=254 data-nosnippet>254</a>            save_population: saving_options.save_population,
+<a href=#255 id=255 data-nosnippet>255</a>            proliferation,
+<a href=#256 id=256 data-nosnippet>256</a>        };
+<a href=#257 id=257 data-nosnippet>257</a>        <span class="macro">debug!</span>(<span class="string">"process created: {hsc:#?}"</span>);
+<a href=#258 id=258 data-nosnippet>258</a>        hsc
+<a href=#259 id=259 data-nosnippet>259</a>    }
+<a href=#260 id=260 data-nosnippet>260</a>
+<a href=#261 id=261 data-nosnippet>261</a>    <span class="kw">fn </span>keep_const_population_upon_symmetric_division(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rng: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>Rng) {
+<a href=#262 id=262 data-nosnippet>262</a>        <span class="doccomment">//! If an symmetric division is performed, need to remove a random cell
+<a href=#263 id=263 data-nosnippet>263</a>        //! from the population.
+<a href=#264 id=264 data-nosnippet>264</a>        //! The cell having just proliferated can be removed as well, any cell
+<a href=#265 id=265 data-nosnippet>265</a>        //! can be removed.
+<a href=#266 id=266 data-nosnippet>266</a>        //!
+<a href=#267 id=267 data-nosnippet>267</a>        //! We proceed as following:
+<a href=#268 id=268 data-nosnippet>268</a>        //!     1. check if there is only one clone in the population, then
+<a href=#269 id=269 data-nosnippet>269</a>        //!     remove a cell from this clone
+<a href=#270 id=270 data-nosnippet>270</a>        //!     2. else, compute the variant counts
+<a href=#271 id=271 data-nosnippet>271</a>        //!     3. and sample from any clone based on the weights defined by
+<a href=#272 id=272 data-nosnippet>272</a>        //!     the variant counts
+<a href=#273 id=273 data-nosnippet>273</a>        </span><span class="macro">trace!</span>(<span class="string">"keeping the cell population constant"</span>);
+<a href=#274 id=274 data-nosnippet>274</a>        <span class="comment">// remove a cell from a random subclone based on the frequencies of
+<a href=#275 id=275 data-nosnippet>275</a>        // the clones at the current state
+<a href=#276 id=276 data-nosnippet>276</a>        </span><span class="kw">let </span>variants = Variants::variant_counts(<span class="kw-2">&amp;</span><span class="self">self</span>.subclones);
+<a href=#277 id=277 data-nosnippet>277</a>        <span class="kw">let </span>id2remove = WeightedIndex::new(variants).unwrap().sample(rng);
+<a href=#278 id=278 data-nosnippet>278</a>        <span class="kw">let _ </span>= <span class="self">self
+<a href=#279 id=279 data-nosnippet>279</a>            </span>.subclones
+<a href=#280 id=280 data-nosnippet>280</a>            .get_mut_clone_unchecked(id2remove)
+<a href=#281 id=281 data-nosnippet>281</a>            .random_cell(rng)
+<a href=#282 id=282 data-nosnippet>282</a>            .with_context(|| <span class="string">"found empty subclone"</span>)
+<a href=#283 id=283 data-nosnippet>283</a>            .unwrap();
+<a href=#284 id=284 data-nosnippet>284</a>        <span class="macro">trace!</span>(<span class="string">"removing one cell from clone {id2remove}"</span>);
+<a href=#285 id=285 data-nosnippet>285</a>    }
+<a href=#286 id=286 data-nosnippet>286</a>
+<a href=#287 id=287 data-nosnippet>287</a>    <span class="kw">pub fn </span>save(
+<a href=#288 id=288 data-nosnippet>288</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#289 id=289 data-nosnippet>289</a>        time: f32,
+<a href=#290 id=290 data-nosnippet>290</a>        saving_cells: <span class="kw-2">&amp;</span>SavingCells,
 <a href=#291 id=291 data-nosnippet>291</a>        rng: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>Rng,
 <a href=#292 id=292 data-nosnippet>292</a>    ) -&gt; anyhow::Result&lt;()&gt; {
 <a href=#293 id=293 data-nosnippet>293</a>        <span class="macro">info!</span>(<span class="string">"saving process at time {time}"</span>);
@@ -316,7 +316,7 @@
 <a href=#316 id=316 data-nosnippet>316</a>                <span class="kw-2">&amp;</span><span class="self">self</span>.filename,
 <a href=#317 id=317 data-nosnippet>317</a>                time,
 <a href=#318 id=318 data-nosnippet>318</a>                population,
-<a href=#319 id=319 data-nosnippet>319</a>                save_sfs_only,
+<a href=#319 id=319 data-nosnippet>319</a>                <span class="kw-2">&amp;</span><span class="self">self</span>.stats,
 <a href=#320 id=320 data-nosnippet>320</a>            )
 <a href=#321 id=321 data-nosnippet>321</a>            .with_context(|| <span class="string">"cannot save the full population"</span>)
 <a href=#322 id=322 data-nosnippet>322</a>            .unwrap(),
@@ -330,7 +330,7 @@
 <a href=#330 id=330 data-nosnippet>330</a>                        <span class="kw-2">&amp;</span><span class="self">self</span>.filename,
 <a href=#331 id=331 data-nosnippet>331</a>                        time,
 <a href=#332 id=332 data-nosnippet>332</a>                        population,
-<a href=#333 id=333 data-nosnippet>333</a>                        save_sfs_only,
+<a href=#333 id=333 data-nosnippet>333</a>                        <span class="kw-2">&amp;</span><span class="self">self</span>.stats,
 <a href=#334 id=334 data-nosnippet>334</a>                    )
 <a href=#335 id=335 data-nosnippet>335</a>                    .with_context(|| <span class="string">"cannot save the full population"</span>)
 <a href=#336 id=336 data-nosnippet>336</a>                    .unwrap();
@@ -344,7 +344,7 @@
 <a href=#344 id=344 data-nosnippet>344</a>                    <span class="kw-2">&amp;</span><span class="self">self</span>.filename,
 <a href=#345 id=345 data-nosnippet>345</a>                    time,
 <a href=#346 id=346 data-nosnippet>346</a>                    cells_with_idx,
-<a href=#347 id=347 data-nosnippet>347</a>                    save_sfs_only,
+<a href=#347 id=347 data-nosnippet>347</a>                    <span class="kw-2">&amp;</span><span class="self">self</span>.stats,
 <a href=#348 id=348 data-nosnippet>348</a>                )
 <a href=#349 id=349 data-nosnippet>349</a>                .with_context(|| <span class="string">"cannot save the subsample"</span>)
 <a href=#350 id=350 data-nosnippet>350</a>                .unwrap();
@@ -395,7 +395,7 @@
 <a href=#395 id=395 data-nosnippet>395</a>                        population_as_well: <span class="self">self</span>.save_population,
 <a href=#396 id=396 data-nosnippet>396</a>                    }
 <a href=#397 id=397 data-nosnippet>397</a>                };
-<a href=#398 id=398 data-nosnippet>398</a>            <span class="self">self</span>.save(<span class="self">self</span>.time, <span class="kw-2">&amp;</span>saving_cells, <span class="self">self</span>.save_sfs_only, rng)
+<a href=#398 id=398 data-nosnippet>398</a>            <span class="self">self</span>.save(<span class="self">self</span>.time, <span class="kw-2">&amp;</span>saving_cells, rng)
 <a href=#399 id=399 data-nosnippet>399</a>                .expect(<span class="string">"cannot save snapshot"</span>);
 <a href=#400 id=400 data-nosnippet>400</a>        }
 <a href=#401 id=401 data-nosnippet>401</a>
@@ -472,9 +472,9 @@
 <a href=#472 id=472 data-nosnippet>472</a>            <span class="number">0f32</span>,
 <a href=#473 id=473 data-nosnippet>473</a>            SavingOptions {
 <a href=#474 id=474 data-nosnippet>474</a>                filename: PathBuf::default(),
-<a href=#475 id=475 data-nosnippet>475</a>                save_sfs_only: <span class="bool-val">true</span>,
-<a href=#476 id=476 data-nosnippet>476</a>                save_population: <span class="bool-val">true</span>,
-<a href=#477 id=477 data-nosnippet>477</a>            },
+<a href=#475 id=475 data-nosnippet>475</a>                save_population: <span class="bool-val">true</span>,
+<a href=#476 id=476 data-nosnippet>476</a>            },
+<a href=#477 id=477 data-nosnippet>477</a>            StatsConfig::default(),
 <a href=#478 id=478 data-nosnippet>478</a>            Distributions::new(Probs::new(<span class="number">1.</span>, <span class="number">1.</span>, mu, <span class="number">1.</span>, cells.get())),
 <a href=#479 id=479 data-nosnippet>479</a>            Proliferation::default(),
 <a href=#480 id=480 data-nosnippet>480</a>        )
@@ -652,7 +652,7 @@
 <a href=#652 id=652 data-nosnippet>652</a>            ProcessOptions::default(),
 <a href=#653 id=653 data-nosnippet>653</a>            Distributions::default(),
 <a href=#654 id=654 data-nosnippet>654</a>            PathBuf::default(),
-<a href=#655 id=655 data-nosnippet>655</a>            <span class="bool-val">false</span>,
+<a href=#655 id=655 data-nosnippet>655</a>            StatsConfig::default(),
 <a href=#656 id=656 data-nosnippet>656</a>            <span class="bool-val">false</span>,
 <a href=#657 id=657 data-nosnippet>657</a>            rng,
 <a href=#658 id=658 data-nosnippet>658</a>        );
@@ -674,7 +674,7 @@
 <a href=#674 id=674 data-nosnippet>674</a>            ProcessOptions::default(),
 <a href=#675 id=675 data-nosnippet>675</a>            Distributions::default(),
 <a href=#676 id=676 data-nosnippet>676</a>            PathBuf::default(),
-<a href=#677 id=677 data-nosnippet>677</a>            <span class="bool-val">false</span>,
+<a href=#677 id=677 data-nosnippet>677</a>            StatsConfig::default(),
 <a href=#678 id=678 data-nosnippet>678</a>            <span class="bool-val">false</span>,
 <a href=#679 id=679 data-nosnippet>679</a>            rng,
 <a href=#680 id=680 data-nosnippet>680</a>        );

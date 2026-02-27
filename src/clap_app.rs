@@ -1,8 +1,8 @@
 use anyhow::{bail, ensure};
-use clap::{ArgAction, Args, Parser, Subcommand};
+use clap::{ArgAction, Args, Parser, Subcommand, ValueEnum};
 use hsc::{
     process::ProcessOptions,
-    snapshots::Snapshot,
+    snapshots::{Snapshot, Stats2Save, StatsConfigBuilder},
     subclone::{from_mean_std_to_shape_scale, Fitness},
     ProbsPerYear,
 };
@@ -19,6 +19,25 @@ pub enum Parallel {
     False,
     True,
     Debug,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum Stats {
+    Sfs,
+    Burden,
+    ScBurden,
+    Variants,
+}
+
+impl From<Stats> for Stats2Save {
+    fn from(value: Stats) -> Self {
+        match value {
+            Stats::Burden => Stats2Save::Burden,
+            Stats::Sfs => Stats2Save::Sfs,
+            Stats::ScBurden => Stats2Save::SingleCellMutations,
+            Stats::Variants => Stats2Save::VariantFraction,
+        }
+    }
 }
 
 #[derive(Args, Debug, Clone)]
@@ -142,9 +161,9 @@ pub struct Cli {
     /// Save the whole population
     #[arg(long, action = ArgAction::SetTrue, default_value_t = false)]
     save_population: bool,
-    /// Save only the SFS (when you dont want too many files to be saved)
-    #[arg(long, action = ArgAction::SetTrue, default_value_t = false)]
-    save_sfs_only: bool,
+    /// Statistics to save
+    #[arg(long, value_enum, value_delimiter = ',', default_values_t = [Stats::Sfs])]
+    stats: Vec<Stats>,
     /// Triggers debug mode: 1 sequential simulation, 10 cells, 20 iterations
     /// with high mutation rate
     #[arg(short, long, action = ArgAction::SetTrue, default_value_t = false)]
@@ -207,6 +226,10 @@ impl Cli {
 
     pub fn build() -> anyhow::Result<AppOptions> {
         let cli = Cli::parse();
+
+        let stats = StatsConfigBuilder::default()
+            .stats(cli.stats.into_iter().map(Into::into))
+            .build()?;
 
         let (parallel, runs) = if cli.debug {
             (Parallel::Debug, 1)
@@ -366,7 +389,7 @@ impl Cli {
                 let options_moran = SimulationOptionsMoran {
                     process_options,
                     gillespie_options,
-                    save_sfs_only: cli.save_sfs_only,
+                    stats,
                     save_population: cli.save_population,
                     tau: moran.tau,
                     probs_per_year: ProbsPerYear {
@@ -382,7 +405,7 @@ impl Cli {
                 let options_moran = SimulationOptionsMoran {
                     process_options,
                     gillespie_options,
-                    save_sfs_only: cli.save_sfs_only,
+                    stats,
                     save_population: cli.save_population,
                     tau: exp_moran.moran.tau,
                     probs_per_year: ProbsPerYear {

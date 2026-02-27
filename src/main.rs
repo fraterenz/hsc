@@ -4,7 +4,7 @@ use clap_app::Parallel;
 use hsc::{
     process::{switch_to_moran, Exponential, Moran, ProcessOptions},
     proliferation::{Division, NeutralMutations, Proliferation},
-    snapshots::{SavingCells, SavingOptions, Snapshot},
+    snapshots::{SavingCells, SavingOptions, Snapshot, StatsConfig},
     stemcell::StemCell,
     subclone::{Distributions, Fitness, SubClones, Variants},
     write2file, Probs, ProbsPerYear,
@@ -41,7 +41,7 @@ pub struct SimulationOptionsMoran {
     probs_per_year: ProbsPerYear,
     process_options: ProcessOptions,
     gillespie_options: GillespieOptions,
-    save_sfs_only: bool,
+    stats: StatsConfig,
     save_population: bool,
     asymmetric: f32,
 }
@@ -80,6 +80,7 @@ fn main() {
     let run_simulations = |idx| {
         let rng = &mut ChaCha8Rng::seed_from_u64(app.seed);
         rng.set_stream(idx as u64);
+
         let options_moran_gillespie = match &app.options_moran.gillespie_options {
             GillespieOptions::Treatment(op) => &op.before_treatment,
             GillespieOptions::NoTreatment(op) => op,
@@ -180,17 +181,12 @@ fn main() {
                 },
                 moran_distributions,
                 filename.clone(),
-                app.options_moran.save_sfs_only,
+                app.options_moran.stats,
                 app.options_moran.save_population,
                 rng,
             );
             moran
-                .save(
-                    moran.time,
-                    &SavingCells::WholePopulation,
-                    moran.save_sfs_only,
-                    rng,
-                )
+                .save(moran.time, &SavingCells::WholePopulation, rng)
                 .expect("cannot save simulation at the end of the exponential phase");
             moran
         } else {
@@ -215,9 +211,9 @@ fn main() {
                 0.,
                 SavingOptions {
                     filename: filename.clone(),
-                    save_sfs_only: app.options_moran.save_sfs_only,
                     save_population: app.options_moran.save_population,
                 },
+                app.options_moran.stats,
                 moran_distributions,
                 proliferation,
             )
@@ -233,12 +229,7 @@ fn main() {
             rng,
         );
         moran
-            .save(
-                moran.time,
-                &SavingCells::WholePopulation,
-                moran.save_sfs_only,
-                rng,
-            )
+            .save(moran.time, &SavingCells::WholePopulation, rng)
             .unwrap();
 
         // treatment
@@ -291,7 +282,7 @@ fn main() {
                 },
                 moran_distributions,
                 filename,
-                app.options_moran.save_sfs_only,
+                app.options_moran.stats,
                 app.options_moran.save_population,
                 rng,
             );
@@ -318,12 +309,7 @@ fn main() {
                 stop, moran.time
             );
             moran
-                .save(
-                    moran.time,
-                    &SavingCells::WholePopulation,
-                    moran.save_sfs_only,
-                    rng,
-                )
+                .save(moran.time, &SavingCells::WholePopulation, rng)
                 .unwrap();
             (moran, stop)
         } else {

@@ -1,5 +1,5 @@
 use crate::proliferation::{NeutralMutations, Proliferation};
-use crate::snapshots::{save_it, SavingCells, SavingOptions, Snapshot};
+use crate::snapshots::{save_it, SavingCells, SavingOptions, Snapshot, StatsConfig};
 use crate::stemcell::assign_background_mutations;
 use crate::subclone::{CloneId, Distributions, SubClones, Variants};
 use crate::{MAX_SUBCLONES, TIME_AT_BIRTH};
@@ -40,7 +40,7 @@ pub fn switch_to_moran(
     process_options: ProcessOptions,
     distributions: Distributions,
     filename: PathBuf,
-    save_sfs_only: bool,
+    stats: StatsConfig,
     save_population: bool,
     rng: &mut impl Rng,
 ) -> Moran {
@@ -92,7 +92,7 @@ pub fn switch_to_moran(
         path2dir: process_options.path,
         filename,
         distributions,
-        save_sfs_only,
+        stats,
         save_population,
         proliferation: exponential.proliferation,
     }
@@ -203,9 +203,9 @@ pub struct Moran {
     pub distributions: Distributions,
     pub snapshots: VecDeque<Snapshot>,
     pub filename: PathBuf,
-    pub save_sfs_only: bool,
     pub save_population: bool,
     pub proliferation: Proliferation,
+    pub stats: StatsConfig,
 }
 
 impl Default for Moran {
@@ -221,9 +221,9 @@ impl Default for Moran {
             0.,
             SavingOptions {
                 filename: PathBuf::default(),
-                save_sfs_only: false,
                 save_population: true,
             },
+            StatsConfig::default(),
             Distributions::default(),
             Proliferation::default(),
         )
@@ -238,6 +238,7 @@ impl Moran {
         initial_subclones: SubClones,
         time: f32,
         saving_options: SavingOptions,
+        stats: StatsConfig,
         distributions: Distributions,
         proliferation: Proliferation,
     ) -> Moran {
@@ -249,7 +250,7 @@ impl Moran {
             time,
             snapshots: process_options.snapshots,
             filename: saving_options.filename,
-            save_sfs_only: saving_options.save_sfs_only,
+            stats,
             save_population: saving_options.save_population,
             proliferation,
         };
@@ -287,7 +288,6 @@ impl Moran {
         &mut self,
         time: f32,
         saving_cells: &SavingCells,
-        save_sfs_only: bool,
         rng: &mut impl Rng,
     ) -> anyhow::Result<()> {
         info!("saving process at time {time}");
@@ -316,7 +316,7 @@ impl Moran {
                 &self.filename,
                 time,
                 population,
-                save_sfs_only,
+                &self.stats,
             )
             .with_context(|| "cannot save the full population")
             .unwrap(),
@@ -330,7 +330,7 @@ impl Moran {
                         &self.filename,
                         time,
                         population,
-                        save_sfs_only,
+                        &self.stats,
                     )
                     .with_context(|| "cannot save the full population")
                     .unwrap();
@@ -344,7 +344,7 @@ impl Moran {
                     &self.filename,
                     time,
                     cells_with_idx,
-                    save_sfs_only,
+                    &self.stats,
                 )
                 .with_context(|| "cannot save the subsample")
                 .unwrap();
@@ -395,7 +395,7 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
                         population_as_well: self.save_population,
                     }
                 };
-            self.save(self.time, &saving_cells, self.save_sfs_only, rng)
+            self.save(self.time, &saving_cells, rng)
                 .expect("cannot save snapshot");
         }
 
@@ -472,9 +472,9 @@ mod tests {
             0f32,
             SavingOptions {
                 filename: PathBuf::default(),
-                save_sfs_only: true,
                 save_population: true,
             },
+            StatsConfig::default(),
             Distributions::new(Probs::new(1., 1., mu, 1., cells.get())),
             Proliferation::default(),
         )
@@ -652,7 +652,7 @@ mod tests {
             ProcessOptions::default(),
             Distributions::default(),
             PathBuf::default(),
-            false,
+            StatsConfig::default(),
             false,
             rng,
         );
@@ -674,7 +674,7 @@ mod tests {
             ProcessOptions::default(),
             Distributions::default(),
             PathBuf::default(),
-            false,
+            StatsConfig::default(),
             false,
             rng,
         );

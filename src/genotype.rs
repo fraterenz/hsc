@@ -202,22 +202,25 @@ impl Sfs {
         debug!("computing the SFS from {} cells", cells.len());
         trace!("computing the SFS from {:#?}", &cells);
 
-        let sfs_variants = Sfs::from_sc_mutations(cells).0;
+        Ok(Sfs::from_sc_muts(
+            &SingleCellMutations::from_cells(cells).unwrap(),
+        ))
+    }
 
+    pub fn from_sc_mutations(sc_mutations: &SingleCellMutations) -> anyhow::Result<Self> {
+        Ok(Sfs::from_sc_muts(sc_mutations))
+    }
+
+    fn from_sc_muts(sc_mutations: &SingleCellMutations) -> Self {
         let mut sfs = FxHashMap::default();
-        for nb_cells in sfs_variants.values() {
+        for nb_cells in sc_mutations.0.values() {
             sfs.entry(*nb_cells)
                 .and_modify(|counter| *counter += 1)
                 .or_insert(1u64);
         }
 
         debug!("sfs: {sfs:#?}");
-        Ok(Sfs(sfs))
-    }
-
-    fn from_sc_mutations(cells: &[&StemCell]) -> SingleCellMutations {
-        // wont fail for now
-        SingleCellMutations::from_cells(cells).unwrap()
+        Sfs(sfs)
     }
 
     pub fn save(&self, path2file: &Path, time: f32) -> anyhow::Result<()> {
