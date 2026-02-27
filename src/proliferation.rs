@@ -1,4 +1,5 @@
 use anyhow::Context;
+use log::{debug, trace};
 use rand::Rng;
 use rand_distr::{Bernoulli, Distribution};
 
@@ -61,7 +62,6 @@ impl Proliferation {
         proliferating_subclone: CloneId,
         distributions: &Distributions,
         rng: &mut impl Rng,
-        verbosity: u8,
     ) {
         //! Sample a random cell from the subclones with id
         //! `proliferating_subclone`, assign neutral mutations (background and
@@ -73,39 +73,27 @@ impl Proliferation {
         //!    new **empty** random clone with an id different from `old_subclone_id`
         //!    and panics if there aren't any empty subclones left
         //! 2. else, reassign `cell` to the old subclone with id `old_subclone_id`
-        let mut stem_cell = proliferating_cell(subclones, proliferating_subclone, verbosity, rng);
+        let mut stem_cell = proliferating_cell(subclones, proliferating_subclone, rng);
         let p = (distributions.u
             * stem_cell
                 .interdivision_time(time)
                 .with_context(|| "wrong interdivision time")
                 .unwrap()) as f64;
         // the fit variant is sampled here
-        let clone_id = next_clone(subclones, proliferating_subclone, p, rng, verbosity);
-        if verbosity > 1 {
-            println!("proliferation at time {time}");
-            println!(
-                "cell with last division time {} is dividing",
-                stem_cell.get_last_division_time()
-            );
-            if verbosity > 2 {
-                println!("cell {stem_cell:#?} is dividing");
-            }
-        }
+        let clone_id = next_clone(subclones, proliferating_subclone, p, rng);
+        debug!("proliferation at time {time}");
+        debug!(
+            "cell with last division time {} is dividing",
+            stem_cell.get_last_division_time()
+        );
+        trace!("cell {stem_cell:#?} is dividing");
         if let NeutralMutations::UponDivisionAndBackground = self.neutral_mutation {
-            assign_background_mutations(
-                &mut stem_cell,
-                time,
-                &distributions.neutral_poisson,
-                rng,
-                verbosity,
-            );
+            assign_background_mutations(&mut stem_cell, time, &distributions.neutral_poisson, rng);
         }
         let cells = match self.division {
             Division::Asymmetric(prob) => {
                 if prob.sample(rng) {
-                    if verbosity > 1 {
-                        println!("asymmetric division");
-                    }
+                    debug!("asymmetric division");
                     vec![stem_cell]
                 } else {
                     vec![stem_cell.clone(), stem_cell]
@@ -114,12 +102,7 @@ impl Proliferation {
             Division::Symmetric => vec![stem_cell.clone(), stem_cell],
         };
         for mut stem_cell in cells {
-            assign_divisional_mutations(
-                &mut stem_cell,
-                &distributions.neutral_poisson,
-                rng,
-                verbosity,
-            );
+            assign_divisional_mutations(&mut stem_cell, &distributions.neutral_poisson, rng);
             stem_cell
                 .set_last_division_time(time)
                 .with_context(|| "wrong time")

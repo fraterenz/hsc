@@ -1,4 +1,5 @@
 use anyhow::{ensure, Context};
+use log::{debug, trace};
 use rand::Rng;
 
 use crate::genotype::{Mutation, NeutralMutationPoisson};
@@ -75,16 +76,13 @@ pub fn assign_divisional_mutations(
     stem_cell: &mut StemCell,
     neutral_poisson: &NeutralMutationPoisson,
     rng: &mut impl Rng,
-    verbosity: u8,
 ) {
     let mutations = neutral_poisson.new_muts_upon_division(rng);
     if let Some(mutations) = mutations {
-        if verbosity > 2 {
-            println!("assigning {mutations:#?} to cell {stem_cell:#?}");
-        }
+        trace!("assigning {mutations:#?} to cell {stem_cell:#?}");
         mutate(stem_cell, mutations);
-    } else if verbosity > 2 {
-        println!("no mutations to assign to cell {stem_cell:#?}");
+    } else {
+        trace!("no mutations to assign to cell {stem_cell:#?}");
     }
 }
 
@@ -93,7 +91,6 @@ pub fn assign_background_mutations(
     time: f32,
     neutral_poisson: &NeutralMutationPoisson,
     rng: &mut impl Rng,
-    verbosity: u8,
 ) {
     //! Assign background mutations to all cells in the system based on the
     //! current simulation time.
@@ -103,19 +100,14 @@ pub fn assign_background_mutations(
         .interdivision_time(time)
         .with_context(|| "wrong interdivision time")
         .unwrap();
-    if verbosity > 1 {
-        println!("assigning background mutations with interdivision time {interdivison_time}");
-    }
+    debug!("assigning background mutations with interdivision time {interdivison_time}");
     // 2. draw background mutations and assign them to `c`
-    if let Some(background) = neutral_poisson.new_muts_background(interdivison_time, rng, verbosity)
-    {
-        if verbosity > 2 {
-            println!(
-                "assigning {} background mutations to cell {:#?}",
-                background.len(),
-                stem_cell
-            )
-        }
+    if let Some(background) = neutral_poisson.new_muts_background(interdivison_time, rng) {
+        trace!(
+            "assigning {} background mutations to cell {:#?}",
+            background.len(),
+            stem_cell
+        );
         mutate(stem_cell, background);
     }
 }
@@ -158,7 +150,7 @@ mod tests {
         let mut stem_cell = StemCell::with_mutations(mutations.clone());
         let poissons = NeutralMutationPoisson::new(1.1, 12f32).unwrap();
 
-        assign_background_mutations(&mut stem_cell, time, &poissons, rng, 0);
+        assign_background_mutations(&mut stem_cell, time, &poissons, rng);
         mutations != stem_cell.mutations && mutations.len() < stem_cell.mutations.len()
     }
 

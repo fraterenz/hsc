@@ -17,6 +17,7 @@ use std::{
 };
 
 use anyhow::Context;
+use log::info;
 
 /// The neutral mutations representing the genotype of the stem cells.
 pub mod genotype;
@@ -78,7 +79,6 @@ impl Probs {
         mu: f32,
         asymmetric: f32,
         cells: u64,
-        verbosity: u8,
     ) -> Probs {
         //! ## Panics
         //! Panics when `mu` is greater than `cells` or when asymmetric is not
@@ -99,9 +99,7 @@ impl Probs {
         } else {
             Probs::Symmetric { u, probs_per_year }
         };
-        if verbosity > 0 {
-            println!("probs {probs:#?}");
-        }
+        info!("probs {probs:#?}");
         assert!((0f32..1.).contains(&u), "Invalid u: u>=0 and u<1");
         assert!(
             (0f32..=1.).contains(&asymmetric),
@@ -173,42 +171,42 @@ mod tests {
     #[test]
     #[should_panic]
     fn panic_asymmetric_neg_cells_test() {
-        Probs::new(1.1, 1.1, 0.1, -0.1, 10, 0);
+        Probs::new(1.1, 1.1, 0.1, -0.1, 10);
     }
 
     #[test]
     #[should_panic]
     fn panic_asymmetric_inf_cells_test() {
-        Probs::new(1.1, 1.1, 0.1, f32::INFINITY, 10, 0);
+        Probs::new(1.1, 1.1, 0.1, f32::INFINITY, 10);
     }
 
     #[test]
     #[should_panic]
     fn panic_asymmetric_nan_cells_test() {
-        Probs::new(1.1, 1.1, 0.1, f32::NAN, 10, 0);
+        Probs::new(1.1, 1.1, 0.1, f32::NAN, 10);
     }
 
     #[test]
     #[should_panic]
     fn panic_mu_gr_cells_test() {
-        Probs::new(1.1, 1.1, 12., 0., 10, 0);
+        Probs::new(1.1, 1.1, 12., 0., 10);
     }
 
     #[test]
     #[should_panic]
     fn panic_mu_neg_cells_test() {
-        Probs::new(1.1, 1.1, -0.1, 0., 10, 0);
+        Probs::new(1.1, 1.1, -0.1, 0., 10);
     }
 
     #[test]
     #[should_panic]
     fn panic_mu_inf_cells_test() {
-        Probs::new(1.1, 1.1, f32::INFINITY, 0., 10, 0);
+        Probs::new(1.1, 1.1, f32::INFINITY, 0., 10);
     }
 
     #[test]
     #[should_panic]
     fn panic_mu_nan_cells_test() {
-        Probs::new(1.1, 1.1, f32::NAN, 0., 10, 0);
+        Probs::new(1.1, 1.1, f32::NAN, 0., 10);
     }
 }

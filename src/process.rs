@@ -4,6 +4,7 @@ use crate::stemcell::assign_background_mutations;
 use crate::subclone::{CloneId, Distributions, SubClones, Variants};
 use crate::{MAX_SUBCLONES, TIME_AT_BIRTH};
 use anyhow::Context;
+use log::{debug, info, trace};
 use rand::Rng;
 use rand_distr::weighted::WeightedIndex;
 use rand_distr::Distribution;
@@ -50,9 +51,7 @@ pub fn switch_to_moran(
     //! since stem cells stop dividing exponentially before birth.
     //! We add background mutations in this interval of time between the
     //! end of the exponentially growing phase and the Moran process.
-    if exponential.verbosity > 0 {
-        println!("switching to Moran at time {}", exponential.time);
-    }
+    info!("switching to Moran at time {}", exponential.time);
     let (current_time, time_to_restart) = match exponential.phase {
         ExponentialPhase::Development => (TIME_AT_BIRTH, 0f32),
         ExponentialPhase::Regrowth => (exponential.time, exponential.time),
@@ -69,9 +68,7 @@ pub fn switch_to_moran(
         // Moreover there is delay between the end of the exp. growing phase
         // and birth, hence we use `TIME_AT_BIRTH`. But this is true only for
         // the Development phase.
-        if exponential.verbosity > 0 {
-            println!("updating the neutral background mutations for all cells");
-        }
+        info!("updating the neutral background mutations for all cells");
         // assign missing mutations
         for stem_cell in exponential.subclones.get_mut_cells() {
             if stem_cell.get_last_division_time() < &current_time {
@@ -80,7 +77,6 @@ pub fn switch_to_moran(
                     current_time,
                     &exponential.distributions.neutral_poisson,
                     rng,
-                    exponential.verbosity,
                 );
             }
             // restarting the time within cells
@@ -94,7 +90,6 @@ pub fn switch_to_moran(
         time: time_to_restart,
         snapshots: process_options.snapshots,
         path2dir: process_options.path,
-        verbosity: exponential.verbosity,
         filename,
         distributions,
         save_sfs_only,
@@ -110,7 +105,6 @@ pub struct Exponential {
     pub subclones: SubClones,
     /// The counter for the number of proliferative events.
     pub counter_divisions: usize,
-    pub verbosity: u8,
     pub distributions: Distributions,
     pub proliferation: Proliferation,
     pub time: f32,
@@ -124,20 +118,16 @@ impl Exponential {
         proliferation: Proliferation,
         time: f32,
         phase: ExponentialPhase,
-        verbosity: u8,
     ) -> Exponential {
         let hsc = Exponential {
             subclones: initial_subclones,
             distributions,
             counter_divisions: 0,
             proliferation,
-            verbosity,
             phase,
             time,
         };
-        if verbosity > 1 {
-            println!("process created: {hsc:#?}");
-        }
+        debug!("process created: {hsc:#?}");
         hsc
     }
 }
@@ -156,7 +146,6 @@ impl From<Moran> for Exponential {
             value.proliferation,
             value.time,
             ExponentialPhase::Regrowth,
-            value.verbosity,
         )
     }
 }
@@ -192,7 +181,6 @@ impl AdvanceStep<MAX_SUBCLONES> for Exponential {
             reaction.event,
             &self.distributions,
             rng,
-            self.verbosity,
         );
     }
 
@@ -212,7 +200,6 @@ pub struct Moran {
     pub counter_divisions: usize,
     pub time: f32,
     pub path2dir: PathBuf,
-    pub verbosity: u8,
     pub distributions: Distributions,
     pub snapshots: VecDeque<Snapshot>,
     pub filename: PathBuf,
@@ -239,7 +226,6 @@ impl Default for Moran {
             },
             Distributions::default(),
             Proliferation::default(),
-            1,
         )
     }
 }
@@ -254,7 +240,6 @@ impl Moran {
         saving_options: SavingOptions,
         distributions: Distributions,
         proliferation: Proliferation,
-        verbosity: u8,
     ) -> Moran {
         let hsc = Moran {
             subclones: initial_subclones,
@@ -264,14 +249,11 @@ impl Moran {
             time,
             snapshots: process_options.snapshots,
             filename: saving_options.filename,
-            verbosity,
             save_sfs_only: saving_options.save_sfs_only,
             save_population: saving_options.save_population,
             proliferation,
         };
-        if verbosity > 1 {
-            println!("process created: {hsc:#?}");
-        }
+        debug!("process created: {hsc:#?}");
         hsc
     }
 
@@ -287,9 +269,7 @@ impl Moran {
         //!     2. else, compute the variant counts
         //!     3. and sample from any clone based on the weights defined by
         //!     the variant counts
-        if self.verbosity > 2 {
-            println!("keeping the cell population constant");
-        }
+        trace!("keeping the cell population constant");
         // remove a cell from a random subclone based on the frequencies of
         // the clones at the current state
         let variants = Variants::variant_counts(&self.subclones);
@@ -300,9 +280,7 @@ impl Moran {
             .random_cell(rng)
             .with_context(|| "found empty subclone")
             .unwrap();
-        if self.verbosity > 2 {
-            println!("removing one cell from clone {id2remove}");
-        }
+        trace!("removing one cell from clone {id2remove}");
     }
 
     pub fn save(
@@ -312,9 +290,7 @@ impl Moran {
         save_sfs_only: bool,
         rng: &mut impl Rng,
     ) -> anyhow::Result<()> {
-        if self.verbosity > 0 {
-            println!("saving process at time {time}");
-        }
+        info!("saving process at time {time}");
         if let NeutralMutations::UponDivisionAndBackground = self.proliferation.neutral_mutation {
             // this is important: we update all background mutations at this
             // time such that all cells are all on the same page.
@@ -322,23 +298,18 @@ impl Moran {
             // cells do not proliferate at the same rate, we need to correct and
             // update the background mutations at the timepoint corresponding
             // to sampling step, i.e. before saving.
-            if self.verbosity > 0 {
-                println!("updating the neutral background mutations for all cells");
-            }
+            info!("updating the neutral background mutations for all cells");
             for stem_cell in self.subclones.get_mut_cells() {
                 assign_background_mutations(
                     stem_cell,
                     self.time,
                     &self.distributions.neutral_poisson,
                     rng,
-                    self.verbosity,
                 );
             }
         }
         let population = self.subclones.get_cells_with_clones_idx();
-        if self.verbosity > 0 {
-            println!("saving {saving_cells:#?}");
-        }
+        info!("saving {saving_cells:#?}");
         match saving_cells {
             SavingCells::WholePopulation => save_it(
                 &self.path2dir,
@@ -346,7 +317,6 @@ impl Moran {
                 time,
                 population,
                 save_sfs_only,
-                self.verbosity,
             )
             .with_context(|| "cannot save the full population")
             .unwrap(),
@@ -361,7 +331,6 @@ impl Moran {
                         time,
                         population,
                         save_sfs_only,
-                        self.verbosity,
                     )
                     .with_context(|| "cannot save the full population")
                     .unwrap();
@@ -376,7 +345,6 @@ impl Moran {
                     time,
                     cells_with_idx,
                     save_sfs_only,
-                    self.verbosity,
                 )
                 .with_context(|| "cannot save the subsample")
                 .unwrap();
@@ -390,9 +358,7 @@ impl Moran {
         //! process using [`choose_multiple`](https://docs.rs/rand/latest/rand/seq/trait.IndexedRandom.html#method.choose_multiple).
         let mut moran: Moran = self;
         moran.subclones = moran.subclones.into_subsampled(nb_cells, rng);
-        if moran.verbosity > 0 {
-            println!("Subsampled {} cells", moran.subclones.get_cells().len())
-        }
+        info!("Subsampled {} cells", moran.subclones.get_cells().len());
 
         moran
     }
@@ -416,12 +382,10 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
         // take snapshot
         while !self.snapshots.is_empty() && self.snapshots.iter().any(|s| self.time >= s.time) {
             let snapshot = self.snapshots.pop_front().unwrap();
-            if self.verbosity > 0 {
-                println!(
+            info!(
                     "saving state for timepoint at simulation's time {} for timepoint at {:#?} with {} cells",
                     self.time, snapshot.time, snapshot.cells2sample
                 );
-            }
             let saving_cells =
                 if snapshot.cells2sample == self.subclones.compute_tot_cells() as usize {
                     SavingCells::WholePopulation
@@ -448,15 +412,12 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
             reaction.event,
             &self.distributions,
             rng,
-            self.verbosity,
         );
 
         // remove a cell from the population
         self.keep_const_population_upon_symmetric_division(rng);
 
-        if self.verbosity > 2 {
-            println!("{} cells", self.subclones.compute_tot_cells());
-        }
+        trace!("{} cells", self.subclones.compute_tot_cells());
     }
 
     fn update_state(&self, state: &mut CurrentState<MAX_SUBCLONES>) {
@@ -507,16 +468,15 @@ mod tests {
                 path: PathBuf::default(),
                 snapshots: VecDeque::default(),
             },
-            SubClones::new(vec![StemCell::new(); cells.get() as usize], 3, 0),
+            SubClones::new(vec![StemCell::new(); cells.get() as usize], 3),
             0f32,
             SavingOptions {
                 filename: PathBuf::default(),
                 save_sfs_only: true,
                 save_population: true,
             },
-            Distributions::new(Probs::new(1., 1., mu, 1., cells.get(), 0), 0),
+            Distributions::new(Probs::new(1., 1., mu, 1., cells.get())),
             Proliferation::default(),
-            0,
         )
     }
 
@@ -540,7 +500,7 @@ mod tests {
             time: 12.2,
             event: 0,
         };
-        let burden_before = genotype::MutationalBurden::from_moran(&moran.process, 0).unwrap();
+        let burden_before = genotype::MutationalBurden::from_moran(&moran.process).unwrap();
         assert_pop_const(&moran.process, moran.tot_cells);
         assert_all_cells_in_wild_type(&moran.process, moran.tot_cells);
         let rng = &mut ChaCha8Rng::seed_from_u64(seed);
@@ -549,7 +509,7 @@ mod tests {
 
         assert_pop_const(&moran.process, moran.tot_cells);
         assert_all_cells_in_wild_type(&moran.process, moran.tot_cells);
-        let burden_after = genotype::MutationalBurden::from_moran(&moran.process, 0).unwrap();
+        let burden_after = genotype::MutationalBurden::from_moran(&moran.process).unwrap();
         assert!(burden_before.0.keys().sum::<u16>() < burden_after.0.keys().sum::<u16>());
     }
 
@@ -567,7 +527,7 @@ mod tests {
                 event: 0,
             }
         };
-        let burden_before = genotype::MutationalBurden::from_moran(&moran.process, 0).unwrap();
+        let burden_before = genotype::MutationalBurden::from_moran(&moran.process).unwrap();
         assert_pop_const(&moran.process, moran.tot_cells);
         assert_all_cells_in_wild_type(&moran.process, moran.tot_cells);
         let rng = &mut ChaCha8Rng::seed_from_u64(seed);
@@ -578,7 +538,7 @@ mod tests {
         if new_clone {
             assert_not_all_cells_in_wild_type(&moran.process, moran.tot_cells);
         }
-        let burden_after = genotype::MutationalBurden::from_moran(&moran.process, 0).unwrap();
+        let burden_after = genotype::MutationalBurden::from_moran(&moran.process).unwrap();
         assert!(burden_before.0.keys().sum::<u16>() <= burden_after.0.keys().sum::<u16>());
     }
 
@@ -614,12 +574,11 @@ mod tests {
             ExponentialPhase::Development
         };
         Exponential::new(
-            SubClones::new(vec![StemCell::new(); cells.get() as usize], 3, 0),
-            Distributions::new(Probs::new(10., 1., mu, 1., cells.get(), 0), 0),
+            SubClones::new(vec![StemCell::new(); cells.get() as usize], 3),
+            Distributions::new(Probs::new(10., 1., mu, 1., cells.get())),
             Proliferation::default(),
             0.,
             phase,
-            0,
         )
     }
 
@@ -640,7 +599,7 @@ mod tests {
             time: 12.2,
             event: 0,
         };
-        let burden_before = genotype::MutationalBurden::from_exp(&exp.process, 0).unwrap();
+        let burden_before = genotype::MutationalBurden::from_exp(&exp.process).unwrap();
         let old_cells = exp.process.subclones.compute_tot_cells();
         assert_all_cells_in_wild_type_exp(&exp.process, exp.tot_cells);
         let rng = &mut ChaCha8Rng::seed_from_u64(seed);
@@ -648,7 +607,7 @@ mod tests {
         exp.process.advance_step(reaction, rng);
 
         assert_eq!(exp.process.subclones.compute_tot_cells(), old_cells + 1);
-        let burden_after = genotype::MutationalBurden::from_exp(&exp.process, 0).unwrap();
+        let burden_after = genotype::MutationalBurden::from_exp(&exp.process).unwrap();
         assert!(burden_before.0.keys().sum::<u16>() <= burden_after.0.keys().sum::<u16>());
     }
 
@@ -666,7 +625,7 @@ mod tests {
                 event: 0,
             }
         };
-        let burden_before = genotype::MutationalBurden::from_exp(&exp.process, 0).unwrap();
+        let burden_before = genotype::MutationalBurden::from_exp(&exp.process).unwrap();
         let old_cells = exp.process.subclones.compute_tot_cells();
         assert_all_cells_in_wild_type_exp(&exp.process, exp.tot_cells);
         let rng = &mut ChaCha8Rng::seed_from_u64(seed);
@@ -677,14 +636,14 @@ mod tests {
         if new_clone {
             assert_not_all_cells_in_wild_type_exp(&exp.process, exp.tot_cells);
         }
-        let burden_after = genotype::MutationalBurden::from_exp(&exp.process, 0).unwrap();
+        let burden_after = genotype::MutationalBurden::from_exp(&exp.process).unwrap();
         assert!(burden_before.0.keys().sum::<u16>() <= burden_after.0.keys().sum::<u16>());
     }
 
     #[quickcheck]
     fn switch_to_moran_development_test(cells: NonZeroU8, seed: u64) {
         let exp = create_exp_fit_variants(NonZeroU64::new(cells.get() as u64).unwrap(), false);
-        let burden_before = genotype::MutationalBurden::from_exp(&exp.process, 0).unwrap();
+        let burden_before = genotype::MutationalBurden::from_exp(&exp.process).unwrap();
         let old_cells = exp.process.subclones.compute_tot_cells();
         assert_all_cells_in_wild_type_exp(&exp.process, exp.tot_cells);
         let rng = &mut ChaCha8Rng::seed_from_u64(seed);
@@ -698,7 +657,7 @@ mod tests {
             rng,
         );
 
-        let burden_after = genotype::MutationalBurden::from_moran(&moran, 0).unwrap();
+        let burden_after = genotype::MutationalBurden::from_moran(&moran).unwrap();
         assert!(burden_before.0.keys().sum::<u16>() <= burden_after.0.keys().sum::<u16>());
         assert_eq!(old_cells, moran.subclones.compute_tot_cells());
     }
@@ -706,7 +665,7 @@ mod tests {
     #[quickcheck]
     fn switch_to_moran_regrowth_test(cells: NonZeroU8, seed: u64) {
         let exp = create_exp_fit_variants(NonZeroU64::new(cells.get() as u64).unwrap(), true);
-        let burden_before = genotype::MutationalBurden::from_exp(&exp.process, 0).unwrap();
+        let burden_before = genotype::MutationalBurden::from_exp(&exp.process).unwrap();
         let old_cells = exp.process.subclones.compute_tot_cells();
         assert_all_cells_in_wild_type_exp(&exp.process, exp.tot_cells);
         let rng = &mut ChaCha8Rng::seed_from_u64(seed);
@@ -720,7 +679,7 @@ mod tests {
             rng,
         );
 
-        let burden_after = genotype::MutationalBurden::from_moran(&moran, 0).unwrap();
+        let burden_after = genotype::MutationalBurden::from_moran(&moran).unwrap();
         assert_eq!(
             burden_before.0.keys().sum::<u16>(),
             burden_after.0.keys().sum::<u16>()

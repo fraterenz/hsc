@@ -8,6 +8,7 @@ use std::{
 };
 
 use anyhow::Context;
+use log::{debug, info};
 
 use crate::{
     genotype::{MutationalBurden, Sfs, SingleCellMutations},
@@ -56,7 +57,6 @@ fn make_path(
     tosave: Stats2Save,
     cells: usize,
     time: f32,
-    verbosity: u8,
 ) -> anyhow::Result<PathBuf> {
     let mut timepoint = format!("{time:.1}").replace('.', "dot");
     timepoint.push_str("years");
@@ -72,9 +72,7 @@ fn make_path(
     let path2file = path2file.join(timepoint);
 
     fs::create_dir_all(&path2file).with_context(|| "Cannot create dir")?;
-    if verbosity > 1 {
-        println!("creating dirs {path2file:#?}");
-    }
+    debug!("creating dirs {path2file:#?}");
 
     Ok(path2file.join(filename))
 }
@@ -85,47 +83,26 @@ pub(crate) fn save_it(
     time: f32,
     cells_with_idx: Vec<(&StemCell, usize)>,
     save_sfs_only: bool,
-    verbosity: u8,
 ) -> anyhow::Result<()> {
-    if verbosity > 0 {
-        println!("saving data at time {time}");
-    }
+    info!("saving data at time {time}");
     let cells: Vec<&StemCell> = cells_with_idx.iter().map(|ele| ele.0).collect();
     let nb_cells = cells.len();
 
-    if verbosity > 0 {
-        println!("saving {nb_cells} cells");
-    }
+    info!("saving {nb_cells} cells");
 
-    Sfs::from_cells(&cells, verbosity)
+    Sfs::from_cells(&cells)
         .unwrap_or_else(|_| panic!("cannot create SFS for timepoint at time {time}"))
         .save(
-            &make_path(
-                path2dir,
-                filename,
-                Stats2Save::Sfs,
-                nb_cells,
-                time,
-                verbosity,
-            )?,
+            &make_path(path2dir, filename, Stats2Save::Sfs, nb_cells, time)?,
             time,
-            verbosity,
         )?;
 
     if !save_sfs_only {
-        MutationalBurden::from_cells(&cells, verbosity)
+        MutationalBurden::from_cells(&cells)
             .unwrap_or_else(|_| panic!("cannot create burden for the timepoint at time {time}"))
             .save(
-                &make_path(
-                    path2dir,
-                    filename,
-                    Stats2Save::Burden,
-                    nb_cells,
-                    time,
-                    verbosity,
-                )?,
+                &make_path(path2dir, filename, Stats2Save::Burden, nb_cells, time)?,
                 time,
-                verbosity,
             )?;
         save_variant_fraction(
             &SubClones::from(
@@ -140,11 +117,9 @@ pub(crate) fn save_it(
                 Stats2Save::VariantFraction,
                 nb_cells,
                 time,
-                verbosity,
             )?,
-            verbosity,
         )?;
-        SingleCellMutations::from_cells(&cells, verbosity)
+        SingleCellMutations::from_cells(&cells)
             .unwrap_or_else(|_| {
                 panic!("cannot create single cell mutations for the timepoint at time {time}")
             })
@@ -155,10 +130,8 @@ pub(crate) fn save_it(
                     Stats2Save::SingleCellMutations,
                     nb_cells,
                     time,
-                    verbosity,
                 )?,
                 time,
-                verbosity,
             )?;
     }
 

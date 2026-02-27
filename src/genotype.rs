@@ -1,8 +1,10 @@
 use anyhow::{ensure, Context};
-use arrow::{
-    array::{FixedSizeBinaryBuilder, Float32Builder, RecordBatch, UInt16Builder},
-    datatypes::{DataType, Field, Schema},
+use arrow_array::{
+    builder::{FixedSizeBinaryBuilder, Float32Builder, UInt16Builder},
+    RecordBatch,
 };
+use arrow_schema::{DataType, Field, Schema};
+use log::{debug, info, trace};
 use parquet::arrow::arrow_writer::ArrowWriter;
 use rand::Rng;
 use rand_distr::{Distribution, Poisson};
@@ -87,21 +89,17 @@ impl NeutralMutationPoisson {
         &self,
         interdivison_time: f32,
         rng: &mut impl Rng,
-        verbosity: u8,
     ) -> Option<Vec<Mutation>> {
         //! The number of neutral mutations acquired upon cell division.
-        if verbosity > 1 {
-            println!(
-                "interdivison_time = {} and background lambda {}",
-                interdivison_time, self.lambda_background
-            );
-        }
+        debug!(
+            "interdivison_time = {} and background lambda {}",
+            interdivison_time, self.lambda_background
+        );
+
         if interdivison_time > 0.001 {
             let background = Poisson::new(self.lambda_background * interdivison_time).unwrap();
             let nb_mutations = nb_neutral_mutations(&background, rng);
-            if verbosity > 1 {
-                println!("{nb_mutations} background mutations");
-            }
+            debug!("{nb_mutations} background mutations");
             generate_mutations(nb_mutations)
         } else {
             None
@@ -138,13 +136,11 @@ where
 pub struct SingleCellMutations(FxHashMap<Mutation, u64>);
 
 impl SingleCellMutations {
-    pub fn from_cells(cells: &[&StemCell], verbosity: u8) -> anyhow::Result<Self> {
-        if verbosity > 0 {
-            println!(
-                "computing the single cell mutations from {} cells",
-                cells.len()
-            );
-        }
+    pub fn from_cells(cells: &[&StemCell]) -> anyhow::Result<Self> {
+        info!(
+            "computing the single cell mutations from {} cells",
+            cells.len()
+        );
         let mut mutations = FxHashMap::default();
         for cell in cells.iter() {
             for &variant in cell.mutations.iter() {
@@ -158,10 +154,8 @@ impl SingleCellMutations {
         Ok(SingleCellMutations(mutations))
     }
 
-    pub fn save(&self, path2file: &Path, time: f32, verbosity: u8) -> anyhow::Result<()> {
-        if verbosity > 0 {
-            println!("single cell mutations in {path2file:#?} at time {time}")
-        }
+    pub fn save(&self, path2file: &Path, time: f32) -> anyhow::Result<()> {
+        info!("single cell mutations in {path2file:#?} at time {time}");
 
         let mut uuid_b = FixedSizeBinaryBuilder::new(16);
         let mut cnt_b = UInt16Builder::with_capacity(self.0.values().len());
@@ -203,15 +197,12 @@ impl SingleCellMutations {
 pub struct Sfs(pub FxHashMap<u64, u64>);
 
 impl Sfs {
-    pub fn from_cells(cells: &[&StemCell], verbosity: u8) -> anyhow::Result<Self> {
+    pub fn from_cells(cells: &[&StemCell]) -> anyhow::Result<Self> {
         //! Compute the SFS from the stem cell population.
-        if verbosity > 0 {
-            println!("computing the SFS from {} cells", cells.len());
-            if verbosity > 2 {
-                println!("computing the SFS from {:#?}", &cells);
-            }
-        }
-        let sfs_variants = Sfs::from_sc_mutations(cells, verbosity).0;
+        info!("computing the SFS from {} cells", cells.len());
+        trace!("computing the SFS from {:#?}", &cells);
+
+        let sfs_variants = Sfs::from_sc_mutations(cells).0;
 
         let mut sfs = FxHashMap::default();
         for nb_cells in sfs_variants.values() {
@@ -220,21 +211,17 @@ impl Sfs {
                 .or_insert(1u64);
         }
 
-        if verbosity > 1 {
-            println!("sfs: {sfs:#?}");
-        }
+        debug!("sfs: {sfs:#?}");
         Ok(Sfs(sfs))
     }
 
-    fn from_sc_mutations(cells: &[&StemCell], verbosity: u8) -> SingleCellMutations {
+    fn from_sc_mutations(cells: &[&StemCell]) -> SingleCellMutations {
         // wont fail for now
-        SingleCellMutations::from_cells(cells, verbosity).unwrap()
+        SingleCellMutations::from_cells(cells).unwrap()
     }
 
-    pub fn save(&self, path2file: &Path, time: f32, verbosity: u8) -> anyhow::Result<()> {
-        if verbosity > 0 {
-            println!("SFS in {path2file:#?} at time {time}")
-        }
+    pub fn save(&self, path2file: &Path, time: f32) -> anyhow::Result<()> {
+        info!("SFS in {path2file:#?} at time {time}");
         save_json(&self.0, path2file).with_context(|| "Cannot save SFS")
     }
 }
@@ -248,7 +235,7 @@ impl Sfs {
 pub struct MutationalBurden(pub FxHashMap<u16, u64>);
 
 impl MutationalBurden {
-    pub fn from_cells(cells: &[&StemCell], verbosity: u8) -> anyhow::Result<Self> {
+    pub fn from_cells(cells: &[&StemCell]) -> anyhow::Result<Self> {
         //! Compute the single-cell mutational burden from the stem cell
         //! population.
         let mut burden: FxHashMap<u16, u64> = FxHashMap::default();
@@ -259,13 +246,11 @@ impl MutationalBurden {
                 .or_insert(1u64);
         }
 
-        if verbosity > 0 {
-            println!("burden: {burden:#?}");
-        }
+        info!("burden: {burden:#?}");
         Ok(MutationalBurden(burden))
     }
 
-    pub fn from_moran(moran: &Moran, verbosity: u8) -> anyhow::Result<Self> {
+    pub fn from_moran(moran: &Moran) -> anyhow::Result<Self> {
         //! Create the single-cell mutational burden from all cells in the Moran
         //! process
         let cells: Vec<&StemCell> = moran
@@ -274,10 +259,10 @@ impl MutationalBurden {
             .iter()
             .map(|ele| ele.0)
             .collect();
-        MutationalBurden::from_cells(&cells, verbosity)
+        MutationalBurden::from_cells(&cells)
     }
 
-    pub fn from_exp(exp: &Exponential, verbosity: u8) -> anyhow::Result<Self> {
+    pub fn from_exp(exp: &Exponential) -> anyhow::Result<Self> {
         //! Create the single-cell mutational burden from all cells in the Moran
         //! process
         let cells: Vec<&StemCell> = exp
@@ -286,13 +271,11 @@ impl MutationalBurden {
             .iter()
             .map(|ele| ele.0)
             .collect();
-        MutationalBurden::from_cells(&cells, verbosity)
+        MutationalBurden::from_cells(&cells)
     }
 
-    pub fn save(&self, path2file: &Path, time: f32, verbosity: u8) -> anyhow::Result<()> {
-        if verbosity > 0 {
-            println!("saving burden in {path2file:#?} at time {time}");
-        }
+    pub fn save(&self, path2file: &Path, time: f32) -> anyhow::Result<()> {
+        info!("saving burden in {path2file:#?} at time {time}");
         save_json(&self.0, path2file).with_context(|| "Cannot save the burden")
     }
 }
@@ -337,7 +320,7 @@ mod tests {
         let cell4 = StemCell::with_mutations(vec![square, thunder]);
 
         // compute sfs and sort it by jcells
-        let mut sfs = Sfs::from_cells(&[&cell1, &cell2, &cell3, &cell4], 0)
+        let mut sfs = Sfs::from_cells(&[&cell1, &cell2, &cell3, &cell4])
             .unwrap()
             .0
             .into_iter()
@@ -370,7 +353,7 @@ mod tests {
         let cell4 = StemCell::with_mutations(vec![square, circle, thunder]);
 
         // compute sfs and sort it by jcells
-        let mut sfs = Sfs::from_cells(&[&cell1, &cell2, &cell3, &cell4], 0)
+        let mut sfs = Sfs::from_cells(&[&cell1, &cell2, &cell3, &cell4])
             .unwrap()
             .0
             .into_iter()

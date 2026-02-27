@@ -145,12 +145,10 @@ pub struct Cli {
     /// Save only the SFS (when you dont want too many files to be saved)
     #[arg(long, action = ArgAction::SetTrue, default_value_t = false)]
     save_sfs_only: bool,
-    /// Triggers debug mode: max verbosity, 1 sequential simulation, 10 cells,
-    /// 20 iterations with high mutation rate
+    /// Triggers debug mode: 1 sequential simulation, 10 cells, 20 iterations
+    /// with high mutation rate
     #[arg(short, long, action = ArgAction::SetTrue, default_value_t = false)]
     debug: bool,
-    #[arg(short, long, action = ArgAction::Count, conflicts_with = "debug", default_value_t = 0)]
-    verbosity: u8,
     /// Path to store the results of the simulations
     #[arg(value_name = "DIR")]
     path: PathBuf,
@@ -219,11 +217,11 @@ impl Cli {
         };
 
         let years = cli.years;
-        let (max_cells, years, verbosity) = if cli.debug {
-            (11, 1, u8::MAX)
+        let (max_cells, years) = if cli.debug {
+            (11, 1)
         } else {
             // + 1 because in sosa we stop when >= MaxCells
-            (cli.cells + 1, years, cli.verbosity)
+            (cli.cells + 1, years)
         };
 
         let max_iter = 10 * max_cells as usize * 10 * years;
@@ -306,7 +304,6 @@ impl Cli {
                 },
                 max_cells,
                 init_iter: 0,
-                verbosity,
             }),
             (Some(years_tr), Some(cells_tr)) => {
                 ensure!(years_tr.get() < years);
@@ -318,7 +315,6 @@ impl Cli {
                     },
                     max_cells,
                     init_iter: 0,
-                    verbosity,
                 };
                 let after_treatment = Options {
                     max_iter_time: IterTime {
@@ -327,7 +323,6 @@ impl Cli {
                     },
                     max_cells,
                     init_iter: 0,
-                    verbosity,
                 };
                 let after_treatment_regrowth = Options {
                     max_iter_time: IterTime {
@@ -336,7 +331,6 @@ impl Cli {
                     },
                     max_cells: max_cells - 1,
                     init_iter: 0,
-                    verbosity,
                 };
                 // for now use the same as in exp process
                 if let Commands::ExpMoran(exp_moran) = &cli.command {
@@ -406,7 +400,6 @@ impl Cli {
                         },
                         max_cells: max_cells - 1,
                         init_iter: 0,
-                        verbosity,
                     },
                     tau: exp_moran.exponential.tau_exp,
                     probs_per_year: ProbsPerYear {
@@ -452,7 +445,6 @@ impl Cli {
             options_moran,
             options_exponential,
             background: !cli.no_background,
-            verbosity: cli.verbosity,
         })
     }
 }

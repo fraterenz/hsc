@@ -2,6 +2,7 @@ use crate::genotype::NeutralMutationPoisson;
 use crate::Probs;
 use crate::{stemcell::StemCell, write2file, MAX_SUBCLONES};
 use anyhow::{ensure, Context};
+use log::{debug, info, trace};
 use rand::seq::IteratorRandom;
 use rand::Rng;
 use rand_distr::{Bernoulli, Distribution, Gamma};
@@ -19,7 +20,7 @@ pub struct Distributions {
 }
 
 impl Distributions {
-    pub fn new(probs: Probs, verbosity: u8) -> Self {
+    pub fn new(probs: Probs) -> Self {
         let (u, background, division) = match probs {
             Probs::Symmetric { u, probs_per_year } => {
                 (u, probs_per_year.mu_background, probs_per_year.mu_division)
@@ -28,11 +29,9 @@ impl Distributions {
                 u, probs_per_year, ..
             } => (u, probs_per_year.mu_background, probs_per_year.mu_division),
         };
-        if verbosity > 1 {
-            println!(
+        debug!(
                 "creating distributions with u: {u}, lambda_background: {background}, lambda_division: {division}"
             );
-        }
 
         Self {
             u,
@@ -159,7 +158,6 @@ pub fn next_clone(
     old_subclone_id: CloneId,
     p: f64,
     rng: &mut impl Rng,
-    verbosity: u8,
 ) -> CloneId {
     //! Returns a [`CloneId`] to which the stem cell must be assigned by
     //! sampling a fit variant.
@@ -180,14 +178,10 @@ pub fn next_clone(
             counter += 1;
         }
         assert!(counter <= MAX_SUBCLONES, "max number of clones reached");
-        if verbosity > 1 {
-            println!("new fit variant: assign cell to clone {rnd_clone_id}");
-        }
+        debug!("new fit variant: assign cell to clone {rnd_clone_id}");
         return rnd_clone_id;
     }
-    if verbosity > 1 {
-        println!("no new fit variants with p {p}",);
-    }
+    debug!("no new fit variants with p {p}",);
     old_subclone_id
 }
 
@@ -197,7 +191,7 @@ pub fn next_clone(
 pub struct SubClones([SubClone; MAX_SUBCLONES]);
 
 impl SubClones {
-    pub fn new(cells: Vec<StemCell>, capacity: usize, verbosity: u8) -> Self {
+    pub fn new(cells: Vec<StemCell>, capacity: usize) -> Self {
         //! Returns all the newly initiated subclones by assigning all `cells`
         //! to the neutral clone.
         //!
@@ -206,9 +200,7 @@ impl SubClones {
         let mut subclones: [SubClone; MAX_SUBCLONES] =
             std::array::from_fn(|i| SubClone::new(i, capacity));
         let tot_cells = cells.len();
-        if verbosity > 1 {
-            println!("assigning {tot_cells} cells to the wild-type clone");
-        }
+        debug!("assigning {tot_cells} cells to the wild-type clone");
         for cell in cells {
             subclones[0].assign_cell(cell);
         }
@@ -391,7 +383,7 @@ impl Variants {
         //!     [1. / MAX_SUBCLONES as f32; MAX_SUBCLONES]
         //! );
         //!
-        //! let subclones = SubClones::new(vec![StemCell::new()], MAX_SUBCLONES, 0);
+        //! let subclones = SubClones::new(vec![StemCell::new()], MAX_SUBCLONES);
         //! let mut variant_fraction = [0.; MAX_SUBCLONES];
         //! variant_fraction[0] = 1.;
         //!
@@ -408,16 +400,10 @@ impl Variants {
     }
 }
 
-pub fn save_variant_fraction(
-    subclones: &SubClones,
-    path2file: &Path,
-    verbosity: u8,
-) -> anyhow::Result<()> {
+pub fn save_variant_fraction(subclones: &SubClones, path2file: &Path) -> anyhow::Result<()> {
     let path2file = path2file.with_extension("csv");
     let total_variant_frac = Variants::variant_fractions(subclones);
-    if verbosity > 0 {
-        println!("total variant fraction in {path2file:#?}")
-    }
+    info!("total variant fraction in {path2file:#?}");
     write2file(&total_variant_frac, &path2file, None, false)?;
     Ok(())
 }
@@ -425,19 +411,16 @@ pub fn save_variant_fraction(
 pub fn proliferating_cell(
     subclones: &mut SubClones,
     subclone_id: CloneId,
-    verbosity: u8,
     rng: &mut impl Rng,
 ) -> StemCell {
     //! Determine which cells will proliferate by randomly selecting a cell
     //! from the subclone with id `subclone_id`.
     //! This will also remove the random selected cell from the subclone,
     //! hence subclones are borrowed mutably.
-    if verbosity > 2 {
-        println!(
-            "a cell from clone {:#?} will divide",
-            subclones.0[subclone_id]
-        );
-    }
+    trace!(
+        "a cell from clone {:#?} will divide",
+        subclones.0[subclone_id]
+    );
     subclones.0[subclone_id]
         .random_cell(rng)
         .with_context(|| "found empty subclone")
@@ -474,7 +457,7 @@ mod tests {
         let number_of_cells = subclones.0[subclone_id as usize].get_cells().len();
         let tot_cells = subclones.compute_tot_cells();
 
-        let _ = proliferating_cell(&mut subclones, subclone_id as usize, 1, &mut rng);
+        let _ = proliferating_cell(&mut subclones, subclone_id as usize, &mut rng);
 
         let subclones_have_lost_cell =
             Variants::variant_counts(&subclones).iter().sum::<u64>() < tot_cells;
@@ -499,10 +482,10 @@ mod tests {
         cell.set_last_division_time(1.1).unwrap();
 
         let cells = vec![cell; cells_present.get() as usize];
-        let subclones = SubClones::new(cells, cells_present.get() as usize + 1, 0);
+        let subclones = SubClones::new(cells, cells_present.get() as usize + 1);
 
         let old_id = 0;
-        let id = next_clone(&subclones, old_id, 0., &mut rng, 0);
+        let id = next_clone(&subclones, old_id, 0., &mut rng);
         id == old_id
     }
 
@@ -514,9 +497,9 @@ mod tests {
 
         let cells = vec![cell; cells_present.get() as usize];
         let before_assignment = cells.len();
-        let subclones = SubClones::new(cells, cells_present.get() as usize + 1, 0);
+        let subclones = SubClones::new(cells, cells_present.get() as usize + 1);
 
-        next_clone(&subclones, 0, 1., &mut rng, 0);
+        next_clone(&subclones, 0, 1., &mut rng);
         subclones.0[0].cell_count() as usize == before_assignment
     }
 
@@ -529,7 +512,7 @@ mod tests {
         let mut cell = StemCell::new();
         cell.set_last_division_time(1.).unwrap();
 
-        next_clone(&subclones, 0, 1., &mut rng, 0);
+        next_clone(&subclones, 0, 1., &mut rng);
     }
 
     #[quickcheck]
@@ -537,8 +520,8 @@ mod tests {
         lambda_division: LambdaFromNonZeroU8,
         lambda_background: LambdaFromNonZeroU8,
     ) -> bool {
-        let probs = Probs::new(lambda_background.0, lambda_division.0, 0.01, 0., 10, 0);
-        let distrs = Distributions::new(probs, 0);
+        let probs = Probs::new(lambda_background.0, lambda_division.0, 0.01, 0., 10);
+        let distrs = Distributions::new(probs);
         distrs.neutral_poisson.eq(&NeutralMutationPoisson::new(
             lambda_division.0,
             lambda_background.0,
