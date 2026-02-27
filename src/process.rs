@@ -51,7 +51,7 @@ pub fn switch_to_moran(
     //! since stem cells stop dividing exponentially before birth.
     //! We add background mutations in this interval of time between the
     //! end of the exponentially growing phase and the Moran process.
-    info!("switching to Moran at time {}", exponential.time);
+    debug!("switching to Moran at time {}", exponential.time);
     let (current_time, time_to_restart) = match exponential.phase {
         ExponentialPhase::Development => (TIME_AT_BIRTH, 0f32),
         ExponentialPhase::Regrowth => (exponential.time, exponential.time),
@@ -68,7 +68,7 @@ pub fn switch_to_moran(
         // Moreover there is delay between the end of the exp. growing phase
         // and birth, hence we use `TIME_AT_BIRTH`. But this is true only for
         // the Development phase.
-        info!("updating the neutral background mutations for all cells");
+        debug!("updating the neutral background mutations for all cells");
         // assign missing mutations
         for stem_cell in exponential.subclones.get_mut_cells() {
             if stem_cell.get_last_division_time() < &current_time {
@@ -298,7 +298,7 @@ impl Moran {
             // cells do not proliferate at the same rate, we need to correct and
             // update the background mutations at the timepoint corresponding
             // to sampling step, i.e. before saving.
-            info!("updating the neutral background mutations for all cells");
+            debug!("updating the neutral background mutations for all cells");
             for stem_cell in self.subclones.get_mut_cells() {
                 assign_background_mutations(
                     stem_cell,
@@ -309,7 +309,7 @@ impl Moran {
             }
         }
         let population = self.subclones.get_cells_with_clones_idx();
-        info!("saving {saving_cells:#?}");
+        trace!("saving {saving_cells:#?}");
         match saving_cells {
             SavingCells::WholePopulation => save_it(
                 &self.path2dir,
@@ -358,7 +358,7 @@ impl Moran {
         //! process using [`choose_multiple`](https://docs.rs/rand/latest/rand/seq/trait.IndexedRandom.html#method.choose_multiple).
         let mut moran: Moran = self;
         moran.subclones = moran.subclones.into_subsampled(nb_cells, rng);
-        info!("Subsampled {} cells", moran.subclones.get_cells().len());
+        debug!("Subsampled {} cells", moran.subclones.get_cells().len());
 
         moran
     }
@@ -382,7 +382,7 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
         // take snapshot
         while !self.snapshots.is_empty() && self.snapshots.iter().any(|s| self.time >= s.time) {
             let snapshot = self.snapshots.pop_front().unwrap();
-            info!(
+            debug!(
                     "saving state for timepoint at simulation's time {} for timepoint at {:#?} with {} cells",
                     self.time, snapshot.time, snapshot.cells2sample
                 );

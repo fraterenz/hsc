@@ -17,7 +17,7 @@ use std::{
 };
 
 use anyhow::Context;
-use log::info;
+use log::debug;
 
 /// The neutral mutations representing the genotype of the stem cells.
 pub mod genotype;
@@ -99,7 +99,7 @@ impl Probs {
         } else {
             Probs::Symmetric { u, probs_per_year }
         };
-        info!("probs {probs:#?}");
+        debug!("probs {probs:#?}");
         assert!((0f32..1.).contains(&u), "Invalid u: u>=0 and u<1");
         assert!(
             (0f32..=1.).contains(&asymmetric),

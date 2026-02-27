@@ -2,7 +2,7 @@ use crate::genotype::NeutralMutationPoisson;
 use crate::Probs;
 use crate::{stemcell::StemCell, write2file, MAX_SUBCLONES};
 use anyhow::{ensure, Context};
-use log::{debug, info, trace};
+use log::{debug, trace};
 use rand::seq::IteratorRandom;
 use rand::Rng;
 use rand_distr::{Bernoulli, Distribution, Gamma};
@@ -403,7 +403,7 @@ impl Variants {
 pub fn save_variant_fraction(subclones: &SubClones, path2file: &Path) -> anyhow::Result<()> {
     let path2file = path2file.with_extension("csv");
     let total_variant_frac = Variants::variant_fractions(subclones);
-    info!("total variant fraction in {path2file:#?}");
+    debug!("total variant fraction in {path2file:#?}");
     write2file(&total_variant_frac, &path2file, None, false)?;
     Ok(())
 }

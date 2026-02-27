@@ -4,7 +4,7 @@ use arrow_array::{
     RecordBatch,
 };
 use arrow_schema::{DataType, Field, Schema};
-use log::{debug, info, trace};
+use log::{debug, trace};
 use parquet::arrow::arrow_writer::ArrowWriter;
 use rand::Rng;
 use rand_distr::{Distribution, Poisson};
@@ -137,7 +137,7 @@ pub struct SingleCellMutations(FxHashMap<Mutation, u64>);
 
 impl SingleCellMutations {
     pub fn from_cells(cells: &[&StemCell]) -> anyhow::Result<Self> {
-        info!(
+        debug!(
             "computing the single cell mutations from {} cells",
             cells.len()
         );
@@ -155,7 +155,7 @@ impl SingleCellMutations {
     }
 
     pub fn save(&self, path2file: &Path, time: f32) -> anyhow::Result<()> {
-        info!("single cell mutations in {path2file:#?} at time {time}");
+        debug!("single cell mutations in {path2file:#?} at time {time}");
 
         let mut uuid_b = FixedSizeBinaryBuilder::new(16);
         let mut cnt_b = UInt16Builder::with_capacity(self.0.values().len());
@@ -199,7 +199,7 @@ pub struct Sfs(pub FxHashMap<u64, u64>);
 impl Sfs {
     pub fn from_cells(cells: &[&StemCell]) -> anyhow::Result<Self> {
         //! Compute the SFS from the stem cell population.
-        info!("computing the SFS from {} cells", cells.len());
+        debug!("computing the SFS from {} cells", cells.len());
         trace!("computing the SFS from {:#?}", &cells);
 
         let sfs_variants = Sfs::from_sc_mutations(cells).0;
@@ -221,7 +221,7 @@ impl Sfs {
     }
 
     pub fn save(&self, path2file: &Path, time: f32) -> anyhow::Result<()> {
-        info!("SFS in {path2file:#?} at time {time}");
+        debug!("SFS in {path2file:#?} at time {time}");
         save_json(&self.0, path2file).with_context(|| "Cannot save SFS")
     }
 }
@@ -246,7 +246,7 @@ impl MutationalBurden {
                 .or_insert(1u64);
         }
 
-        info!("burden: {burden:#?}");
+        debug!("burden: {burden:#?}");
         Ok(MutationalBurden(burden))
     }
 
@@ -275,7 +275,7 @@ impl MutationalBurden {
     }
 
     pub fn save(&self, path2file: &Path, time: f32) -> anyhow::Result<()> {
-        info!("saving burden in {path2file:#?} at time {time}");
+        debug!("saving burden in {path2file:#?} at time {time}");
         save_json(&self.0, path2file).with_context(|| "Cannot save the burden")
     }
 }

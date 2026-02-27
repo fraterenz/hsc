@@ -8,7 +8,7 @@ use std::{
 };
 
 use anyhow::Context;
-use log::{debug, info};
+use log::debug;
 
 use crate::{
     genotype::{MutationalBurden, Sfs, SingleCellMutations},
@@ -84,11 +84,11 @@ pub(crate) fn save_it(
     cells_with_idx: Vec<(&StemCell, usize)>,
     save_sfs_only: bool,
 ) -> anyhow::Result<()> {
-    info!("saving data at time {time}");
+    debug!("saving data at time {time}");
     let cells: Vec<&StemCell> = cells_with_idx.iter().map(|ele| ele.0).collect();
     let nb_cells = cells.len();
 
-    info!("saving {nb_cells} cells");
+    debug!("saving {nb_cells} cells");
 
     Sfs::from_cells(&cells)
         .unwrap_or_else(|_| panic!("cannot create SFS for timepoint at time {time}"))

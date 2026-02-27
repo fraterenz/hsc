@@ -1,6 +1,5 @@
 use crate::clap_app::Cli;
 use anyhow::Context;
-use chrono::Utc;
 use clap_app::Parallel;
 use hsc::{
     process::{switch_to_moran, Exponential, Moran, ProcessOptions},
@@ -75,12 +74,8 @@ fn main() {
 
     debug!("app: {app:#?}");
 
-    info!(
-        "saving variant fraction at timepoints: {:#?}",
-        app.snapshots
-    );
-
-    info!("{} starting simulation", Utc::now());
+    info!("saving process at timepoints: {:#?}", app.snapshots);
+    info!("starting simulations (tot runs: {})", app.runs);
 
     let run_simulations = |idx| {
         let rng = &mut ChaCha8Rng::seed_from_u64(app.seed);
@@ -149,7 +144,7 @@ fn main() {
                 0.,
                 hsc::process::ExponentialPhase::Development,
             );
-            info!("{} start simulating exp. phase", Utc::now());
+            debug!("start simulating exp. phase");
 
             let stop = simulate(
                 state,
@@ -159,9 +154,8 @@ fn main() {
                 &options.gillespie_options,
                 rng,
             );
-            info!(
-                "{} exponential simulation {} stopped because {:#?}, nb cells {}",
-                Utc::now(),
+            debug!(
+                "exponential simulation {} stopped because {:#?}, nb cells {}",
                 idx,
                 stop,
                 exp.subclones.compute_tot_cells()
@@ -176,7 +170,7 @@ fn main() {
                 options_moran_gillespie.max_cells - 1,
             );
             let moran_distributions = Distributions::new(probs_moran);
-            info!("{} switching to moran", Utc::now());
+            debug!("switching to moran");
             // switch_to_moran start with time 0
             let mut moran = switch_to_moran(
                 exp,
@@ -228,7 +222,7 @@ fn main() {
                 proliferation,
             )
         };
-        info!("{} simulating Moran phase", Utc::now());
+        debug!("simulating Moran phase");
 
         let stop = simulate(
             state,
@@ -255,14 +249,13 @@ fn main() {
                 (moran.distributions.clone(), moran.snapshots.clone());
 
             // treatment subsamples the total population
-            info!(
+            debug!(
                 "Subsample Moran at {} cells before starting to regrowth",
                 op.cells_left
             );
             let mut regrowth: Exponential = moran.into_subsampled(op.cells_left, rng).into();
-            info!(
-                "{} restart exp growth with time {} from {} cells with options {:#?}",
-                Utc::now(),
+            debug!(
+                "restart exp growth with time {} from {} cells with options {:#?}",
                 regrowth.time,
                 regrowth.subclones.get_cells().len(),
                 &op.regrowth_options.gillespie_options,
@@ -283,9 +276,8 @@ fn main() {
                 &op.regrowth_options.gillespie_options,
                 rng,
             );
-            info!(
-                "{} regrowing simulation {} stopped at time {} because {:#?} with nb cells {}",
-                Utc::now(),
+            debug!(
+                "regrowing simulation {} stopped at time {} because {:#?} with nb cells {}",
                 idx,
                 regrowth.time,
                 stop,
@@ -308,11 +300,9 @@ fn main() {
             let mut after_treatment_relative = op.after_treatment.clone();
             after_treatment_relative.max_iter_time.time =
                 op.after_treatment.max_iter_time.time - moran.time;
-            info!(
-                "{} simulating Moran phase at time {} with {:#?}",
-                Utc::now(),
-                moran.time,
-                after_treatment_relative,
+            debug!(
+                "simulating Moran phase at time {} with {:#?}",
+                moran.time, after_treatment_relative,
             );
 
             let stop = simulate(
@@ -323,11 +313,9 @@ fn main() {
                 &after_treatment_relative,
                 rng,
             );
-            info!(
-                "{} end of Moran phase due to {:#?} at time {}, saving now",
-                Utc::now(),
-                stop,
-                moran.time
+            debug!(
+                "end of Moran phase due to {:#?} at time {}, saving now",
+                stop, moran.time
             );
             moran
                 .save(
@@ -345,11 +333,11 @@ fn main() {
             StopReason::MaxTimeReached => {
                     debug!("Moran simulation {idx} stopped because {stop:#?}");
             },
-            StopReason::MaxItersReached => info!("the simulation stopped earlier than expected because the max number of iterations has been reached"),
+            StopReason::MaxItersReached => debug!("the simulation stopped earlier than expected because the max number of iterations has been reached"),
             _ => unreachable!("the simulation shouldnt have stopped")
         }
 
-        info!("saving the SFS for all timepoints");
+        debug!("saving the SFS for all timepoints");
         write2file(
             &rates_moran.0,
             &moran.path2dir.join("rates").join(format!("{idx}.csv")),
@@ -371,7 +359,7 @@ fn main() {
                 .progress_count(app.runs as u64)
                 .for_each(run_simulations),
         }
-        info!("{} End simulation", Utc::now());
+        info!("end simulation");
         0
     });
 }
