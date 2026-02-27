@@ -7,7 +7,7 @@ Stochastic simulations of the genetic changes in blood occurring during ageing.
 
 ## HSC dynamics during ageing
 
-In the bone marrow, hematopoietic stem cells (HSCs) maintain lifelong blood production (hematopoiesis).  
+In the bone marrow, hematopoietic stem cells (HSCs) maintain lifelong blood production (hematopoiesis).
 In young, healthy individuals, many HSCs contribute roughly equally to this process, keeping the blood genetically diverse.
 
 As we age, however, fewer HSCs actively contribute to hematopoiesis. Some HSCs acquire advantageous mutations that allow them to proliferate faster than others, leading to clonal competition and a reduction in genetic diversity in the blood.
@@ -24,6 +24,9 @@ See [here](output.md) for more information about the output of the simulations a
 `hsc` can be ran from the command line: `hsc [OPTIONS] <DIR> <COMMAND>`, see also `hsc --help` and `hsc -h`.
 There are two commands `<COMMAND>`, which are `moran` and `exp-moran`.
 They have their options as well, see `hsc <COMMAND> -h`.
+
+To increase the verbosity of the output, set the log level using the `RUST_LOG` flag: `RUST_LOG=info hsc ...`.
+Available log values: `info`, `debug` and `trace`.
 
 See [here](output.md) for more information about the output of the simulations and [here](https://fraterenz.github.io/hsc/hsc/) for the documentation.
 

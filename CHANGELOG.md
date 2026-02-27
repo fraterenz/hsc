@@ -1,6 +1,12 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 5.0.0
+- update dependencies
+- get rid of `verbosity` everywhere and use `log` instead
+### Added
+- single cell mutational burden stored as parquet files, see `output.md`
+
 ## 4.3.14
 - update dependencies
 
