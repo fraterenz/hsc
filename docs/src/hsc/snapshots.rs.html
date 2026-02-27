@@ -8,7 +8,7 @@
 <a href=#8 id=8 data-nosnippet>8</a>};
 <a href=#9 id=9 data-nosnippet>9</a>
 <a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span>anyhow::Context;
-<a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span>log::{debug, info};
+<a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span>log::debug;
 <a href=#12 id=12 data-nosnippet>12</a>
 <a href=#13 id=13 data-nosnippet>13</a><span class="kw">use crate</span>::{
 <a href=#14 id=14 data-nosnippet>14</a>    genotype::{MutationalBurden, Sfs, SingleCellMutations},
@@ -84,11 +84,11 @@
 <a href=#84 id=84 data-nosnippet>84</a>    cells_with_idx: Vec&lt;(<span class="kw-2">&amp;</span>StemCell, usize)&gt;,
 <a href=#85 id=85 data-nosnippet>85</a>    save_sfs_only: bool,
 <a href=#86 id=86 data-nosnippet>86</a>) -&gt; anyhow::Result&lt;()&gt; {
-<a href=#87 id=87 data-nosnippet>87</a>    <span class="macro">info!</span>(<span class="string">"saving data at time {time}"</span>);
+<a href=#87 id=87 data-nosnippet>87</a>    <span class="macro">debug!</span>(<span class="string">"saving data at time {time}"</span>);
 <a href=#88 id=88 data-nosnippet>88</a>    <span class="kw">let </span>cells: Vec&lt;<span class="kw-2">&amp;</span>StemCell&gt; = cells_with_idx.iter().map(|ele| ele.<span class="number">0</span>).collect();
 <a href=#89 id=89 data-nosnippet>89</a>    <span class="kw">let </span>nb_cells = cells.len();
 <a href=#90 id=90 data-nosnippet>90</a>
-<a href=#91 id=91 data-nosnippet>91</a>    <span class="macro">info!</span>(<span class="string">"saving {nb_cells} cells"</span>);
+<a href=#91 id=91 data-nosnippet>91</a>    <span class="macro">debug!</span>(<span class="string">"saving {nb_cells} cells"</span>);
 <a href=#92 id=92 data-nosnippet>92</a>
 <a href=#93 id=93 data-nosnippet>93</a>    Sfs::from_cells(<span class="kw-2">&amp;</span>cells)
 <a href=#94 id=94 data-nosnippet>94</a>        .unwrap_or_else(|<span class="kw">_</span>| <span class="macro">panic!</span>(<span class="string">"cannot create SFS for timepoint at time {time}"</span>))

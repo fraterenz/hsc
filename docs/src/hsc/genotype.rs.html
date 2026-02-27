@@ -4,7 +4,7 @@
 <a href=#4 id=4 data-nosnippet>4</a>    RecordBatch,
 <a href=#5 id=5 data-nosnippet>5</a>};
 <a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>arrow_schema::{DataType, Field, Schema};
-<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>log::{debug, info, trace};
+<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>log::{debug, trace};
 <a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span>parquet::arrow::arrow_writer::ArrowWriter;
 <a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span>rand::Rng;
 <a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span>rand_distr::{Distribution, Poisson};
@@ -137,7 +137,7 @@
 <a href=#137 id=137 data-nosnippet>137</a>
 <a href=#138 id=138 data-nosnippet>138</a><span class="kw">impl </span>SingleCellMutations {
 <a href=#139 id=139 data-nosnippet>139</a>    <span class="kw">pub fn </span>from_cells(cells: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>StemCell]) -&gt; anyhow::Result&lt;<span class="self">Self</span>&gt; {
-<a href=#140 id=140 data-nosnippet>140</a>        <span class="macro">info!</span>(
+<a href=#140 id=140 data-nosnippet>140</a>        <span class="macro">debug!</span>(
 <a href=#141 id=141 data-nosnippet>141</a>            <span class="string">"computing the single cell mutations from {} cells"</span>,
 <a href=#142 id=142 data-nosnippet>142</a>            cells.len()
 <a href=#143 id=143 data-nosnippet>143</a>        );
@@ -155,7 +155,7 @@
 <a href=#155 id=155 data-nosnippet>155</a>    }
 <a href=#156 id=156 data-nosnippet>156</a>
 <a href=#157 id=157 data-nosnippet>157</a>    <span class="kw">pub fn </span>save(<span class="kw-2">&amp;</span><span class="self">self</span>, path2file: <span class="kw-2">&amp;</span>Path, time: f32) -&gt; anyhow::Result&lt;()&gt; {
-<a href=#158 id=158 data-nosnippet>158</a>        <span class="macro">info!</span>(<span class="string">"single cell mutations in {path2file:#?} at time {time}"</span>);
+<a href=#158 id=158 data-nosnippet>158</a>        <span class="macro">debug!</span>(<span class="string">"single cell mutations in {path2file:#?} at time {time}"</span>);
 <a href=#159 id=159 data-nosnippet>159</a>
 <a href=#160 id=160 data-nosnippet>160</a>        <span class="kw">let </span><span class="kw-2">mut </span>uuid_b = FixedSizeBinaryBuilder::new(<span class="number">16</span>);
 <a href=#161 id=161 data-nosnippet>161</a>        <span class="kw">let </span><span class="kw-2">mut </span>cnt_b = UInt16Builder::with_capacity(<span class="self">self</span>.<span class="number">0</span>.values().len());
@@ -199,7 +199,7 @@
 <a href=#199 id=199 data-nosnippet>199</a><span class="kw">impl </span>Sfs {
 <a href=#200 id=200 data-nosnippet>200</a>    <span class="kw">pub fn </span>from_cells(cells: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>StemCell]) -&gt; anyhow::Result&lt;<span class="self">Self</span>&gt; {
 <a href=#201 id=201 data-nosnippet>201</a>        <span class="doccomment">//! Compute the SFS from the stem cell population.
-<a href=#202 id=202 data-nosnippet>202</a>        </span><span class="macro">info!</span>(<span class="string">"computing the SFS from {} cells"</span>, cells.len());
+<a href=#202 id=202 data-nosnippet>202</a>        </span><span class="macro">debug!</span>(<span class="string">"computing the SFS from {} cells"</span>, cells.len());
 <a href=#203 id=203 data-nosnippet>203</a>        <span class="macro">trace!</span>(<span class="string">"computing the SFS from {:#?}"</span>, <span class="kw-2">&amp;</span>cells);
 <a href=#204 id=204 data-nosnippet>204</a>
 <a href=#205 id=205 data-nosnippet>205</a>        <span class="kw">let </span>sfs_variants = Sfs::from_sc_mutations(cells).<span class="number">0</span>;
@@ -221,7 +221,7 @@
 <a href=#221 id=221 data-nosnippet>221</a>    }
 <a href=#222 id=222 data-nosnippet>222</a>
 <a href=#223 id=223 data-nosnippet>223</a>    <span class="kw">pub fn </span>save(<span class="kw-2">&amp;</span><span class="self">self</span>, path2file: <span class="kw-2">&amp;</span>Path, time: f32) -&gt; anyhow::Result&lt;()&gt; {
-<a href=#224 id=224 data-nosnippet>224</a>        <span class="macro">info!</span>(<span class="string">"SFS in {path2file:#?} at time {time}"</span>);
+<a href=#224 id=224 data-nosnippet>224</a>        <span class="macro">debug!</span>(<span class="string">"SFS in {path2file:#?} at time {time}"</span>);
 <a href=#225 id=225 data-nosnippet>225</a>        save_json(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>, path2file).with_context(|| <span class="string">"Cannot save SFS"</span>)
 <a href=#226 id=226 data-nosnippet>226</a>    }
 <a href=#227 id=227 data-nosnippet>227</a>}
@@ -246,7 +246,7 @@
 <a href=#246 id=246 data-nosnippet>246</a>                .or_insert(<span class="number">1u64</span>);
 <a href=#247 id=247 data-nosnippet>247</a>        }
 <a href=#248 id=248 data-nosnippet>248</a>
-<a href=#249 id=249 data-nosnippet>249</a>        <span class="macro">info!</span>(<span class="string">"burden: {burden:#?}"</span>);
+<a href=#249 id=249 data-nosnippet>249</a>        <span class="macro">debug!</span>(<span class="string">"burden: {burden:#?}"</span>);
 <a href=#250 id=250 data-nosnippet>250</a>        <span class="prelude-val">Ok</span>(MutationalBurden(burden))
 <a href=#251 id=251 data-nosnippet>251</a>    }
 <a href=#252 id=252 data-nosnippet>252</a>
@@ -275,7 +275,7 @@
 <a href=#275 id=275 data-nosnippet>275</a>    }
 <a href=#276 id=276 data-nosnippet>276</a>
 <a href=#277 id=277 data-nosnippet>277</a>    <span class="kw">pub fn </span>save(<span class="kw-2">&amp;</span><span class="self">self</span>, path2file: <span class="kw-2">&amp;</span>Path, time: f32) -&gt; anyhow::Result&lt;()&gt; {
-<a href=#278 id=278 data-nosnippet>278</a>        <span class="macro">info!</span>(<span class="string">"saving burden in {path2file:#?} at time {time}"</span>);
+<a href=#278 id=278 data-nosnippet>278</a>        <span class="macro">debug!</span>(<span class="string">"saving burden in {path2file:#?} at time {time}"</span>);
 <a href=#279 id=279 data-nosnippet>279</a>        save_json(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>, path2file).with_context(|| <span class="string">"Cannot save the burden"</span>)
 <a href=#280 id=280 data-nosnippet>280</a>    }
 <a href=#281 id=281 data-nosnippet>281</a>}

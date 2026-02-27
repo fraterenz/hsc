@@ -17,7 +17,7 @@
 <a href=#17 id=17 data-nosnippet>17</a>};
 <a href=#18 id=18 data-nosnippet>18</a>
 <a href=#19 id=19 data-nosnippet>19</a><span class="kw">use </span>anyhow::Context;
-<a href=#20 id=20 data-nosnippet>20</a><span class="kw">use </span>log::info;
+<a href=#20 id=20 data-nosnippet>20</a><span class="kw">use </span>log::debug;
 <a href=#21 id=21 data-nosnippet>21</a>
 <a href=#22 id=22 data-nosnippet>22</a><span class="doccomment">/// The neutral mutations representing the genotype of the stem cells.
 <a href=#23 id=23 data-nosnippet>23</a></span><span class="kw">pub mod </span>genotype;
@@ -99,7 +99,7 @@
 <a href=#99 id=99 data-nosnippet>99</a>        } <span class="kw">else </span>{
 <a href=#100 id=100 data-nosnippet>100</a>            Probs::Symmetric { u, probs_per_year }
 <a href=#101 id=101 data-nosnippet>101</a>        };
-<a href=#102 id=102 data-nosnippet>102</a>        <span class="macro">info!</span>(<span class="string">"probs {probs:#?}"</span>);
+<a href=#102 id=102 data-nosnippet>102</a>        <span class="macro">debug!</span>(<span class="string">"probs {probs:#?}"</span>);
 <a href=#103 id=103 data-nosnippet>103</a>        <span class="macro">assert!</span>((<span class="number">0f32</span>..<span class="number">1.</span>).contains(<span class="kw-2">&amp;</span>u), <span class="string">"Invalid u: u&gt;=0 and u&lt;1"</span>);
 <a href=#104 id=104 data-nosnippet>104</a>        <span class="macro">assert!</span>(
 <a href=#105 id=105 data-nosnippet>105</a>            (<span class="number">0f32</span>..=<span class="number">1.</span>).contains(<span class="kw-2">&amp;</span>asymmetric),

@@ -2,7 +2,7 @@
 <a href=#2 id=2 data-nosnippet>2</a><span class="kw">use </span><span class="kw">crate</span>::Probs;
 <a href=#3 id=3 data-nosnippet>3</a><span class="kw">use crate</span>::{stemcell::StemCell, write2file, MAX_SUBCLONES};
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>anyhow::{ensure, Context};
-<a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>log::{debug, info, trace};
+<a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>log::{debug, trace};
 <a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>rand::seq::IteratorRandom;
 <a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>rand::Rng;
 <a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span>rand_distr::{Bernoulli, Distribution, Gamma};
@@ -403,7 +403,7 @@
 <a href=#403 id=403 data-nosnippet>403</a><span class="kw">pub fn </span>save_variant_fraction(subclones: <span class="kw-2">&amp;</span>SubClones, path2file: <span class="kw-2">&amp;</span>Path) -&gt; anyhow::Result&lt;()&gt; {
 <a href=#404 id=404 data-nosnippet>404</a>    <span class="kw">let </span>path2file = path2file.with_extension(<span class="string">"csv"</span>);
 <a href=#405 id=405 data-nosnippet>405</a>    <span class="kw">let </span>total_variant_frac = Variants::variant_fractions(subclones);
-<a href=#406 id=406 data-nosnippet>406</a>    <span class="macro">info!</span>(<span class="string">"total variant fraction in {path2file:#?}"</span>);
+<a href=#406 id=406 data-nosnippet>406</a>    <span class="macro">debug!</span>(<span class="string">"total variant fraction in {path2file:#?}"</span>);
 <a href=#407 id=407 data-nosnippet>407</a>    write2file(<span class="kw-2">&amp;</span>total_variant_frac, <span class="kw-2">&amp;</span>path2file, <span class="prelude-val">None</span>, <span class="bool-val">false</span>)<span class="question-mark">?</span>;
 <a href=#408 id=408 data-nosnippet>408</a>    <span class="prelude-val">Ok</span>(())
 <a href=#409 id=409 data-nosnippet>409</a>}
