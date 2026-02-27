@@ -10,7 +10,7 @@ use std::{
 use anyhow::Context;
 
 use crate::{
-    genotype::{MutationalBurden, Sfs},
+    genotype::{MutationalBurden, Sfs, SingleCellMutations},
     stemcell::StemCell,
     subclone::{save_variant_fraction, SubClones},
 };
@@ -21,6 +21,7 @@ pub enum Stats2Save {
     Burden,
     Sfs,
     VariantFraction,
+    SingleCellMutations,
 }
 
 /// Specify whether to save the whole population or a subsampling.
@@ -57,19 +58,24 @@ fn make_path(
     time: f32,
     verbosity: u8,
 ) -> anyhow::Result<PathBuf> {
+    let mut timepoint = format!("{time:.1}").replace('.', "dot");
+    timepoint.push_str("years");
+
     let path2dir = path2dir.join(format!("{cells}cells"));
     let path2file = match tosave {
+        // only one file for the single cell mutational burden
+        Stats2Save::SingleCellMutations => path2dir.join("mutations"),
         Stats2Save::VariantFraction => path2dir.join("variant_fraction"),
         Stats2Save::Burden => path2dir.join("burden"),
         Stats2Save::Sfs => path2dir.join("sfs"),
     };
-    let mut timepoint = format!("{time:.1}").replace('.', "dot");
-    timepoint.push_str("years");
     let path2file = path2file.join(timepoint);
+
     fs::create_dir_all(&path2file).with_context(|| "Cannot create dir")?;
     if verbosity > 1 {
         println!("creating dirs {path2file:#?}");
     }
+
     Ok(path2file.join(filename))
 }
 
@@ -102,6 +108,7 @@ pub(crate) fn save_it(
                 time,
                 verbosity,
             )?,
+            time,
             verbosity,
         )?;
 
@@ -117,6 +124,7 @@ pub(crate) fn save_it(
                     time,
                     verbosity,
                 )?,
+                time,
                 verbosity,
             )?;
         save_variant_fraction(
@@ -136,6 +144,22 @@ pub(crate) fn save_it(
             )?,
             verbosity,
         )?;
+        SingleCellMutations::from_cells(&cells, verbosity)
+            .unwrap_or_else(|_| {
+                panic!("cannot create single cell mutations for the timepoint at time {time}")
+            })
+            .save(
+                &make_path(
+                    path2dir,
+                    filename,
+                    Stats2Save::SingleCellMutations,
+                    nb_cells,
+                    time,
+                    verbosity,
+                )?,
+                time,
+                verbosity,
+            )?;
     }
 
     Ok(())

@@ -17,6 +17,8 @@ rand_distr = "0.5.1"
 rayon = "1.11.0"
 rustc-hash = "2.1.1"
 rand_chacha = "0.9.0"
+arrow = "58.0.0"
+parquet = "58.0.0"
 
 [dependencies.uuid]
 version = "1.19.0"
@@ -24,6 +26,7 @@ features = [
     "v4",                # Lets you generate random UUIDs
     "fast-rng",          # Use a faster (but still sufficiently random) RNG
     "macro-diagnostics", # Enable better diagnostics for compile-time UUIDs
+    "serde",
 ]
 
 [dev-dependencies]

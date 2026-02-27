@@ -15,6 +15,16 @@ test/
 │   │   │   ├── 1.json
 │   │   │   └── ...
 │   │   └── ...
+│   ├── mutations # single cell mut burden
+│   │   ├── 0dot0years
+│   │   │   ├── 0.parquet
+│   │   │   ├── 1.parquet
+│   │   │   └── ...
+│   │   ├── 1dot0years
+│   │   │   ├── 0.parquet
+│   │   │   ├── 1.parquet
+│   │   │   └── ...
+│   │   └── ...
 │   ├── sfs # site frequency spectrum vector
 │   │   ├── 0dot0years
 │   │   │   ├── 0.json
@@ -45,8 +55,10 @@ that is those measurements are saved at the end of the simulations, for each tim
 The file name of the runs (here `0.csv` and `1.csv` or `0.json` and `1.json`) have changed such that they incorportate the parameters that have been used to generate them, starting from version `v1.1.0`.
 
 ### Measurements
-- **burden**: a json file with keys being the number of mutations (single-cell mutational burden x-axis) and values being the cells with those mutations (single-cell mutational burden y-axis)
-- **sfs:** a json file with keys being the jcells (x-axis) and values being the number of variants with jcells (y-axis).
-- **variant_fraction**: the abbundance of all subclones
-- **rates:** the birth-rates of the subclones, where the first entry represents the birth-rate of the wild-type `b0`
+More info about the folders generated as the output of `hsc`:
+- **`burden`**: a json file with representing the single-cell mutational burden, where keys are number of mutations found in cells (single-cell mutational burden x-axis) and values are the number of cells with these mutations (single-cell mutational burden y-axis),
+- **`mutations`:** a parquet file representing the number of cells carrying the mutations present in the population,
+- **`sfs`:** a json file with keys being the jcells (x-axis) and values being the number of variants with jcells (y-axis),
+- **`variant_fraction`**: the abbundance of all subclones, where the first entry represents the frequency of the wild-type clone with `b0` birth-rate,
+- **rates:** the birth-rates of the subclones, where the first entry represents the birth-rate of the wild-type `b0`.
 

@@ -1,8 +1,18 @@
 use anyhow::{ensure, Context};
+use arrow::{
+    array::{FixedSizeBinaryBuilder, Float32Builder, RecordBatch, UInt16Builder},
+    datatypes::{DataType, Field, Schema},
+};
+use parquet::arrow::arrow_writer::ArrowWriter;
 use rand::Rng;
 use rand_distr::{Distribution, Poisson};
 use rustc_hash::FxHashMap;
-use std::{fs, path::Path};
+use serde::Serialize;
+use std::{
+    fs::{self, File},
+    path::Path,
+    sync::Arc,
+};
 use uuid::Uuid;
 
 use crate::{
@@ -109,6 +119,81 @@ fn generate_mutations(nb_mutations: NbPoissonMutations) -> Option<Vec<Mutation>>
         None
     } else {
         Some((0..nb_mutations).map(|_| Uuid::new_v4()).collect())
+    }
+}
+
+fn save_json<T>(genotypes: &FxHashMap<T, u64>, path2file: &Path) -> anyhow::Result<()>
+where
+    T: Serialize,
+{
+    let path2file = path2file.with_extension("json");
+    let geno = serde_json::to_string(genotypes).with_context(|| "cannot serialize the genotype")?;
+    fs::write(path2file, geno).with_context(|| "cannot write genotype")
+}
+
+/// The cell counts of all the mutations.
+///
+/// This is implemeted as a HashMap with keys being the [`Mutation`] and values
+/// being the number of cells.
+pub struct SingleCellMutations(FxHashMap<Mutation, u64>);
+
+impl SingleCellMutations {
+    pub fn from_cells(cells: &[&StemCell], verbosity: u8) -> anyhow::Result<Self> {
+        if verbosity > 0 {
+            println!(
+                "computing the single cell mutations from {} cells",
+                cells.len()
+            );
+        }
+        let mut mutations = FxHashMap::default();
+        for cell in cells.iter() {
+            for &variant in cell.mutations.iter() {
+                mutations
+                    .entry(variant)
+                    .and_modify(|counter| *counter += 1u64)
+                    .or_insert(1);
+            }
+        }
+
+        Ok(SingleCellMutations(mutations))
+    }
+
+    pub fn save(&self, path2file: &Path, time: f32, verbosity: u8) -> anyhow::Result<()> {
+        if verbosity > 0 {
+            println!("single cell mutations in {path2file:#?} at time {time}")
+        }
+
+        let mut uuid_b = FixedSizeBinaryBuilder::new(16);
+        let mut cnt_b = UInt16Builder::with_capacity(self.0.values().len());
+        let mut time_b = Float32Builder::with_capacity(self.0.keys().len());
+
+        for (u, c) in &self.0 {
+            uuid_b.append_value(u)?;
+            cnt_b.append_value(*c as u16);
+            time_b.append_value(time);
+        }
+
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("mutation_uuid", DataType::FixedSizeBinary(16), false),
+            Field::new("cell_count", DataType::UInt16, false),
+            Field::new("timepoint", DataType::Float32, false),
+        ]));
+
+        let batch = RecordBatch::try_new(
+            schema.clone(),
+            vec![
+                Arc::new(uuid_b.finish()),
+                Arc::new(cnt_b.finish()),
+                Arc::new(time_b.finish()),
+            ],
+        )?;
+
+        let file = File::create(path2file.with_extension("parquet"))?;
+        let mut w = ArrowWriter::try_new(file, schema, None)?;
+        w.write(&batch)?;
+        w.close()?;
+
+        Ok(())
     }
 }
 
