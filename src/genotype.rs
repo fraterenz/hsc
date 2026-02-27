@@ -10,7 +10,7 @@ use crate::{
     stemcell::StemCell,
 };
 
-pub type Variant = Uuid;
+pub type Mutation = Uuid;
 
 fn nb_neutral_mutations(poisson: &Poisson<f32>, rng: &mut impl Rng) -> NbPoissonMutations {
     //! The number of neutral mutations acquired upon cell division.
@@ -63,7 +63,7 @@ impl NeutralMutationPoisson {
         })
     }
 
-    pub fn new_muts_upon_division(&self, rng: &mut impl Rng) -> Option<Vec<Variant>> {
+    pub fn new_muts_upon_division(&self, rng: &mut impl Rng) -> Option<Vec<Mutation>> {
         //! Generate neutral mutations acquired upon cell division sampling the
         //! Poisson
         //!
@@ -78,7 +78,7 @@ impl NeutralMutationPoisson {
         interdivison_time: f32,
         rng: &mut impl Rng,
         verbosity: u8,
-    ) -> Option<Vec<Variant>> {
+    ) -> Option<Vec<Mutation>> {
         //! The number of neutral mutations acquired upon cell division.
         if verbosity > 1 {
             println!(
@@ -104,7 +104,7 @@ impl NeutralMutationPoisson {
 /// upon one proliferative event.
 type NbPoissonMutations = u16;
 
-fn generate_mutations(nb_mutations: NbPoissonMutations) -> Option<Vec<Variant>> {
+fn generate_mutations(nb_mutations: NbPoissonMutations) -> Option<Vec<Mutation>> {
     if nb_mutations == 0 {
         None
     } else {
@@ -126,15 +126,8 @@ impl Sfs {
                 println!("computing the SFS from {:#?}", &cells);
             }
         }
-        let mut sfs_variants = FxHashMap::default();
-        for cell in cells.iter() {
-            for variant in cell.variants.iter() {
-                sfs_variants
-                    .entry(variant)
-                    .and_modify(|counter| *counter += 1u64)
-                    .or_insert(1);
-            }
-        }
+        let sfs_variants = Sfs::from_sc_mutations(cells, verbosity).0;
+
         let mut sfs = FxHashMap::default();
         for nb_cells in sfs_variants.values() {
             sfs.entry(*nb_cells)
@@ -148,23 +141,25 @@ impl Sfs {
         Ok(Sfs(sfs))
     }
 
-    pub fn save(&self, path2file: &Path, verbosity: u8) -> anyhow::Result<()> {
-        let path2file = path2file.with_extension("json");
-        let sfs = serde_json::to_string(&self.0).with_context(|| "cannot serialize the SFS")?;
-        if verbosity > 0 {
-            println!("SFS in {path2file:#?}")
-        }
-        fs::write(path2file, sfs).with_context(|| "Cannot save the SFS ".to_string())?;
+    fn from_sc_mutations(cells: &[&StemCell], verbosity: u8) -> SingleCellMutations {
+        // wont fail for now
+        SingleCellMutations::from_cells(cells, verbosity).unwrap()
+    }
 
-        Ok(())
+    pub fn save(&self, path2file: &Path, time: f32, verbosity: u8) -> anyhow::Result<()> {
+        if verbosity > 0 {
+            println!("SFS in {path2file:#?} at time {time}")
+        }
+        save_json(&self.0, path2file).with_context(|| "Cannot save SFS")
     }
 }
 
-/// Single-cell mutational burden is a mapping of cells sharing a number of
-/// mutations.
+/// The histogram of the single-cell mutational burden.
 ///
-/// To plot it, plot on the x-axis the keys (number of mutations) and on the
-/// y-axis the values (the number of cells with those mutations).
+/// The keys are the number of mutations and the values the number of cells
+/// with these mutations.
+/// It's a summarised (lighter) version of [`SingleCellMutations`], that is the
+/// single cell mutational burden but without the mutation id.
 pub struct MutationalBurden(pub FxHashMap<u16, u64>);
 
 impl MutationalBurden {
@@ -209,17 +204,11 @@ impl MutationalBurden {
         MutationalBurden::from_cells(&cells, verbosity)
     }
 
-    pub fn save(&self, path2file: &Path, verbosity: u8) -> anyhow::Result<()> {
-        let path2file = path2file.with_extension("json");
-        let burden =
-            serde_json::to_string(&self.0).with_context(|| "cannot serialize the burden")?;
+    pub fn save(&self, path2file: &Path, time: f32, verbosity: u8) -> anyhow::Result<()> {
         if verbosity > 0 {
-            println!("saving burden in {path2file:#?}");
+            println!("saving burden in {path2file:#?} at time {time}");
         }
-        fs::write(path2file, burden)
-            .with_context(|| "Cannot save the total single cel burden".to_string())?;
-
-        Ok(())
+        save_json(&self.0, path2file).with_context(|| "Cannot save the burden")
     }
 }
 

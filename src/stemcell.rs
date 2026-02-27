@@ -1,7 +1,7 @@
 use anyhow::{ensure, Context};
 use rand::Rng;
 
-use crate::genotype::{NeutralMutationPoisson, Variant};
+use crate::genotype::{Mutation, NeutralMutationPoisson};
 
 /// Hematopoietic stem and progenitor cells (HSPCs) are a rare population of
 /// precursor cells that possess the capacity for self-renewal and multilineage
@@ -10,7 +10,7 @@ use crate::genotype::{NeutralMutationPoisson, Variant};
 /// They carry a set of neutral mutations and are assigned to [`crate::subclone::SubClone`].
 #[derive(Debug, Clone)]
 pub struct StemCell {
-    pub variants: Vec<Variant>,
+    pub mutations: Vec<Mutation>,
     /// the last time at which the cell has divided
     last_division_t: f32,
 }
@@ -26,24 +26,24 @@ impl StemCell {
     pub fn new() -> StemCell {
         //! Construct a new cell without any neutral mutations.
         StemCell {
-            variants: Vec::new(),
+            mutations: Vec::new(),
             last_division_t: 0.,
         }
     }
 
-    pub fn with_mutations(mutations: Vec<Variant>) -> StemCell {
+    pub fn with_mutations(mutations: Vec<Mutation>) -> StemCell {
         assert!(!mutations.is_empty());
         let mut cell = StemCell::new();
-        cell.variants = mutations;
+        cell.mutations = mutations;
         cell
     }
 
     pub fn has_mutations(&self) -> bool {
-        !self.variants.is_empty()
+        !self.mutations.is_empty()
     }
 
     pub fn burden(&self) -> usize {
-        self.variants.len()
+        self.mutations.len()
     }
 
     pub fn get_last_division_time(&mut self) -> &f32 {
@@ -67,8 +67,8 @@ impl StemCell {
     }
 }
 
-fn mutate(cell: &mut StemCell, mut mutations: Vec<Variant>) {
-    cell.variants.append(&mut mutations);
+fn mutate(cell: &mut StemCell, mut mutations: Vec<Mutation>) {
+    cell.mutations.append(&mut mutations);
 }
 
 pub fn assign_divisional_mutations(
@@ -153,13 +153,13 @@ mod tests {
     #[quickcheck]
     fn assign_background_mutations_test(seed: u64) -> bool {
         let rng = &mut ChaCha8Rng::seed_from_u64(seed);
-        let mutations = vec![Variant::new_v4()];
+        let mutations = vec![Mutation::new_v4()];
         let time = 9.1;
         let mut stem_cell = StemCell::with_mutations(mutations.clone());
         let poissons = NeutralMutationPoisson::new(1.1, 12f32).unwrap();
 
         assign_background_mutations(&mut stem_cell, time, &poissons, rng, 0);
-        mutations != stem_cell.variants && mutations.len() < stem_cell.variants.len()
+        mutations != stem_cell.mutations && mutations.len() < stem_cell.mutations.len()
     }
 
     #[quickcheck]
