@@ -1,6 +1,6 @@
 use anyhow::{ensure, Context};
 use arrow_array::{
-    builder::{FixedSizeBinaryBuilder, Float32Builder, UInt16Builder},
+    builder::{FixedSizeBinaryBuilder, Float32Builder, UInt32Builder},
     RecordBatch,
 };
 use arrow_schema::{DataType, Field, Schema};
@@ -158,18 +158,18 @@ impl SingleCellMutations {
         debug!("single cell mutations in {path2file:#?} at time {time}");
 
         let mut uuid_b = FixedSizeBinaryBuilder::new(16);
-        let mut cnt_b = UInt16Builder::with_capacity(self.0.values().len());
+        let mut cnt_b = UInt32Builder::with_capacity(self.0.values().len());
         let mut time_b = Float32Builder::with_capacity(self.0.keys().len());
 
         for (u, c) in &self.0 {
             uuid_b.append_value(u)?;
-            cnt_b.append_value(*c as u16);
+            cnt_b.append_value(*c as u32);
             time_b.append_value(time);
         }
 
         let schema = Arc::new(Schema::new(vec![
             Field::new("mutation_uuid", DataType::FixedSizeBinary(16), false),
-            Field::new("cell_count", DataType::UInt16, false),
+            Field::new("cell_count", DataType::UInt32, false),
             Field::new("timepoint", DataType::Float32, false),
         ]));
 
