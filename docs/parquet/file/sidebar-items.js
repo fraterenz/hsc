@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["FOOTER_SIZE"],"mod":["metadata","page_index","properties","reader","serialized_reader","statistics","writer"]};

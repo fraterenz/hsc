@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["check_valid_utf8"]};

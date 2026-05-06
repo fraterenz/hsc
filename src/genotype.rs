@@ -328,7 +328,7 @@ mod tests {
             .0
             .into_iter()
             .collect::<Vec<(u64, u64)>>();
-        sfs.sort_unstable_by(|&entry1, &entry2| entry1.0.cmp(&entry2.0));
+        sfs.sort_unstable_by_key(|&entry| entry.0);
         let jcells = sfs
             .clone()
             .into_iter()
@@ -361,7 +361,7 @@ mod tests {
             .0
             .into_iter()
             .collect::<Vec<(u64, u64)>>();
-        sfs.sort_unstable_by(|&entry1, &entry2| entry1.0.cmp(&entry2.0));
+        sfs.sort_unstable_by_key(|&entry| entry.0);
         let jcells = sfs
             .clone()
             .into_iter()

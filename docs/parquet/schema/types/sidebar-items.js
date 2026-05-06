@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["Type"],"struct":["BasicTypeInfo","ColumnDescriptor","ColumnPath","GroupTypeBuilder","PrimitiveTypeBuilder","SchemaDescriptor"],"type":["ColumnDescPtr","SchemaDescPtr","TypePtr"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["BloomFilterAlgorithm","BloomFilterCompression","BloomFilterHash","BoundaryOrder","ColumnOrder","Compression","ConvertedType","EdgeInterpolationAlgorithm","Encoding","FieldRepetitionType","LogicalType","PageType","SortOrder","TimeUnit","Type"],"struct":["BrotliLevel","EncodingMask","GzipLevel","ZstdLevel"],"type":["Repetition"]};

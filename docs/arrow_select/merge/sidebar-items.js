@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["merge","merge_n"],"trait":["MergeIndex"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":["column_index","index_reader","offset_index"]};

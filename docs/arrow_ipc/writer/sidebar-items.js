@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["DictionaryHandling","DictionaryUpdate"],"fn":["write_message"],"struct":["CompressionContext","DictionaryTracker","EncodedData","FileWriter","IpcDataGenerator","IpcWriteOptions","StreamWriter"]};

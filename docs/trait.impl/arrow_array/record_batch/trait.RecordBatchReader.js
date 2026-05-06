@@ -1,9 +1,0 @@
-(function() {
-    var implementors = Object.fromEntries([["arrow_array",[]],["arrow_ipc",[["impl&lt;R: <a class=\"trait\" href=\"https://doc.rust-lang.org/1.90.0/std/io/trait.Read.html\" title=\"trait std::io::Read\">Read</a> + <a class=\"trait\" href=\"https://doc.rust-lang.org/1.90.0/std/io/trait.Seek.html\" title=\"trait std::io::Seek\">Seek</a>&gt; <a class=\"trait\" href=\"arrow_array/record_batch/trait.RecordBatchReader.html\" title=\"trait arrow_array::record_batch::RecordBatchReader\">RecordBatchReader</a> for <a class=\"struct\" href=\"arrow_ipc/reader/struct.FileReader.html\" title=\"struct arrow_ipc::reader::FileReader\">FileReader</a>&lt;R&gt;"],["impl&lt;R: <a class=\"trait\" href=\"https://doc.rust-lang.org/1.90.0/std/io/trait.Read.html\" title=\"trait std::io::Read\">Read</a>&gt; <a class=\"trait\" href=\"arrow_array/record_batch/trait.RecordBatchReader.html\" title=\"trait arrow_array::record_batch::RecordBatchReader\">RecordBatchReader</a> for <a class=\"struct\" href=\"arrow_ipc/reader/struct.StreamReader.html\" title=\"struct arrow_ipc::reader::StreamReader\">StreamReader</a>&lt;R&gt;"]]],["parquet",[["impl <a class=\"trait\" href=\"arrow_array/record_batch/trait.RecordBatchReader.html\" title=\"trait arrow_array::record_batch::RecordBatchReader\">RecordBatchReader</a> for <a class=\"struct\" href=\"parquet/arrow/arrow_reader/struct.ParquetRecordBatchReader.html\" title=\"struct parquet::arrow::arrow_reader::ParquetRecordBatchReader\">ParquetRecordBatchReader</a>"]]]]);
-    if (window.register_implementors) {
-        window.register_implementors(implementors);
-    } else {
-        window.pending_implementors = implementors;
-    }
-})()
-//{"start":57,"fragment_lengths":[18,1049,386]}

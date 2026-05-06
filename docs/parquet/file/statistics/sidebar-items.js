@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["Statistics"],"struct":["ValueStatistics"],"type":["TypedStatistics"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["DecodeResult"],"mod":["arrow","basic","bloom_filter","column","data_type","errors","file","format","geospatial","record","schema","thrift","utf8"]};
