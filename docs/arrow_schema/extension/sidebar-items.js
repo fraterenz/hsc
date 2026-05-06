@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["EXTENSION_TYPE_METADATA_KEY","EXTENSION_TYPE_NAME_KEY"],"trait":["ExtensionType"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["RowSelectionCursor","RowSelectionPolicy"],"mod":["metrics","statistics"],"struct":["ArrowPredicateFn","ArrowReaderBuilder","ArrowReaderMetadata","ArrowReaderOptions","ParquetRecordBatchReader","ReadPlan","ReadPlanBuilder","RowFilter","RowSelection","RowSelector"],"trait":["ArrowPredicate","RowGroups"],"type":["ParquetRecordBatchReaderBuilder"]};

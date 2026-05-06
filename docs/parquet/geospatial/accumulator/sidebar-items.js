@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["init_geo_stats_accumulator_factory","try_new_geo_stats_accumulator"],"struct":["DefaultGeoStatsAccumulatorFactory","VoidGeoStatsAccumulator"],"trait":["GeoStatsAccumulator","GeoStatsAccumulatorFactory"]};
