@@ -87,7 +87,10 @@ impl Proliferation {
             stem_cell.get_last_division_time()
         );
         trace!("cell {stem_cell:#?} is dividing");
-        self.realise_background_for_cell(&mut stem_cell, time, distributions, rng);
+        if let NeutralMutations::UponDivisionAndBackground = self.neutral_mutation {
+            debug!("realise and assign the neutral background mutations to the proliferating cell");
+            self.realise_background_for_cell(&mut stem_cell, time, distributions, rng);
+        }
         let cells = match self.division {
             Division::Asymmetric(prob) => {
                 if prob.sample(rng) {
@@ -123,15 +126,16 @@ impl Proliferation {
         //!
         //! Background mutations are normally drawn at the next division (see
         //! [`Proliferation::proliferate`]); snapshots and phase transitions
-        //! need to read mutation state without waiting for that division, so
-        //! they call into this method to bring every cell up to the current
-        //! `time`. Cells whose last division is at or after `time` are left
-        //! untouched.
+        //! need to read mutation state of all cells, so they call into this
+        //! method to bring every cell up to the current `time`. Cells whose
+        //! last division is at or after `time` are left untouched.
         //!
         //! No-op when `self.neutral_mutation` is [`NeutralMutations::UponDivision`].
-        debug!("realise and assign the neutral background mutations to all cells");
-        for stem_cell in subclones.get_mut_cells() {
-            self.realise_background_for_cell(stem_cell, time, distributions, rng);
+        if let NeutralMutations::UponDivisionAndBackground = self.neutral_mutation {
+            debug!("realise and assign the neutral background mutations to all cells");
+            for stem_cell in subclones.get_mut_cells() {
+                self.realise_background_for_cell(stem_cell, time, distributions, rng);
+            }
         }
     }
 
@@ -143,12 +147,10 @@ impl Proliferation {
         rng: &mut impl Rng,
     ) {
         //! Per-cell variant of [`Self::realise_background_mutations`], shared
-        //! by the bulk sweep and by [`Self::proliferate`] (which operates on a
-        //! single cell detached from [`SubClones`]).
-        if let NeutralMutations::UponDivisionAndBackground = self.neutral_mutation {
-            if cell.get_last_division_time() < &time {
-                assign_background_mutations(cell, time, &distributions.neutral_poisson, rng);
-            }
+        //! and by [`Self::proliferate`] (which operates on a single cell detached
+        //! from [`SubClones`]).
+        if cell.get_last_division_time() < &time {
+            assign_background_mutations(cell, time, &distributions.neutral_poisson, rng);
         }
     }
 }
