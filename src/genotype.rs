@@ -143,7 +143,7 @@ impl SingleCellMutations {
         );
         let mut mutations = FxHashMap::default();
         for cell in cells.iter() {
-            for &variant in cell.mutations.iter() {
+            for &variant in cell.get_mutations() {
                 mutations
                     .entry(variant)
                     .and_modify(|counter| *counter += 1u64)

@@ -200,7 +200,7 @@ mod tests {
         );
 
         for cell in subclones.get_neutral_clone().get_cells() {
-            assert!(cell.mutations.is_empty());
+            assert!(!cell.has_mutations());
         }
     }
 
@@ -243,7 +243,7 @@ mod tests {
         proliferation.realise_background_mutations(&mut subclones, 1.0, &make_distributions(), rng);
 
         for cell in subclones.get_neutral_clone().get_cells() {
-            assert!(cell.mutations.is_empty());
+            assert!(!cell.has_mutations());
         }
     }
 }

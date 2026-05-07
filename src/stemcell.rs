@@ -11,7 +11,7 @@ use crate::genotype::{Mutation, NeutralMutationPoisson};
 /// They carry a set of neutral mutations and are assigned to [`crate::subclone::SubClone`].
 #[derive(Debug, Clone)]
 pub struct StemCell {
-    pub mutations: Vec<Mutation>,
+    mutations: Vec<Mutation>,
     /// the last time at which the cell has divided
     last_division_t: f32,
 }
@@ -41,6 +41,10 @@ impl StemCell {
 
     pub fn has_mutations(&self) -> bool {
         !self.mutations.is_empty()
+    }
+
+    pub fn get_mutations(&self) -> &[Mutation] {
+        &self.mutations
     }
 
     pub fn burden(&self) -> usize {
