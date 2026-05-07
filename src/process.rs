@@ -250,12 +250,10 @@ impl Moran {
         //! The cell having just proliferated can be removed as well, any cell
         //! can be removed.
         //!
-        //! We proceed as following:
-        //!     1. check if there is only one clone in the population, then
-        //!     remove a cell from this clone
-        //!     2. else, compute the variant counts
-        //!     3. and sample from any clone based on the weights defined by
-        //!     the variant counts
+        //! Compute compute the variant counts and sample from any clone based
+        //! on the weights defined by the variant counts.
+        //! This is a complicated way to acces one random cell in the
+        //! population.
         trace!("keeping the cell population constant");
         // remove a cell from a random subclone based on the frequencies of
         // the clones at the current state
