@@ -282,9 +282,9 @@ impl SubClones {
             subclones.0[clone_id].cells.push(cell);
         }
 
-        // `parent_id` is preserved per slot for clones that retain at least
-        // one cell after subsampling: clones that lost all their cells revert
-        // to default which is the neutral clone.
+        // `parent_id` is preserved for clones that retain at least one cell
+        // after subsampling: clones that lost all their cells revert to default
+        // which is the neutral clone.
         for (i, &pid) in parent_ids.iter().enumerate() {
             if !subclones.0[i].is_empty() {
                 subclones.0[i].parent_id = pid;
@@ -436,6 +436,16 @@ pub fn save_variant_fraction(subclones: &SubClones, path2file: &Path) -> anyhow:
     Ok(())
 }
 
+pub fn save_variant_phylogeny(subclones: &SubClones, path2file: &Path) -> anyhow::Result<()> {
+    let path2file = path2file.with_extension("csv");
+    let parent_ids: Vec<CloneId> = (0..MAX_SUBCLONES)
+        .map(|i| subclones.get_clone(i).unwrap().get_parent_id())
+        .collect();
+    debug!("variant phylogeny in {path2file:#?}");
+    write2file(&parent_ids, &path2file, None, false)?;
+    Ok(())
+}
+
 pub fn proliferating_cell(
     subclones: &mut SubClones,
     subclone_id: CloneId,
@@ -505,6 +515,90 @@ mod tests {
             Variants::variant_fractions(&subclones),
             &[1. / MAX_SUBCLONES as f32; MAX_SUBCLONES]
         );
+    }
+
+    #[test]
+    fn into_subsampled_preserves_parent_id_for_surviving_clones() {
+        // Set up: clone 0 (wild-type), clone 7 with parent_id=0, clone 42
+        // with parent_id=7. Subsample to a size that keeps cells in clones 0
+        // and 7 but is small enough to risk dropping clone 42 — we'll seed
+        // the RNG and verify whichever clones survive carry their parent_id.
+        let mut rng = SmallRng::seed_from_u64(123);
+        let mut subclones = SubClones::new_empty();
+        for _ in 0..20 {
+            subclones
+                .get_mut_clone_unchecked(0)
+                .assign_cell(StemCell::new());
+        }
+        for _ in 0..5 {
+            subclones
+                .get_mut_clone_unchecked(7)
+                .assign_cell(StemCell::new());
+        }
+        for _ in 0..2 {
+            subclones
+                .get_mut_clone_unchecked(42)
+                .assign_cell(StemCell::new());
+        }
+        subclones.get_mut_clone_unchecked(7).set_parent_id(0);
+        subclones.get_mut_clone_unchecked(42).set_parent_id(7);
+
+        let subsampled = subclones.into_subsampled(NonZeroUsize::new(10).unwrap(), &mut rng);
+
+        // Invariant: every clone that retains at least one cell must keep
+        // its parent_id; clones that were fully sampled out reset to 0.
+        for i in 0..MAX_SUBCLONES {
+            let slot = subsampled.get_clone(i).unwrap();
+            let expected_parent = match i {
+                7 if !slot.is_empty() => 0,
+                42 if !slot.is_empty() => 7,
+                _ => 0,
+            };
+            assert_eq!(
+                slot.get_parent_id(),
+                expected_parent,
+                "slot {i} (empty={}) had wrong parent_id",
+                slot.is_empty()
+            );
+        }
+        // At least one of the non-trivial clones should still be alive,
+        // otherwise the test is vacuous.
+        assert!(
+            !subsampled.get_clone(7).unwrap().is_empty()
+                || !subsampled.get_clone(42).unwrap().is_empty(),
+            "subsample dropped both non-neutral clones; test is vacuous"
+        );
+    }
+
+    #[test]
+    fn save_variant_phylogeny_writes_parent_ids() {
+        let mut subclones = SubClones::new_empty();
+        subclones.get_mut_clone_unchecked(7).set_parent_id(3);
+        subclones.get_mut_clone_unchecked(42).set_parent_id(7);
+
+        let path =
+            std::env::temp_dir().join(format!("hsc-phylogeny-test-{}.csv", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+
+        save_variant_phylogeny(&subclones, &path).unwrap();
+
+        let body = std::fs::read_to_string(&path).unwrap();
+        let values: Vec<&str> = body.trim_end_matches(',').split(',').collect();
+        assert_eq!(values.len(), MAX_SUBCLONES);
+        for (i, v) in values.iter().enumerate() {
+            let expected: CloneId = match i {
+                7 => 3,
+                42 => 7,
+                _ => 0,
+            };
+            assert_eq!(
+                v.parse::<CloneId>().unwrap(),
+                expected,
+                "slot {i} mismatched",
+            );
+        }
+
+        std::fs::remove_file(&path).unwrap();
     }
 
     #[quickcheck]

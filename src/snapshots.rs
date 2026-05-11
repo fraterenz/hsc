@@ -15,7 +15,7 @@ use log::debug;
 use crate::{
     genotype::{MutationalBurden, Sfs, SingleCellMutations},
     stemcell::StemCell,
-    subclone::{save_variant_fraction, SubClones},
+    subclone::{save_variant_fraction, save_variant_phylogeny, SubClones},
 };
 
 /// The statistics/measurements we want to save from the simulations.
@@ -24,6 +24,7 @@ pub enum Stats2Save {
     Burden,
     Sfs,
     VariantFraction,
+    VariantPhylogeny,
     SingleCellMutations,
 }
 
@@ -92,6 +93,7 @@ fn make_path(
         // only one file for the single cell mutational burden
         Stats2Save::SingleCellMutations => path2dir.join("mutations"),
         Stats2Save::VariantFraction => path2dir.join("variant_fraction"),
+        Stats2Save::VariantPhylogeny => path2dir.join("variant_phylogeny"),
         Stats2Save::Burden => path2dir.join("burden"),
         Stats2Save::Sfs => path2dir.join("sfs"),
     };
@@ -108,6 +110,7 @@ pub(crate) fn save_it(
     filename: &Path,
     time: f32,
     cells_with_idx: Vec<(&StemCell, usize)>,
+    subclones: &SubClones,
     stats: &StatsConfig,
 ) -> anyhow::Result<()> {
     debug!("saving data at time {time}");
@@ -185,6 +188,22 @@ pub(crate) fn save_it(
                 path2dir,
                 filename,
                 Stats2Save::VariantFraction,
+                nb_cells,
+                time,
+            )?,
+        )?;
+    }
+
+    if stats.enabled.contains(Stats2Save::VariantPhylogeny) {
+        // parent_id is a clone-level property; subsampling cells does not
+        // change lineage. Always write the full-population view from the live
+        // `subclones`, regardless of `cells_with_idx`.
+        save_variant_phylogeny(
+            subclones,
+            &make_path(
+                path2dir,
+                filename,
+                Stats2Save::VariantPhylogeny,
                 nb_cells,
                 time,
             )?,
