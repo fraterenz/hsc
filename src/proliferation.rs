@@ -112,6 +112,13 @@ impl Proliferation {
                 .get_mut_clone_unchecked(clone_id)
                 .assign_cell(stem_cell);
         }
+        if clone_id != proliferating_subclone {
+            // next_clone returns a different id only when a new fit variant
+            // is sampled into a previously-empty slot — record the lineage.
+            subclones
+                .get_mut_clone_unchecked(clone_id)
+                .set_parent_id(proliferating_subclone);
+        }
     }
 
     pub fn realise_background_mutations(
@@ -227,6 +234,40 @@ mod tests {
             .map(|c| c.burden())
             .sum();
         assert!(total > 0);
+    }
+
+    #[test]
+    fn parent_id_set_on_new_variant() {
+        // Probs::new computes u = mu / cells = 50/100 = 0.5. With
+        // interdivision_time = time - last_division_t = 2.0, the proliferation
+        // probability p = u * 2.0 = 1.0, so next_clone always picks a new
+        // empty target. The new target's parent_id must be the source (0).
+        let rng = &mut ChaCha8Rng::seed_from_u64(7);
+        let mut subclones = make_subclones(5, 0.0);
+        let distributions = Distributions::new(Probs::new(50., 50., 50., 0., 100));
+        let proliferation = Proliferation::new(NeutralMutations::UponDivision, Division::Symmetric);
+
+        proliferation.proliferate(&mut subclones, 2.0, 0, &distributions, rng);
+
+        let target = (1..crate::MAX_SUBCLONES)
+            .find(|&i| !subclones.get_clone(i).unwrap().is_empty())
+            .expect("new variant should have populated some clone other than 0");
+        assert_eq!(subclones.get_clone(target).unwrap().get_parent_id(), 0);
+    }
+
+    #[test]
+    fn parent_id_untouched_without_new_variant() {
+        // last_division_t = time ⇒ interdivision_time = 0 ⇒ p = 0, so
+        // next_clone returns the source clone and no parent_id is written.
+        let rng = &mut ChaCha8Rng::seed_from_u64(7);
+        let mut subclones = make_subclones(5, 1.0);
+        let proliferation = Proliferation::new(NeutralMutations::UponDivision, Division::Symmetric);
+
+        proliferation.proliferate(&mut subclones, 1.0, 0, &make_distributions(), rng);
+
+        for i in 0..crate::MAX_SUBCLONES {
+            assert_eq!(subclones.get_clone(i).unwrap().get_parent_id(), 0);
+        }
     }
 
     #[test]

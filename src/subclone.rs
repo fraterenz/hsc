@@ -92,6 +92,8 @@ pub type CloneId = usize;
 pub struct SubClone {
     cells: Vec<StemCell>,
     pub id: CloneId,
+    // default is the neutral clone with id 0
+    parent_id: CloneId,
 }
 
 impl Iterator for SubClone {
@@ -107,6 +109,7 @@ impl SubClone {
         SubClone {
             cells: Vec::with_capacity(cell_capacity),
             id,
+            parent_id: 0,
         }
     }
 
@@ -114,11 +117,16 @@ impl SubClone {
         SubClone {
             cells: Vec::with_capacity(capacity),
             id,
+            parent_id: 0,
         }
     }
 
     pub fn empty_with_id(id: usize) -> SubClone {
-        SubClone { cells: vec![], id }
+        SubClone {
+            cells: vec![],
+            id,
+            parent_id: 0,
+        }
     }
 
     pub fn get_mut_cells(&mut self) -> &mut [StemCell] {
@@ -135,6 +143,14 @@ impl SubClone {
 
     pub fn is_empty(&self) -> bool {
         self.get_cells().is_empty()
+    }
+
+    pub fn get_parent_id(&self) -> CloneId {
+        self.parent_id
+    }
+
+    pub fn set_parent_id(&mut self, parent_id: CloneId) {
+        self.parent_id = parent_id;
     }
 
     pub fn assign_cell(&mut self, cell: StemCell) {
@@ -241,6 +257,8 @@ impl SubClones {
 
     pub(crate) fn into_subsampled(self, nb_cells: NonZeroUsize, rng: &mut impl Rng) -> Self {
         //! Take a subsample of the population that is stored in these subclones.
+        let parent_ids: [CloneId; MAX_SUBCLONES] = std::array::from_fn(|i| self.0[i].parent_id);
+
         let mut subclones = Self::new_empty();
 
         for (cell, clone_id) in self
@@ -263,6 +281,16 @@ impl SubClones {
         {
             subclones.0[clone_id].cells.push(cell);
         }
+
+        // `parent_id` is preserved per slot for clones that retain at least
+        // one cell after subsampling: clones that lost all their cells revert
+        // to default which is the neutral clone.
+        for (i, &pid) in parent_ids.iter().enumerate() {
+            if !subclones.0[i].is_empty() {
+                subclones.0[i].parent_id = pid;
+            }
+        }
+
         subclones
     }
 
@@ -439,7 +467,11 @@ mod tests {
 
     #[quickcheck]
     fn assign_cell_test(id: usize) -> bool {
-        let mut neutral_clone = SubClone { cells: vec![], id };
+        let mut neutral_clone = SubClone {
+            cells: vec![],
+            id,
+            parent_id: 0,
+        };
         let cell = StemCell::new();
         assert!(neutral_clone.cells.is_empty());
 
