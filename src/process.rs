@@ -668,7 +668,8 @@ mod tests {
         //!
         //! **warning** this is very slow.
         let tot_cells = subclones.compute_tot_cells();
-        (0..MAX_SUBCLONES).find(|&id| subclones.get_clone(id).unwrap().cell_count() == tot_cells)
+        (0..MAX_SUBCLONES as CloneId)
+            .find(|&id| subclones.get_clone(id).unwrap().cell_count() == tot_cells)
     }
 
     #[quickcheck]
