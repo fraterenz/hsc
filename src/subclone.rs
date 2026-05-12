@@ -81,7 +81,7 @@ impl Fitness {
 /// Id of the [`SubClone`]s.
 pub type CloneId = u16;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 /// A group of cells sharing the same genetic background with a specific
 /// proliferation rate.
 ///
@@ -93,6 +93,7 @@ pub type CloneId = u16;
 pub struct SubClone {
     cells: Vec<StemCell>,
     pub id: CloneId,
+    parent_id: Option<CloneId>,
 }
 
 impl Iterator for SubClone {
@@ -108,6 +109,7 @@ impl SubClone {
         SubClone {
             cells: Vec::with_capacity(cell_capacity),
             id,
+            parent_id: None,
         }
     }
 
@@ -115,11 +117,24 @@ impl SubClone {
         SubClone {
             cells: Vec::with_capacity(capacity),
             id,
+            parent_id: None,
         }
     }
 
     pub fn empty_with_id(id: CloneId) -> SubClone {
-        SubClone { cells: vec![], id }
+        SubClone {
+            cells: vec![],
+            id,
+            parent_id: None,
+        }
+    }
+
+    pub fn parent_id(&self) -> Option<CloneId> {
+        self.parent_id
+    }
+
+    pub(crate) fn set_parent_id(&mut self, parent: CloneId) {
+        self.parent_id = Some(parent);
     }
 
     pub fn get_mut_cells(&mut self) -> &mut [StemCell] {
@@ -437,14 +452,14 @@ mod tests {
     use quickcheck_macros::quickcheck;
     use rand::{SeedableRng, rngs::SmallRng};
 
-    #[quickcheck]
-    fn assign_cell_test(id: CloneId) -> bool {
-        let mut neutral_clone = SubClone { cells: vec![], id };
+    #[test]
+    fn assign_cell_test() {
+        let mut neutral_clone = SubClone::default();
         let cell = StemCell::new();
         assert!(neutral_clone.cells.is_empty());
 
         neutral_clone.assign_cell(cell);
-        !neutral_clone.cells.is_empty()
+        assert!(!neutral_clone.cells.is_empty());
     }
 
     #[quickcheck]
@@ -513,6 +528,54 @@ mod tests {
         cell.set_last_division_time(1.).unwrap();
 
         next_clone(&subclones, 0, 1., &mut rng);
+    }
+
+    #[test]
+    fn parent_id_defaults_to_none_on_all_constructors() {
+        assert!(SubClone::default().parent_id().is_none());
+        assert!(SubClone::new(7, 4).parent_id().is_none());
+        assert!(SubClone::with_capacity(11, 4).parent_id().is_none());
+        assert!(SubClone::empty_with_id(13).parent_id().is_none());
+
+        for clone in SubClones::new(vec![StemCell::new()], 4).0.iter() {
+            assert!(clone.parent_id().is_none());
+        }
+        for clone in SubClones::new_empty().0.iter() {
+            assert!(clone.parent_id().is_none());
+        }
+        for clone in SubClones::with_capacity(4).0.iter() {
+            assert!(clone.parent_id().is_none());
+        }
+        for clone in SubClones::default().0.iter() {
+            assert!(clone.parent_id().is_none());
+        }
+    }
+
+    #[test]
+    fn parent_id_resets_on_subsample_and_from() {
+        // Build a SubClones, set a parent_id, then run the reconstruction
+        // helpers and confirm the parent state is reset.
+        let mut subclones = SubClones::new(vec![StemCell::new(); 4], 4);
+        subclones.get_mut_clone_unchecked(2).set_parent_id(0);
+        assert_eq!(subclones.get_clone(2).unwrap().parent_id(), Some(0));
+
+        let mut rng = SmallRng::seed_from_u64(42);
+        let resampled = subclones
+            .clone()
+            .into_subsampled(NonZeroUsize::new(2).unwrap(), &mut rng);
+        for clone in resampled.0.iter() {
+            assert!(clone.parent_id().is_none());
+        }
+
+        let cells: Vec<(StemCell, CloneId)> = subclones
+            .0
+            .iter()
+            .flat_map(|s| s.get_cells().iter().map(move |c| (c.clone(), s.id)))
+            .collect();
+        let rebuilt = SubClones::from(cells);
+        for clone in rebuilt.0.iter() {
+            assert!(clone.parent_id().is_none());
+        }
     }
 
     #[quickcheck]

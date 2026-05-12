@@ -81,6 +81,11 @@ impl Proliferation {
                 .unwrap()) as f64;
         // the fit variant is sampled here
         let clone_id = next_clone(subclones, proliferating_subclone, p, rng);
+        if clone_id != proliferating_subclone {
+            subclones
+                .get_mut_clone_unchecked(clone_id)
+                .set_parent_id(proliferating_subclone);
+        }
         debug!("proliferation at time {time}");
         debug!(
             "cell with last division time {} is dividing",
@@ -227,6 +232,66 @@ mod tests {
             .map(|c| c.burden())
             .sum();
         assert!(total > 0);
+    }
+
+    #[test]
+    fn proliferate_sets_parent_id_on_new_clone() {
+        // p = u * interdivision_time. With mu near cells and a unit
+        // interdivision time, the Bernoulli draw in next_clone returns true
+        // with overwhelming probability, so within a few iterations at least
+        // one new fit clone is born; its parent_id must equal the proliferating
+        // clone's id, and the wild-type clone must stay parentless.
+        let rng = &mut ChaCha8Rng::seed_from_u64(42);
+        let mut subclones = make_subclones(5, 0.0);
+        let distributions = Distributions::new(Probs::new(50., 50., 99., 0., 100));
+        let proliferation = Proliferation::new(NeutralMutations::UponDivision, Division::Symmetric);
+
+        let mut saw_birth = false;
+        for _ in 0..10 {
+            // Bring all cells back to t=0 so interdivision_time stays at 1.0
+            // each iteration and p stays close to 1.
+            for cell in subclones.get_mut_cells() {
+                cell.set_last_division_time(0.0).unwrap();
+            }
+            proliferation.proliferate(&mut subclones, 1.0, 0, &distributions, rng);
+            let births: Vec<CloneId> = (1..crate::MAX_SUBCLONES as CloneId)
+                .filter(|id| !subclones.get_clone(*id).unwrap().is_empty())
+                .collect();
+            if let Some(&new_id) = births.first() {
+                assert_eq!(
+                    subclones.get_clone(new_id).unwrap().parent_id(),
+                    Some(0_u16),
+                );
+                saw_birth = true;
+                break;
+            }
+        }
+        assert!(saw_birth, "no new fit clone born across 10 proliferations");
+        // Wild type stays parentless.
+        assert!(subclones.get_clone(0).unwrap().parent_id().is_none());
+    }
+
+    #[test]
+    fn proliferate_leaves_parent_id_none_when_no_new_clone() {
+        // With u = 0 next_clone never reassigns; no parent_id should be set.
+        let rng = &mut ChaCha8Rng::seed_from_u64(42);
+        let mut subclones = make_subclones(5, 0.0);
+        let distributions = Distributions::new(Probs::new(50., 50., 0., 0., 100));
+        let proliferation = Proliferation::new(NeutralMutations::UponDivision, Division::Symmetric);
+
+        for _ in 0..10 {
+            proliferation.proliferate(&mut subclones, 1.0, 0, &distributions, rng);
+        }
+
+        for id in 0..crate::MAX_SUBCLONES as CloneId {
+            let clone = subclones.get_clone(id).unwrap();
+            assert!(
+                clone.parent_id().is_none(),
+                "clone {} unexpectedly has parent {:?}",
+                clone.id,
+                clone.parent_id()
+            );
+        }
     }
 
     #[test]
