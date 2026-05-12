@@ -1,6 +1,10 @@
 # Changelog
 The semantic versioning is kind of random.
 
+## 5.1.1
+### BugFix
+- change the cell count type to `u32` instead of `u16`. This is the number of cells carrying one specific neutral mutation.
+
 ## 5.1.0
 - remove `save_sfs_only`
 ### Added

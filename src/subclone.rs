@@ -78,7 +78,7 @@ impl Fitness {
 }
 
 /// Id of the [`SubClone`]s.
-pub type CloneId = usize;
+pub type CloneId = u16;
 
 #[derive(Debug, Clone)]
 /// A group of cells sharing the same genetic background with a specific
@@ -110,14 +110,14 @@ impl SubClone {
         }
     }
 
-    pub fn with_capacity(id: usize, capacity: usize) -> SubClone {
+    pub fn with_capacity(id: CloneId, capacity: usize) -> SubClone {
         SubClone {
             cells: Vec::with_capacity(capacity),
             id,
         }
     }
 
-    pub fn empty_with_id(id: usize) -> SubClone {
+    pub fn empty_with_id(id: CloneId) -> SubClone {
         SubClone { cells: vec![], id }
     }
 
@@ -129,7 +129,7 @@ impl SubClone {
         &self.cells
     }
 
-    pub fn get_cells_subclones_idx(&self) -> Vec<(&StemCell, usize)> {
+    pub fn get_cells_subclones_idx(&self) -> Vec<(&StemCell, CloneId)> {
         self.cells.iter().map(|cell| (cell, self.id)).collect()
     }
 
@@ -167,14 +167,14 @@ pub fn next_clone(
     // this will panic when u is not small and the cell hasn't divided much,
     // i.e. when p > 1
     if Bernoulli::new(p).unwrap().sample(rng) {
-        let mut rnd_clone_id = rng.random_range(0..MAX_SUBCLONES);
+        let mut rnd_clone_id = rng.random_range(0..MAX_SUBCLONES as CloneId);
         let mut counter = 0;
         // the new random clone cannot have `subclone_id` id and must be empty
         while (rnd_clone_id == old_subclone_id
             || !subclones.get_clone(rnd_clone_id).unwrap().is_empty())
             && counter <= MAX_SUBCLONES
         {
-            rnd_clone_id = rng.random_range(0..MAX_SUBCLONES);
+            rnd_clone_id = rng.random_range(0..MAX_SUBCLONES as CloneId);
             counter += 1;
         }
         assert!(counter <= MAX_SUBCLONES, "max number of clones reached");
@@ -198,7 +198,7 @@ impl SubClones {
         //! All clones have their own `capacity`.
         // initial state
         let mut subclones: [SubClone; MAX_SUBCLONES] =
-            std::array::from_fn(|i| SubClone::new(i, capacity));
+            std::array::from_fn(|i| SubClone::new(i as CloneId, capacity));
         let tot_cells = cells.len();
         debug!("assigning {tot_cells} cells to the wild-type clone");
         for cell in cells {
@@ -210,12 +210,14 @@ impl SubClones {
     }
 
     pub fn new_empty() -> Self {
-        SubClones(std::array::from_fn(SubClone::empty_with_id))
+        SubClones(std::array::from_fn(|i| {
+            SubClone::empty_with_id(i as CloneId)
+        }))
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
         SubClones(std::array::from_fn(|id| {
-            SubClone::with_capacity(id, capacity)
+            SubClone::with_capacity(id as CloneId, capacity)
         }))
     }
 
@@ -223,12 +225,12 @@ impl SubClones {
         self.0.iter().map(|subclone| subclone.cell_count()).sum()
     }
 
-    pub(crate) fn get_clone(&self, id: usize) -> Option<&SubClone> {
-        self.0.get(id)
+    pub(crate) fn get_clone(&self, id: CloneId) -> Option<&SubClone> {
+        self.0.get(id as usize)
     }
 
-    pub(crate) fn get_mut_clone_unchecked(&mut self, id: usize) -> &mut SubClone {
-        &mut self.0[id]
+    pub(crate) fn get_mut_clone_unchecked(&mut self, id: CloneId) -> &mut SubClone {
+        &mut self.0[id as usize]
     }
 
     pub fn get_neutral_clone(&self) -> &SubClone {
@@ -236,7 +238,7 @@ impl SubClones {
     }
 
     pub fn array_of_gillespie_reactions(&self) -> [CloneId; MAX_SUBCLONES] {
-        core::array::from_fn(|i| i)
+        core::array::from_fn(|i| i as CloneId)
     }
 
     pub(crate) fn into_subsampled(self, nb_cells: NonZeroUsize, rng: &mut impl Rng) -> Self {
@@ -257,11 +259,11 @@ impl SubClones {
                     .cells
                     .into_iter()
                     .map(|cell| (cell, subclone.id))
-                    .collect::<Vec<(StemCell, usize)>>()
+                    .collect::<Vec<(StemCell, CloneId)>>()
             })
             .choose_multiple(rng, nb_cells.get())
         {
-            subclones.0[clone_id].cells.push(cell);
+            subclones.0[clone_id as usize].cells.push(cell);
         }
         subclones
     }
@@ -280,7 +282,7 @@ impl SubClones {
             .collect()
     }
 
-    pub(crate) fn get_cells_with_clones_idx(&self) -> Vec<(&StemCell, usize)> {
+    pub(crate) fn get_cells_with_clones_idx(&self) -> Vec<(&StemCell, CloneId)> {
         self.0
             .iter()
             .flat_map(|subclone| subclone.get_cells_subclones_idx())
@@ -291,7 +293,7 @@ impl SubClones {
         &self,
         nb_cells: usize,
         rng: &mut impl Rng,
-    ) -> Vec<(&StemCell, usize)> {
+    ) -> Vec<(&StemCell, CloneId)> {
         self.0
             .iter()
             .flat_map(|subclone| subclone.get_cells_subclones_idx())
@@ -333,7 +335,7 @@ impl Default for SubClones {
     fn default() -> Self {
         //! Create new subclones each having one cell (this creates also the cells).
         let subclones = std::array::from_fn(|i| {
-            let mut subclone = SubClone::new(i, 2);
+            let mut subclone = SubClone::new(i as CloneId, 2);
             subclone.assign_cell(StemCell::new());
             subclone
         });
@@ -341,8 +343,8 @@ impl Default for SubClones {
     }
 }
 
-impl From<Vec<(StemCell, usize)>> for SubClones {
-    fn from(cells: Vec<(StemCell, usize)>) -> Self {
+impl From<Vec<(StemCell, CloneId)>> for SubClones {
+    fn from(cells: Vec<(StemCell, CloneId)>) -> Self {
         let mut subclones = SubClones::new_empty();
         for (cell, id) in cells.into_iter() {
             subclones.get_mut_clone_unchecked(id).assign_cell(cell);
@@ -419,9 +421,9 @@ pub fn proliferating_cell(
     //! hence subclones are borrowed mutably.
     trace!(
         "a cell from clone {:#?} will divide",
-        subclones.0[subclone_id]
+        subclones.0[subclone_id as usize]
     );
-    subclones.0[subclone_id]
+    subclones.0[subclone_id as usize]
         .random_cell(rng)
         .with_context(|| "found empty subclone")
         .unwrap()
@@ -438,7 +440,7 @@ mod tests {
     use rand::{rngs::SmallRng, SeedableRng};
 
     #[quickcheck]
-    fn assign_cell_test(id: usize) -> bool {
+    fn assign_cell_test(id: CloneId) -> bool {
         let mut neutral_clone = SubClone { cells: vec![], id };
         let cell = StemCell::new();
         assert!(neutral_clone.cells.is_empty());
@@ -457,7 +459,7 @@ mod tests {
         let number_of_cells = subclones.0[subclone_id as usize].get_cells().len();
         let tot_cells = subclones.compute_tot_cells();
 
-        let _ = proliferating_cell(&mut subclones, subclone_id as usize, &mut rng);
+        let _ = proliferating_cell(&mut subclones, subclone_id as CloneId, &mut rng);
 
         let subclones_have_lost_cell =
             Variants::variant_counts(&subclones).iter().sum::<u64>() < tot_cells;

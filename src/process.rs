@@ -1,6 +1,5 @@
-use crate::proliferation::{NeutralMutations, Proliferation};
+use crate::proliferation::Proliferation;
 use crate::snapshots::{save_it, SavingCells, SavingOptions, Snapshot, StatsConfig};
-use crate::stemcell::assign_background_mutations;
 use crate::subclone::{CloneId, Distributions, SubClones, Variants};
 use crate::{MAX_SUBCLONES, TIME_AT_BIRTH};
 use anyhow::Context;
@@ -56,32 +55,19 @@ pub fn switch_to_moran(
         ExponentialPhase::Development => (TIME_AT_BIRTH, 0f32),
         ExponentialPhase::Regrowth => (exponential.time, exponential.time),
     };
-    if let NeutralMutations::UponDivisionAndBackground = exponential.proliferation.neutral_mutation
-    {
-        // this is important: we update all background mutations at this
-        // time such that all cells are all on the same page.
-        // Since background mutations are implemented at each division, and
-        // cells do not proliferate at the same rate, we need to correct and
-        // update the background mutations at the timepoint corresponding
-        // to sampling step, i.e. before saving.
-        //
-        // Moreover there is delay between the end of the exp. growing phase
-        // and birth, hence we use `TIME_AT_BIRTH`. But this is true only for
-        // the Development phase.
-        debug!("updating the neutral background mutations for all cells");
-        // assign missing mutations
-        for stem_cell in exponential.subclones.get_mut_cells() {
-            if stem_cell.get_last_division_time() < &current_time {
-                assign_background_mutations(
-                    stem_cell,
-                    current_time,
-                    &exponential.distributions.neutral_poisson,
-                    rng,
-                );
-            }
-            // restarting the time within cells
-            stem_cell.set_last_division_time(time_to_restart).unwrap();
-        }
+    // Realise the lazily-deferred background mutations up to `current_time`.
+    // For Development that is `TIME_AT_BIRTH` (there is a delay between the
+    // end of the exp. growing phase and birth); for Regrowth it is the
+    // current process time. The clock-reset below is a separate
+    // phase-transition concern that stays in this function.
+    exponential.proliferation.realise_background_mutations(
+        &mut exponential.subclones,
+        current_time,
+        &exponential.distributions,
+        rng,
+    );
+    for stem_cell in exponential.subclones.get_mut_cells() {
+        stem_cell.set_last_division_time(time_to_restart).unwrap();
     }
     Moran {
         subclones: exponential.subclones,
@@ -264,17 +250,15 @@ impl Moran {
         //! The cell having just proliferated can be removed as well, any cell
         //! can be removed.
         //!
-        //! We proceed as following:
-        //!     1. check if there is only one clone in the population, then
-        //!     remove a cell from this clone
-        //!     2. else, compute the variant counts
-        //!     3. and sample from any clone based on the weights defined by
-        //!     the variant counts
+        //! Compute compute the variant counts and sample from any clone based
+        //! on the weights defined by the variant counts.
+        //! This is a complicated way to acces one random cell in the
+        //! population.
         trace!("keeping the cell population constant");
         // remove a cell from a random subclone based on the frequencies of
         // the clones at the current state
         let variants = Variants::variant_counts(&self.subclones);
-        let id2remove = WeightedIndex::new(variants).unwrap().sample(rng);
+        let id2remove = WeightedIndex::new(variants).unwrap().sample(rng) as CloneId;
         let _ = self
             .subclones
             .get_mut_clone_unchecked(id2remove)
@@ -291,23 +275,14 @@ impl Moran {
         rng: &mut impl Rng,
     ) -> anyhow::Result<()> {
         info!("saving process at time {time}");
-        if let NeutralMutations::UponDivisionAndBackground = self.proliferation.neutral_mutation {
-            // this is important: we update all background mutations at this
-            // time such that all cells are all on the same page.
-            // Since background mutations are implemented at each division, and
-            // cells do not proliferate at the same rate, we need to correct and
-            // update the background mutations at the timepoint corresponding
-            // to sampling step, i.e. before saving.
-            debug!("updating the neutral background mutations for all cells");
-            for stem_cell in self.subclones.get_mut_cells() {
-                assign_background_mutations(
-                    stem_cell,
-                    self.time,
-                    &self.distributions.neutral_poisson,
-                    rng,
-                );
-            }
-        }
+        // realise the lazily-deferred background mutations so that every cell
+        // is up to date before we read the mutation state for output.
+        self.proliferation.realise_background_mutations(
+            &mut self.subclones,
+            self.time,
+            &self.distributions,
+            rng,
+        );
         let population = self.subclones.get_cells_with_clones_idx();
         trace!("saving {saving_cells:#?}");
         match saving_cells {
@@ -693,7 +668,8 @@ mod tests {
         //!
         //! **warning** this is very slow.
         let tot_cells = subclones.compute_tot_cells();
-        (0..MAX_SUBCLONES).find(|&id| subclones.get_clone(id).unwrap().cell_count() == tot_cells)
+        (0..MAX_SUBCLONES as CloneId)
+            .find(|&id| subclones.get_clone(id).unwrap().cell_count() == tot_cells)
     }
 
     #[quickcheck]

@@ -1,6 +1,6 @@
 use anyhow::{ensure, Context};
 use arrow_array::{
-    builder::{FixedSizeBinaryBuilder, Float32Builder, UInt16Builder},
+    builder::{FixedSizeBinaryBuilder, Float32Builder, UInt32Builder},
     RecordBatch,
 };
 use arrow_schema::{DataType, Field, Schema};
@@ -143,7 +143,7 @@ impl SingleCellMutations {
         );
         let mut mutations = FxHashMap::default();
         for cell in cells.iter() {
-            for &variant in cell.mutations.iter() {
+            for &variant in cell.get_mutations() {
                 mutations
                     .entry(variant)
                     .and_modify(|counter| *counter += 1u64)
@@ -158,18 +158,18 @@ impl SingleCellMutations {
         debug!("single cell mutations in {path2file:#?} at time {time}");
 
         let mut uuid_b = FixedSizeBinaryBuilder::new(16);
-        let mut cnt_b = UInt16Builder::with_capacity(self.0.values().len());
+        let mut cnt_b = UInt32Builder::with_capacity(self.0.values().len());
         let mut time_b = Float32Builder::with_capacity(self.0.keys().len());
 
         for (u, c) in &self.0 {
             uuid_b.append_value(u)?;
-            cnt_b.append_value(*c as u16);
+            cnt_b.append_value(*c as u32);
             time_b.append_value(time);
         }
 
         let schema = Arc::new(Schema::new(vec![
             Field::new("mutation_uuid", DataType::FixedSizeBinary(16), false),
-            Field::new("cell_count", DataType::UInt16, false),
+            Field::new("cell_count", DataType::UInt32, false),
             Field::new("timepoint", DataType::Float32, false),
         ]));
 
@@ -328,7 +328,7 @@ mod tests {
             .0
             .into_iter()
             .collect::<Vec<(u64, u64)>>();
-        sfs.sort_unstable_by(|&entry1, &entry2| entry1.0.cmp(&entry2.0));
+        sfs.sort_unstable_by_key(|&entry| entry.0);
         let jcells = sfs
             .clone()
             .into_iter()
@@ -361,7 +361,7 @@ mod tests {
             .0
             .into_iter()
             .collect::<Vec<(u64, u64)>>();
-        sfs.sort_unstable_by(|&entry1, &entry2| entry1.0.cmp(&entry2.0));
+        sfs.sort_unstable_by_key(|&entry| entry.0);
         let jcells = sfs
             .clone()
             .into_iter()

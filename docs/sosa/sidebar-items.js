@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["SimState","StopReason"],"fn":["exprand","simulate","write2file"],"struct":["CurrentState","IterTime","NextReaction","Options","ReactionRates"],"trait":["AdvanceStep"],"type":["NbIndividuals"]};

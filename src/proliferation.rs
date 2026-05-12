@@ -4,7 +4,7 @@ use rand::Rng;
 use rand_distr::{Bernoulli, Distribution};
 
 use crate::{
-    stemcell::{assign_background_mutations, assign_divisional_mutations},
+    stemcell::{assign_background_mutations, assign_divisional_mutations, StemCell},
     subclone::{next_clone, proliferating_cell, CloneId, Distributions, SubClones},
 };
 
@@ -88,7 +88,8 @@ impl Proliferation {
         );
         trace!("cell {stem_cell:#?} is dividing");
         if let NeutralMutations::UponDivisionAndBackground = self.neutral_mutation {
-            assign_background_mutations(&mut stem_cell, time, &distributions.neutral_poisson, rng);
+            debug!("realise and assign the neutral background mutations to the proliferating cell");
+            self.realise_background_for_cell(&mut stem_cell, time, distributions, rng);
         }
         let cells = match self.division {
             Division::Asymmetric(prob) => {
@@ -112,6 +113,46 @@ impl Proliferation {
                 .assign_cell(stem_cell);
         }
     }
+
+    pub fn realise_background_mutations(
+        &self,
+        subclones: &mut SubClones,
+        time: f32,
+        distributions: &Distributions,
+        rng: &mut impl Rng,
+    ) {
+        //! Force the lazily-deferred background-mutation draw for every cell
+        //! whose `last_division_t` lies strictly before `time`.
+        //!
+        //! Background mutations are normally drawn at the next division (see
+        //! [`Proliferation::proliferate`]); snapshots and phase transitions
+        //! need to read mutation state of all cells, so they call into this
+        //! method to bring every cell up to the current `time`. Cells whose
+        //! last division is at or after `time` are left untouched.
+        //!
+        //! No-op when `self.neutral_mutation` is [`NeutralMutations::UponDivision`].
+        if let NeutralMutations::UponDivisionAndBackground = self.neutral_mutation {
+            debug!("realise and assign the neutral background mutations to all cells");
+            for stem_cell in subclones.get_mut_cells() {
+                self.realise_background_for_cell(stem_cell, time, distributions, rng);
+            }
+        }
+    }
+
+    fn realise_background_for_cell(
+        &self,
+        cell: &mut StemCell,
+        time: f32,
+        distributions: &Distributions,
+        rng: &mut impl Rng,
+    ) {
+        //! Per-cell variant of [`Self::realise_background_mutations`], shared
+        //! and by [`Self::proliferate`] (which operates on a single cell detached
+        //! from [`SubClones`]).
+        if cell.get_last_division_time() < &time {
+            assign_background_mutations(cell, time, &distributions.neutral_poisson, rng);
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -123,4 +164,86 @@ pub enum NeutralMutations {
     /// appearing during the lifetime of the cell)
     #[default]
     UponDivisionAndBackground,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::stemcell::StemCell;
+    use crate::Probs;
+    use rand::SeedableRng;
+    use rand_chacha::ChaCha8Rng;
+
+    fn make_distributions() -> Distributions {
+        Distributions::new(Probs::new(50., 50., 0.01, 0., 100))
+    }
+
+    fn make_subclones(n: usize, last_division_t: f32) -> SubClones {
+        let mut cells = vec![StemCell::new(); n];
+        for cell in &mut cells {
+            cell.set_last_division_time(last_division_t).unwrap();
+        }
+        SubClones::new(cells, n)
+    }
+
+    #[test]
+    fn realise_background_mutations_is_noop_for_upon_division() {
+        let rng = &mut ChaCha8Rng::seed_from_u64(42);
+        let mut subclones = make_subclones(5, 0.0);
+        let proliferation = Proliferation::new(NeutralMutations::UponDivision, Division::Symmetric);
+
+        proliferation.realise_background_mutations(
+            &mut subclones,
+            10.0,
+            &make_distributions(),
+            rng,
+        );
+
+        for cell in subclones.get_neutral_clone().get_cells() {
+            assert!(!cell.has_mutations());
+        }
+    }
+
+    #[test]
+    fn realise_background_mutations_assigns_with_background_enabled() {
+        let rng = &mut ChaCha8Rng::seed_from_u64(42);
+        let mut subclones = make_subclones(5, 0.0);
+        let proliferation = Proliferation::new(
+            NeutralMutations::UponDivisionAndBackground,
+            Division::Symmetric,
+        );
+
+        proliferation.realise_background_mutations(
+            &mut subclones,
+            10.0,
+            &make_distributions(),
+            rng,
+        );
+
+        let total: usize = subclones
+            .get_neutral_clone()
+            .get_cells()
+            .iter()
+            .map(|c| c.burden())
+            .sum();
+        assert!(total > 0);
+    }
+
+    #[test]
+    fn realise_background_mutations_skips_cells_past_time() {
+        // last_division_t is in the future relative to the realise time:
+        // the method must skip those cells without panicking.
+        let rng = &mut ChaCha8Rng::seed_from_u64(42);
+        let mut subclones = make_subclones(3, 5.0);
+        let proliferation = Proliferation::new(
+            NeutralMutations::UponDivisionAndBackground,
+            Division::Symmetric,
+        );
+
+        proliferation.realise_background_mutations(&mut subclones, 1.0, &make_distributions(), rng);
+
+        for cell in subclones.get_neutral_clone().get_cells() {
+            assert!(!cell.has_mutations());
+        }
+    }
 }
