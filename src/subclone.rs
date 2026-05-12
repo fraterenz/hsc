@@ -81,6 +81,23 @@ impl Fitness {
 /// Id of the [`SubClone`]s.
 pub type CloneId = u16;
 
+/// Display wrapper for a subclone's optional parent.
+///
+/// `Some(p)` formats as the integer `p`, `None` formats as the empty string
+/// (read as `NaN` by pandas and other CSV readers). The `:.6` precision
+/// specifier used by [`crate::write2file`] is silently ignored.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct ParentId(pub(crate) Option<CloneId>);
+
+impl std::fmt::Display for ParentId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.0 {
+            Some(p) => write!(f, "{p}"),
+            None => Ok(()),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 /// A group of cells sharing the same genetic background with a specific
 /// proliferation rate.
@@ -415,11 +432,26 @@ impl Variants {
     }
 }
 
-pub fn save_variant_fraction(subclones: &SubClones, path2file: &Path) -> anyhow::Result<()> {
+pub(crate) fn save_variant_fraction(subclones: &SubClones, path2file: &Path) -> anyhow::Result<()> {
     let path2file = path2file.with_extension("csv");
     let total_variant_frac = Variants::variant_fractions(subclones);
     debug!("total variant fraction in {path2file:#?}");
     write2file(&total_variant_frac, &path2file, None, false)?;
+    Ok(())
+}
+
+pub(crate) fn save_phylogeny(subclones: &SubClones, path2file: &Path) -> anyhow::Result<()> {
+    //! Save the per-clone parent-id row for the current `subclones` state.
+    //!
+    //! Emits a dense row of `MAX_SUBCLONES` comma-separated entries; clones
+    //! without a parent (the wild type and any never-born slot) appear as
+    //! empty fields.
+    let path2file = path2file.with_extension("csv");
+    let row: Vec<ParentId> = (0..MAX_SUBCLONES as CloneId)
+        .map(|id| ParentId(subclones.get_clone(id).unwrap().parent_id()))
+        .collect();
+    debug!("phylogeny in {path2file:#?}");
+    write2file(&row, &path2file, None, false)?;
     Ok(())
 }
 
@@ -576,6 +608,60 @@ mod tests {
         for clone in rebuilt.0.iter() {
             assert!(clone.parent_id().is_none());
         }
+    }
+
+    #[test]
+    fn parent_id_display_format() {
+        // None -> empty string; Some -> integer; the `:.6` precision specifier
+        // used by write2file is silently ignored for our Display impl.
+        assert_eq!(format!("{}", ParentId(None)), "");
+        assert_eq!(format!("{}", ParentId(Some(42))), "42");
+        assert_eq!(format!("{:.6}", ParentId(None)), "");
+        assert_eq!(format!("{:.6}", ParentId(Some(42))), "42");
+    }
+
+    fn unique_tmpdir(name: &str) -> std::path::PathBuf {
+        // Per-test unique directory under the system temp dir, cleaned at the
+        // start of the test (best-effort) so reruns start fresh.
+        let path = std::env::temp_dir().join(format!(
+            "hsc-test-{name}-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id(),
+        ));
+        let _ = std::fs::remove_dir_all(&path);
+        std::fs::create_dir_all(&path).unwrap();
+        path
+    }
+
+    #[test]
+    fn save_phylogeny_writes_dense_row() {
+        let dir = unique_tmpdir("save_phylogeny");
+        let path = dir.join("row.csv");
+        let mut subclones = SubClones::new(vec![StemCell::new()], 4);
+        subclones.get_mut_clone_unchecked(2).set_parent_id(0);
+        subclones.get_mut_clone_unchecked(7).set_parent_id(2);
+
+        save_phylogeny(&subclones, &path).unwrap();
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        let fields: Vec<&str> = content
+            .strip_suffix(',')
+            .unwrap_or(&content)
+            .split(',')
+            .collect();
+        assert_eq!(fields.len(), MAX_SUBCLONES);
+        assert_eq!(fields[0], ""); // wild-type root
+        assert_eq!(fields[1], "");
+        assert_eq!(fields[2], "0");
+        assert_eq!(fields[7], "2");
+        // every other slot stayed at None -> empty
+        for (i, f) in fields.iter().enumerate() {
+            if i != 2 && i != 7 {
+                assert!(f.is_empty(), "slot {i} expected empty, got {f:?}");
+            }
+        }
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[quickcheck]
