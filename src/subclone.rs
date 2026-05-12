@@ -3,8 +3,9 @@ use crate::Probs;
 use crate::{stemcell::StemCell, write2file, MAX_SUBCLONES};
 use anyhow::{ensure, Context};
 use log::{debug, trace};
-use rand::seq::IteratorRandom;
+use rand::seq::{IndexedRandom, IteratorRandom};
 use rand::Rng;
+use rand::RngExt;
 use rand_distr::{Bernoulli, Distribution, Gamma};
 use sosa::ReactionRates;
 use std::num::NonZeroUsize;
@@ -167,14 +168,15 @@ pub fn next_clone(
     // this will panic when u is not small and the cell hasn't divided much,
     // i.e. when p > 1
     if Bernoulli::new(p).unwrap().sample(rng) {
-        let mut rnd_clone_id = rng.random_range(0..MAX_SUBCLONES as CloneId);
+        // unrwap is fine bc subclones has fixed size at comp time `MAX_SUBCLONES`
+        let mut rnd_clone_id = subclones.0.as_slice().choose(rng).unwrap().id;
         let mut counter = 0;
         // the new random clone cannot have `subclone_id` id and must be empty
         while (rnd_clone_id == old_subclone_id
             || !subclones.get_clone(rnd_clone_id).unwrap().is_empty())
             && counter <= MAX_SUBCLONES
         {
-            rnd_clone_id = rng.random_range(0..MAX_SUBCLONES as CloneId);
+            rnd_clone_id = subclones.0.as_slice().choose(rng).unwrap().id;
             counter += 1;
         }
         assert!(counter <= MAX_SUBCLONES, "max number of clones reached");
@@ -261,7 +263,7 @@ impl SubClones {
                     .map(|cell| (cell, subclone.id))
                     .collect::<Vec<(StemCell, CloneId)>>()
             })
-            .choose_multiple(rng, nb_cells.get())
+            .sample(rng, nb_cells.get())
         {
             subclones.0[clone_id as usize].cells.push(cell);
         }
@@ -297,7 +299,7 @@ impl SubClones {
         self.0
             .iter()
             .flat_map(|subclone| subclone.get_cells_subclones_idx())
-            .choose_multiple(rng, nb_cells)
+            .sample(rng, nb_cells)
     }
 
     pub fn gillespie_rates(
