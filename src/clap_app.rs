@@ -27,6 +27,7 @@ pub enum Stats {
     Burden,
     ScBurden,
     Variants,
+    VariantsPhylogeny,
 }
 
 impl From<Stats> for Stats2Save {
@@ -36,6 +37,7 @@ impl From<Stats> for Stats2Save {
             Stats::Sfs => Stats2Save::Sfs,
             Stats::ScBurden => Stats2Save::SingleCellMutations,
             Stats::Variants => Stats2Save::VariantFraction,
+            Stats::VariantsPhylogeny => Stats2Save::VariantsPhylogeny,
         }
     }
 }

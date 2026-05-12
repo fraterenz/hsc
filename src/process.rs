@@ -291,6 +291,7 @@ impl Moran {
                 &self.filename,
                 time,
                 population,
+                &self.subclones,
                 &self.stats,
             )
             .with_context(|| "cannot save the full population")
@@ -305,6 +306,7 @@ impl Moran {
                         &self.filename,
                         time,
                         population,
+                        &self.subclones,
                         &self.stats,
                     )
                     .with_context(|| "cannot save the full population")
@@ -319,6 +321,7 @@ impl Moran {
                     &self.filename,
                     time,
                     cells_with_idx,
+                    &self.subclones,
                     &self.stats,
                 )
                 .with_context(|| "cannot save the subsample")

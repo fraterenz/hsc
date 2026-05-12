@@ -15,7 +15,7 @@ use log::debug;
 use crate::{
     genotype::{MutationalBurden, Sfs, SingleCellMutations},
     stemcell::StemCell,
-    subclone::{CloneId, SubClones, save_variant_fraction},
+    subclone::{CloneId, SubClones, save_phylogeny, save_variant_fraction},
 };
 
 /// The statistics/measurements we want to save from the simulations.
@@ -25,6 +25,7 @@ pub enum Stats2Save {
     Sfs,
     VariantFraction,
     SingleCellMutations,
+    VariantsPhylogeny,
 }
 
 /// Specify whether to save the whole population or a subsampling.
@@ -94,6 +95,7 @@ fn make_path(
         Stats2Save::VariantFraction => path2dir.join("variant_fraction"),
         Stats2Save::Burden => path2dir.join("burden"),
         Stats2Save::Sfs => path2dir.join("sfs"),
+        Stats2Save::VariantsPhylogeny => path2dir.join("variant_phylogeny"),
     };
     let path2file = path2file.join(timepoint);
 
@@ -108,6 +110,7 @@ pub(crate) fn save_it(
     filename: &Path,
     time: f32,
     cells_with_idx: Vec<(&StemCell, CloneId)>,
+    subclones: &SubClones,
     stats: &StatsConfig,
 ) -> anyhow::Result<()> {
     debug!("saving data at time {time}");
@@ -191,5 +194,70 @@ pub(crate) fn save_it(
         )?;
     }
 
+    if stats.enabled.contains(Stats2Save::VariantsPhylogeny) {
+        save_phylogeny(
+            subclones,
+            &make_path(
+                path2dir,
+                filename,
+                Stats2Save::VariantsPhylogeny,
+                nb_cells,
+                time,
+            )?,
+        )?;
+    }
+
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::MAX_SUBCLONES;
+
+    fn unique_tmpdir(name: &str) -> PathBuf {
+        let path = std::env::temp_dir().join(format!(
+            "hsc-test-{name}-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id(),
+        ));
+        let _ = std::fs::remove_dir_all(&path);
+        std::fs::create_dir_all(&path).unwrap();
+        path
+    }
+
+    #[test]
+    fn save_it_emits_phylogeny_when_enabled() {
+        let dir = unique_tmpdir("save_it_phylogeny");
+        let filename = PathBuf::from("0");
+        let mut subclones = SubClones::new(vec![StemCell::new()], 4);
+        subclones.get_mut_clone_unchecked(3).set_parent_id(1);
+
+        let cells_with_idx = subclones.get_cells_with_clones_idx();
+        let nb_cells = cells_with_idx.len();
+
+        let stats = StatsConfig {
+            enabled: EnumSet::only(Stats2Save::VariantsPhylogeny),
+        };
+
+        save_it(&dir, &filename, 0.0, cells_with_idx, &subclones, &stats).unwrap();
+
+        let csv = dir
+            .join(format!("{nb_cells}cells"))
+            .join("variant_phylogeny")
+            .join("0dot0years")
+            .join("0.csv");
+        assert!(csv.exists(), "expected {csv:?}");
+        let content = std::fs::read_to_string(&csv).unwrap();
+        let fields: Vec<&str> = content
+            .strip_suffix(',')
+            .unwrap_or(&content)
+            .split(',')
+            .collect();
+        assert_eq!(fields.len(), MAX_SUBCLONES);
+        assert_eq!(fields[0], "");
+        assert_eq!(fields[3], "1");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
