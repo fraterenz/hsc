@@ -252,7 +252,10 @@ mod tests {
         let target = (1..crate::MAX_SUBCLONES)
             .find(|&i| !subclones.get_clone(i).unwrap().is_empty())
             .expect("new variant should have populated some clone other than 0");
-        assert_eq!(subclones.get_clone(target).unwrap().get_parent_id(), 0);
+        assert_eq!(
+            subclones.get_clone(target).unwrap().get_parent_id(),
+            Some(0)
+        );
     }
 
     #[test]
@@ -266,7 +269,8 @@ mod tests {
         proliferation.proliferate(&mut subclones, 1.0, 0, &make_distributions(), rng);
 
         for i in 0..crate::MAX_SUBCLONES {
-            assert_eq!(subclones.get_clone(i).unwrap().get_parent_id(), 0);
+            let expected = if i == 0 { None } else { Some(0) };
+            assert_eq!(subclones.get_clone(i).unwrap().get_parent_id(), expected);
         }
     }
 

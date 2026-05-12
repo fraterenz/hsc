@@ -80,6 +80,16 @@ impl Fitness {
 /// Id of the [`SubClone`]s.
 pub type CloneId = usize;
 
+fn default_parent_id(id: CloneId) -> Option<CloneId> {
+    // wild-type has no parent; every other slot is, by default, a child of
+    // the wild-type clone until a fit-mutation event reassigns it.
+    if id == 0 {
+        None
+    } else {
+        Some(0)
+    }
+}
+
 #[derive(Debug, Clone)]
 /// A group of cells sharing the same genetic background with a specific
 /// proliferation rate.
@@ -92,8 +102,10 @@ pub type CloneId = usize;
 pub struct SubClone {
     cells: Vec<StemCell>,
     pub id: CloneId,
-    // default is the neutral clone with id 0
-    parent_id: CloneId,
+    // `None` only for the wild-type clone (id 0), which has no parent.
+    // Every other clone defaults to `Some(0)`: until a fit-mutation event
+    // overwrites it, the slot is conceptually descended from the wild-type.
+    parent_id: Option<CloneId>,
 }
 
 impl Iterator for SubClone {
@@ -109,7 +121,7 @@ impl SubClone {
         SubClone {
             cells: Vec::with_capacity(cell_capacity),
             id,
-            parent_id: 0,
+            parent_id: default_parent_id(id),
         }
     }
 
@@ -117,7 +129,7 @@ impl SubClone {
         SubClone {
             cells: Vec::with_capacity(capacity),
             id,
-            parent_id: 0,
+            parent_id: default_parent_id(id),
         }
     }
 
@@ -125,7 +137,7 @@ impl SubClone {
         SubClone {
             cells: vec![],
             id,
-            parent_id: 0,
+            parent_id: default_parent_id(id),
         }
     }
 
@@ -145,12 +157,12 @@ impl SubClone {
         self.get_cells().is_empty()
     }
 
-    pub fn get_parent_id(&self) -> CloneId {
+    pub fn get_parent_id(&self) -> Option<CloneId> {
         self.parent_id
     }
 
     pub fn set_parent_id(&mut self, parent_id: CloneId) {
-        self.parent_id = parent_id;
+        self.parent_id = Some(parent_id);
     }
 
     pub fn assign_cell(&mut self, cell: StemCell) {
@@ -204,7 +216,9 @@ pub fn next_clone(
 /// A collection of subclones each having their proliferative advantage.
 /// This collection contains the neutral clone as well.
 #[derive(Clone, Debug)]
-pub struct SubClones([SubClone; MAX_SUBCLONES]);
+// Boxed slice rather than `[SubClone; MAX_SUBCLONES]` to avoid overflow in
+// debug mode.
+pub struct SubClones(Box<[SubClone]>);
 
 impl SubClones {
     pub fn new(cells: Vec<StemCell>, capacity: usize) -> Self {
@@ -213,8 +227,9 @@ impl SubClones {
         //!
         //! All clones have their own `capacity`.
         // initial state
-        let mut subclones: [SubClone; MAX_SUBCLONES] =
-            std::array::from_fn(|i| SubClone::new(i, capacity));
+        let mut subclones: Box<[SubClone]> = (0..MAX_SUBCLONES)
+            .map(|i| SubClone::new(i, capacity))
+            .collect();
         let tot_cells = cells.len();
         debug!("assigning {tot_cells} cells to the wild-type clone");
         for cell in cells {
@@ -226,13 +241,15 @@ impl SubClones {
     }
 
     pub fn new_empty() -> Self {
-        SubClones(std::array::from_fn(SubClone::empty_with_id))
+        SubClones((0..MAX_SUBCLONES).map(SubClone::empty_with_id).collect())
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
-        SubClones(std::array::from_fn(|id| {
-            SubClone::with_capacity(id, capacity)
-        }))
+        SubClones(
+            (0..MAX_SUBCLONES)
+                .map(|id| SubClone::with_capacity(id, capacity))
+                .collect(),
+        )
     }
 
     pub fn compute_tot_cells(&self) -> u64 {
@@ -257,12 +274,14 @@ impl SubClones {
 
     pub(crate) fn into_subsampled(self, nb_cells: NonZeroUsize, rng: &mut impl Rng) -> Self {
         //! Take a subsample of the population that is stored in these subclones.
-        let parent_ids: [CloneId; MAX_SUBCLONES] = std::array::from_fn(|i| self.0[i].parent_id);
+        let parent_ids: [Option<CloneId>; MAX_SUBCLONES] =
+            std::array::from_fn(|i| self.0[i].parent_id);
 
         let mut subclones = Self::new_empty();
 
-        for (cell, clone_id) in self
-            .0
+        // `Box<[T]>::into_iter()` derefs to `[T]` and yields `&T`; round-trip
+        // through `Vec` to consume the slice and get owned `SubClone`s.
+        for (cell, clone_id) in Vec::from(self.0)
             .into_iter()
             .flat_map(|subclone| {
                 // for all subclones get all the cells with the its subclone_id.
@@ -275,7 +294,7 @@ impl SubClones {
                     .cells
                     .into_iter()
                     .map(|cell| (cell, subclone.id))
-                    .collect::<Vec<(StemCell, usize)>>()
+                    .collect::<Vec<(StemCell, CloneId)>>()
             })
             .choose_multiple(rng, nb_cells.get())
         {
@@ -283,8 +302,8 @@ impl SubClones {
         }
 
         // `parent_id` is preserved for clones that retain at least one cell
-        // after subsampling: clones that lost all their cells revert to default
-        // which is the neutral clone.
+        // after subsampling: clones that lost all their cells revert to the
+        // constructor default (`None` for the wild-type, `Some(0)` elsewhere).
         for (i, &pid) in parent_ids.iter().enumerate() {
             if !subclones.0[i].is_empty() {
                 subclones.0[i].parent_id = pid;
@@ -360,11 +379,13 @@ impl SubClones {
 impl Default for SubClones {
     fn default() -> Self {
         //! Create new subclones each having one cell (this creates also the cells).
-        let subclones = std::array::from_fn(|i| {
-            let mut subclone = SubClone::new(i, 2);
-            subclone.assign_cell(StemCell::new());
-            subclone
-        });
+        let subclones: Box<[SubClone]> = (0..MAX_SUBCLONES)
+            .map(|i| {
+                let mut subclone = SubClone::new(i, 2);
+                subclone.assign_cell(StemCell::new());
+                subclone
+            })
+            .collect();
         Self(subclones)
     }
 }
@@ -436,10 +457,24 @@ pub fn save_variant_fraction(subclones: &SubClones, path2file: &Path) -> anyhow:
     Ok(())
 }
 
+/// Display wrapper around `Option<CloneId>` so the value can flow through
+/// [`write2file`]. Serializes as the bare integer for `Some(id)` and the
+/// literal `None` for the wild-type root.
+struct ParentId(Option<CloneId>);
+
+impl std::fmt::Display for ParentId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.0 {
+            Some(id) => write!(f, "{id}"),
+            None => write!(f, "None"),
+        }
+    }
+}
+
 pub fn save_variant_phylogeny(subclones: &SubClones, path2file: &Path) -> anyhow::Result<()> {
     let path2file = path2file.with_extension("csv");
-    let parent_ids: Vec<CloneId> = (0..MAX_SUBCLONES)
-        .map(|i| subclones.get_clone(i).unwrap().get_parent_id())
+    let parent_ids: Vec<ParentId> = (0..MAX_SUBCLONES)
+        .map(|i| ParentId(subclones.get_clone(i).unwrap().get_parent_id()))
         .collect();
     debug!("variant phylogeny in {path2file:#?}");
     write2file(&parent_ids, &path2file, None, false)?;
@@ -480,7 +515,7 @@ mod tests {
         let mut neutral_clone = SubClone {
             cells: vec![],
             id,
-            parent_id: 0,
+            parent_id: default_parent_id(id),
         };
         let cell = StemCell::new();
         assert!(neutral_clone.cells.is_empty());
@@ -540,19 +575,24 @@ mod tests {
                 .get_mut_clone_unchecked(42)
                 .assign_cell(StemCell::new());
         }
-        subclones.get_mut_clone_unchecked(7).set_parent_id(0);
+        // Pick non-default `parent_id`s so the surviving-vs-drained
+        // assertion is distinguishable from the constructor default
+        // `Some(0)` that drained slots fall back to.
+        subclones.get_mut_clone_unchecked(7).set_parent_id(3);
         subclones.get_mut_clone_unchecked(42).set_parent_id(7);
 
         let subsampled = subclones.into_subsampled(NonZeroUsize::new(10).unwrap(), &mut rng);
 
-        // Invariant: every clone that retains at least one cell must keep
-        // its parent_id; clones that were fully sampled out reset to 0.
+        // Invariant: clones that retain at least one cell keep their
+        // `parent_id`; clones that lost every cell fall back to the
+        // constructor default (`None` for slot 0, `Some(0)` elsewhere).
         for i in 0..MAX_SUBCLONES {
             let slot = subsampled.get_clone(i).unwrap();
-            let expected_parent = match i {
-                7 if !slot.is_empty() => 0,
-                42 if !slot.is_empty() => 7,
-                _ => 0,
+            let expected_parent: Option<CloneId> = match i {
+                0 => None,
+                7 if !slot.is_empty() => Some(3),
+                42 if !slot.is_empty() => Some(7),
+                _ => Some(0),
             };
             assert_eq!(
                 slot.get_parent_id(),
@@ -586,16 +626,13 @@ mod tests {
         let values: Vec<&str> = body.trim_end_matches(',').split(',').collect();
         assert_eq!(values.len(), MAX_SUBCLONES);
         for (i, v) in values.iter().enumerate() {
-            let expected: CloneId = match i {
-                7 => 3,
-                42 => 7,
-                _ => 0,
+            let expected: &str = match i {
+                0 => "None",
+                7 => "3",
+                42 => "7",
+                _ => "0",
             };
-            assert_eq!(
-                v.parse::<CloneId>().unwrap(),
-                expected,
-                "slot {i} mismatched",
-            );
+            assert_eq!(*v, expected, "slot {i} mismatched");
         }
 
         std::fs::remove_file(&path).unwrap();

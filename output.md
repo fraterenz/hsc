@@ -71,7 +71,7 @@ More info about the folders generated as the output of `hsc`:
 - **`sfs`:** folder containing json files with keys being the jcells (x-axis) and values being the number of variants with jcells (y-axis),
 - **`variant_fraction`**: folder containing csv files with the abbundance of all subclones, where the first entry represents the frequency of the wild-type clone with `b0` birth-rate,
 - **`variant_phylogeny`**: folder containing csv files with the `parent_id` of all subclones — entry *i* is the id of the subclone that the cells in slot *i* descend from (set when a fit-mutation event placed them there).
-Slots that were never repopulated, including the wild-type clone (slot 0), have `parent_id = 0`.
-Note: as `parent_id` is a clone-level (no cell-level) property, when the snapshot is a subsample, `variant_phylogeny` always reflects the full-population lineage, and thus we can have `variant_phylogeny[i] != 0` even when `variant_fractions[i] = 0`.
+The wild-type clone (slot 0) has `parent_id = None` because it has no parent. Every other slot defaults to `0` (descended from the wild-type clone) until a fit-mutation event reassigns it.
+Note: as `parent_id` is a clone-level (not cell-level) property, when the snapshot is a subsample, `variant_phylogeny` always reflects the full-population lineage, and thus we can have `variant_phylogeny[i] != None` even when `variant_fractions[i] = 0`.
 - **`rates`:** folder containing the csv files with the birth-rates of the subclones, where the first entry represents the birth-rate of the wild-type `b0`.
 
