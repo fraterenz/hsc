@@ -15,7 +15,7 @@
 <a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span>crate::{
 <a href=#16 id=16 data-nosnippet>16</a>    genotype::{MutationalBurden, Sfs, SingleCellMutations},
 <a href=#17 id=17 data-nosnippet>17</a>    stemcell::StemCell,
-<a href=#18 id=18 data-nosnippet>18</a>    subclone::{save_variant_fraction, SubClones},
+<a href=#18 id=18 data-nosnippet>18</a>    subclone::{CloneId, SubClones, save_variant_fraction},
 <a href=#19 id=19 data-nosnippet>19</a>};
 <a href=#20 id=20 data-nosnippet>20</a>
 <a href=#21 id=21 data-nosnippet>21</a><span class="doccomment">/// The statistics/measurements we want to save from the simulations.
@@ -107,7 +107,7 @@
 <a href=#107 id=107 data-nosnippet>107</a>    path2dir: <span class="kw-2">&amp;</span>Path,
 <a href=#108 id=108 data-nosnippet>108</a>    filename: <span class="kw-2">&amp;</span>Path,
 <a href=#109 id=109 data-nosnippet>109</a>    time: f32,
-<a href=#110 id=110 data-nosnippet>110</a>    cells_with_idx: Vec&lt;(<span class="kw-2">&amp;</span>StemCell, usize)&gt;,
+<a href=#110 id=110 data-nosnippet>110</a>    cells_with_idx: Vec&lt;(<span class="kw-2">&amp;</span>StemCell, CloneId)&gt;,
 <a href=#111 id=111 data-nosnippet>111</a>    stats: <span class="kw-2">&amp;</span>StatsConfig,
 <a href=#112 id=112 data-nosnippet>112</a>) -&gt; anyhow::Result&lt;()&gt; {
 <a href=#113 id=113 data-nosnippet>113</a>    <span class="macro">debug!</span>(<span class="string">"saving data at time {time}"</span>);
@@ -179,7 +179,7 @@
 <a href=#179 id=179 data-nosnippet>179</a>                cells_with_idx
 <a href=#180 id=180 data-nosnippet>180</a>                    .into_iter()
 <a href=#181 id=181 data-nosnippet>181</a>                    .map(|(cell, id)| (cell.to_owned(), id))
-<a href=#182 id=182 data-nosnippet>182</a>                    .collect::&lt;Vec&lt;(StemCell, usize)&gt;&gt;(),
+<a href=#182 id=182 data-nosnippet>182</a>                    .collect::&lt;Vec&lt;(StemCell, CloneId)&gt;&gt;(),
 <a href=#183 id=183 data-nosnippet>183</a>            ),
 <a href=#184 id=184 data-nosnippet>184</a>            <span class="kw-2">&amp;</span>make_path(
 <a href=#185 id=185 data-nosnippet>185</a>                path2dir,

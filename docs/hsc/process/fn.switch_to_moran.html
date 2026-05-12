@@ -5,7 +5,7 @@
     filename: <a class="struct" href="https://doc.rust-lang.org/1.95.0/std/path/struct.PathBuf.html" title="struct std::path::PathBuf">PathBuf</a>,
     stats: <a class="struct" href="../snapshots/struct.StatsConfig.html" title="struct hsc::snapshots::StatsConfig">StatsConfig</a>,
     save_population: <a class="primitive" href="https://doc.rust-lang.org/1.95.0/std/primitive.bool.html">bool</a>,
-    rng: &amp;mut impl <a class="trait" href="https://rust-random.github.io/rand/rand/rng/trait.Rng.html" title="trait rand::rng::Rng">Rng</a>,
+    rng: &amp;mut impl Rng,
 ) -&gt; <a class="struct" href="struct.Moran.html" title="struct hsc::process::Moran">Moran</a></code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>End the exponential growing phase and switch to a fixed-size
 population phase.</p>
 <p>There is a delay between birth and the end of the exponential phase,

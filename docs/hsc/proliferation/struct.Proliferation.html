@@ -32,7 +32,7 @@ with <code>c1</code> only if we simulated a symmetric division, see <a href="enu
     time: <a class="primitive" href="https://doc.rust-lang.org/1.95.0/std/primitive.f32.html">f32</a>,
     proliferating_subclone: <a class="type" href="../subclone/type.CloneId.html" title="type hsc::subclone::CloneId">CloneId</a>,
     distributions: &amp;<a class="struct" href="../subclone/struct.Distributions.html" title="struct hsc::subclone::Distributions">Distributions</a>,
-    rng: &amp;mut impl <a class="trait" href="https://rust-random.github.io/rand/rand/rng/trait.Rng.html" title="trait rand::rng::Rng">Rng</a>,
+    rng: &amp;mut impl Rng,
 )</h4></section></summary><div class="docblock"><p>Sample a random cell from the subclones with id
 <code>proliferating_subclone</code>, assign neutral mutations (background and
 those upon proliferation) and finally assign <code>cell</code> to a subclone.</p>
@@ -48,7 +48,7 @@ and panics if there aren’t any empty subclones left</li>
     subclones: &amp;mut <a class="struct" href="../subclone/struct.SubClones.html" title="struct hsc::subclone::SubClones">SubClones</a>,
     time: <a class="primitive" href="https://doc.rust-lang.org/1.95.0/std/primitive.f32.html">f32</a>,
     distributions: &amp;<a class="struct" href="../subclone/struct.Distributions.html" title="struct hsc::subclone::Distributions">Distributions</a>,
-    rng: &amp;mut impl <a class="trait" href="https://rust-random.github.io/rand/rand/rng/trait.Rng.html" title="trait rand::rng::Rng">Rng</a>,
+    rng: &amp;mut impl Rng,
 )</h4></section></summary><div class="docblock"><p>Force the lazily-deferred background-mutation draw for every cell
 whose <code>last_division_t</code> lies strictly before <code>time</code>.</p>
 <p>Background mutations are normally drawn at the next division (see
