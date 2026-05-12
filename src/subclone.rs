@@ -110,14 +110,14 @@ impl SubClone {
         }
     }
 
-    pub fn with_capacity(id: usize, capacity: usize) -> SubClone {
+    pub fn with_capacity(id: CloneId, capacity: usize) -> SubClone {
         SubClone {
             cells: Vec::with_capacity(capacity),
             id,
         }
     }
 
-    pub fn empty_with_id(id: usize) -> SubClone {
+    pub fn empty_with_id(id: CloneId) -> SubClone {
         SubClone { cells: vec![], id }
     }
 
@@ -129,7 +129,7 @@ impl SubClone {
         &self.cells
     }
 
-    pub fn get_cells_subclones_idx(&self) -> Vec<(&StemCell, usize)> {
+    pub fn get_cells_subclones_idx(&self) -> Vec<(&StemCell, CloneId)> {
         self.cells.iter().map(|cell| (cell, self.id)).collect()
     }
 
@@ -223,11 +223,11 @@ impl SubClones {
         self.0.iter().map(|subclone| subclone.cell_count()).sum()
     }
 
-    pub(crate) fn get_clone(&self, id: usize) -> Option<&SubClone> {
+    pub(crate) fn get_clone(&self, id: CloneId) -> Option<&SubClone> {
         self.0.get(id)
     }
 
-    pub(crate) fn get_mut_clone_unchecked(&mut self, id: usize) -> &mut SubClone {
+    pub(crate) fn get_mut_clone_unchecked(&mut self, id: CloneId) -> &mut SubClone {
         &mut self.0[id]
     }
 
@@ -257,7 +257,7 @@ impl SubClones {
                     .cells
                     .into_iter()
                     .map(|cell| (cell, subclone.id))
-                    .collect::<Vec<(StemCell, usize)>>()
+                    .collect::<Vec<(StemCell, CloneId)>>()
             })
             .choose_multiple(rng, nb_cells.get())
         {
@@ -280,7 +280,7 @@ impl SubClones {
             .collect()
     }
 
-    pub(crate) fn get_cells_with_clones_idx(&self) -> Vec<(&StemCell, usize)> {
+    pub(crate) fn get_cells_with_clones_idx(&self) -> Vec<(&StemCell, CloneId)> {
         self.0
             .iter()
             .flat_map(|subclone| subclone.get_cells_subclones_idx())
@@ -291,7 +291,7 @@ impl SubClones {
         &self,
         nb_cells: usize,
         rng: &mut impl Rng,
-    ) -> Vec<(&StemCell, usize)> {
+    ) -> Vec<(&StemCell, CloneId)> {
         self.0
             .iter()
             .flat_map(|subclone| subclone.get_cells_subclones_idx())
@@ -341,8 +341,8 @@ impl Default for SubClones {
     }
 }
 
-impl From<Vec<(StemCell, usize)>> for SubClones {
-    fn from(cells: Vec<(StemCell, usize)>) -> Self {
+impl From<Vec<(StemCell, CloneId)>> for SubClones {
+    fn from(cells: Vec<(StemCell, CloneId)>) -> Self {
         let mut subclones = SubClones::new_empty();
         for (cell, id) in cells.into_iter() {
             subclones.get_mut_clone_unchecked(id).assign_cell(cell);
@@ -438,7 +438,7 @@ mod tests {
     use rand::{rngs::SmallRng, SeedableRng};
 
     #[quickcheck]
-    fn assign_cell_test(id: usize) -> bool {
+    fn assign_cell_test(id: CloneId) -> bool {
         let mut neutral_clone = SubClone { cells: vec![], id };
         let cell = StemCell::new();
         assert!(neutral_clone.cells.is_empty());
@@ -454,15 +454,15 @@ mod tests {
         if subclone_id >= subclones.0.len() as u8 {
             subclone_id = 1;
         }
-        let number_of_cells = subclones.0[subclone_id as usize].get_cells().len();
+        let number_of_cells = subclones.0[subclone_id as CloneId].get_cells().len();
         let tot_cells = subclones.compute_tot_cells();
 
-        let _ = proliferating_cell(&mut subclones, subclone_id as usize, &mut rng);
+        let _ = proliferating_cell(&mut subclones, subclone_id as CloneId, &mut rng);
 
         let subclones_have_lost_cell =
             Variants::variant_counts(&subclones).iter().sum::<u64>() < tot_cells;
         let subclone_has_lost_cell =
-            subclones.0[subclone_id as usize].get_cells().len() == number_of_cells - 1;
+            subclones.0[subclone_id as CloneId].get_cells().len() == number_of_cells - 1;
         subclones_have_lost_cell && subclone_has_lost_cell
     }
 

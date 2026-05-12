@@ -15,7 +15,7 @@ use log::debug;
 use crate::{
     genotype::{MutationalBurden, Sfs, SingleCellMutations},
     stemcell::StemCell,
-    subclone::{save_variant_fraction, SubClones},
+    subclone::{save_variant_fraction, CloneId, SubClones},
 };
 
 /// The statistics/measurements we want to save from the simulations.
@@ -107,7 +107,7 @@ pub(crate) fn save_it(
     path2dir: &Path,
     filename: &Path,
     time: f32,
-    cells_with_idx: Vec<(&StemCell, usize)>,
+    cells_with_idx: Vec<(&StemCell, CloneId)>,
     stats: &StatsConfig,
 ) -> anyhow::Result<()> {
     debug!("saving data at time {time}");
@@ -179,7 +179,7 @@ pub(crate) fn save_it(
                 cells_with_idx
                     .into_iter()
                     .map(|(cell, id)| (cell.to_owned(), id))
-                    .collect::<Vec<(StemCell, usize)>>(),
+                    .collect::<Vec<(StemCell, CloneId)>>(),
             ),
             &make_path(
                 path2dir,
