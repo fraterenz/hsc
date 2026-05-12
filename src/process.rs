@@ -1,12 +1,12 @@
 use crate::proliferation::Proliferation;
-use crate::snapshots::{save_it, SavingCells, SavingOptions, Snapshot, StatsConfig};
+use crate::snapshots::{SavingCells, SavingOptions, Snapshot, StatsConfig, save_it};
 use crate::subclone::{CloneId, Distributions, SubClones, Variants};
 use crate::{MAX_SUBCLONES, TIME_AT_BIRTH};
 use anyhow::Context;
 use log::{debug, info, trace};
 use rand::Rng;
-use rand_distr::weighted::WeightedIndex;
 use rand_distr::Distribution;
+use rand_distr::weighted::WeightedIndex;
 use sosa::{AdvanceStep, CurrentState, NextReaction};
 use std::collections::VecDeque;
 use std::num::NonZeroUsize;
@@ -358,9 +358,9 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
         while !self.snapshots.is_empty() && self.snapshots.iter().any(|s| self.time >= s.time) {
             let snapshot = self.snapshots.pop_front().unwrap();
             debug!(
-                    "saving state for timepoint at simulation's time {} for timepoint at {:#?} with {} cells",
-                    self.time, snapshot.time, snapshot.cells2sample
-                );
+                "saving state for timepoint at simulation's time {} for timepoint at {:#?} with {} cells",
+                self.time, snapshot.time, snapshot.cells2sample
+            );
             let saving_cells =
                 if snapshot.cells2sample == self.subclones.compute_tot_cells() as usize {
                     SavingCells::WholePopulation
@@ -402,13 +402,13 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
 
 #[cfg(test)]
 mod tests {
-    use std::num::{NonZeroU64, NonZeroU8};
+    use std::num::{NonZeroU8, NonZeroU64};
 
     use quickcheck_macros::quickcheck;
     use rand::SeedableRng;
     use rand_chacha::ChaCha8Rng;
 
-    use crate::{genotype, stemcell::StemCell, Probs};
+    use crate::{Probs, genotype, stemcell::StemCell};
 
     use super::*;
 

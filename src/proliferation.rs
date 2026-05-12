@@ -4,8 +4,8 @@ use rand::Rng;
 use rand_distr::{Bernoulli, Distribution};
 
 use crate::{
-    stemcell::{assign_background_mutations, assign_divisional_mutations, StemCell},
-    subclone::{next_clone, proliferating_cell, CloneId, Distributions, SubClones},
+    stemcell::{StemCell, assign_background_mutations, assign_divisional_mutations},
+    subclone::{CloneId, Distributions, SubClones, next_clone, proliferating_cell},
 };
 
 #[derive(Debug, Clone, Default)]
@@ -169,8 +169,8 @@ pub enum NeutralMutations {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::stemcell::StemCell;
     use crate::Probs;
+    use crate::stemcell::StemCell;
     use rand::SeedableRng;
     use rand_chacha::ChaCha8Rng;
 

@@ -1,11 +1,11 @@
-use crate::genotype::NeutralMutationPoisson;
 use crate::Probs;
-use crate::{stemcell::StemCell, write2file, MAX_SUBCLONES};
-use anyhow::{ensure, Context};
+use crate::genotype::NeutralMutationPoisson;
+use crate::{MAX_SUBCLONES, stemcell::StemCell, write2file};
+use anyhow::{Context, ensure};
 use log::{debug, trace};
-use rand::seq::{IndexedRandom, IteratorRandom};
 use rand::Rng;
 use rand::RngExt;
+use rand::seq::{IndexedRandom, IteratorRandom};
 use rand_distr::{Bernoulli, Distribution, Gamma};
 use sosa::ReactionRates;
 use std::num::NonZeroUsize;
@@ -31,8 +31,8 @@ impl Distributions {
             } => (u, probs_per_year.mu_background, probs_per_year.mu_division),
         };
         debug!(
-                "creating distributions with u: {u}, lambda_background: {background}, lambda_division: {division}"
-            );
+            "creating distributions with u: {u}, lambda_background: {background}, lambda_division: {division}"
+        );
 
         Self {
             u,
@@ -312,11 +312,7 @@ impl SubClones {
         //! model with `b0` being the proliferative rate of the wild-type clone.
         match fitness {
             Fitness::Fixed { s } => ReactionRates(core::array::from_fn(|i| {
-                if i == 0 {
-                    b0
-                } else {
-                    b0 * (1. + s)
-                }
+                if i == 0 { b0 } else { b0 * (1. + s) }
             })),
             &Fitness::GammaSampled { shape, scale } => {
                 let gamma = Gamma::new(shape, scale).unwrap();
@@ -439,7 +435,7 @@ mod tests {
 
     use super::*;
     use quickcheck_macros::quickcheck;
-    use rand::{rngs::SmallRng, SeedableRng};
+    use rand::{SeedableRng, rngs::SmallRng};
 
     #[quickcheck]
     fn assign_cell_test(id: CloneId) -> bool {

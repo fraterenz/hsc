@@ -1,7 +1,8 @@
 [package]
 name = "hsc"
 version = "5.1.1"
-edition = "2021"
+edition = "2024"
+rust-version = "1.85"
 
 [dependencies]
 anyhow = "1.0.102"

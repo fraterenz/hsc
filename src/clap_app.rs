@@ -1,10 +1,10 @@
 use anyhow::{bail, ensure};
 use clap::{ArgAction, Args, Parser, Subcommand, ValueEnum};
 use hsc::{
+    ProbsPerYear,
     process::ProcessOptions,
     snapshots::{Snapshot, Stats2Save, StatsConfigBuilder},
-    subclone::{from_mean_std_to_shape_scale, Fitness},
-    ProbsPerYear,
+    subclone::{Fitness, from_mean_std_to_shape_scale},
 };
 use num_traits::{Float, NumCast};
 use sosa::{IterTime, NbIndividuals, Options};

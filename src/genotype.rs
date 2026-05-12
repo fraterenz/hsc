@@ -1,7 +1,7 @@
-use anyhow::{ensure, Context};
+use anyhow::{Context, ensure};
 use arrow_array::{
-    builder::{FixedSizeBinaryBuilder, Float32Builder, UInt32Builder},
     RecordBatch,
+    builder::{FixedSizeBinaryBuilder, Float32Builder, UInt32Builder},
 };
 use arrow_schema::{DataType, Field, Schema};
 use log::{debug, trace};

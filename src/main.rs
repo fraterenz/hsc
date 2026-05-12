@@ -2,12 +2,13 @@ use crate::clap_app::Cli;
 use anyhow::Context;
 use clap_app::Parallel;
 use hsc::{
-    process::{switch_to_moran, Exponential, Moran, ProcessOptions},
+    Probs, ProbsPerYear,
+    process::{Exponential, Moran, ProcessOptions, switch_to_moran},
     proliferation::{Division, NeutralMutations, Proliferation},
     snapshots::{SavingCells, SavingOptions, Snapshot, StatsConfig},
     stemcell::StemCell,
     subclone::{Distributions, Fitness, SubClones, Variants},
-    write2file, Probs, ProbsPerYear,
+    write2file,
 };
 use indicatif::ParallelProgressIterator;
 use log::{debug, info};
@@ -15,7 +16,7 @@ use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use rand_distr::Bernoulli;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
-use sosa::{simulate, CurrentState, Options, StopReason};
+use sosa::{CurrentState, Options, StopReason, simulate};
 use std::{collections::VecDeque, num::NonZeroUsize, path::PathBuf};
 use uuid::Uuid;
 
@@ -317,10 +318,12 @@ fn main() {
         };
         match stop {
             StopReason::MaxTimeReached => {
-                    debug!("Moran simulation {idx} stopped because {stop:#?}");
-            },
-            StopReason::MaxItersReached => debug!("the simulation stopped earlier than expected because the max number of iterations has been reached"),
-            _ => unreachable!("the simulation shouldnt have stopped")
+                debug!("Moran simulation {idx} stopped because {stop:#?}");
+            }
+            StopReason::MaxItersReached => debug!(
+                "the simulation stopped earlier than expected because the max number of iterations has been reached"
+            ),
+            _ => unreachable!("the simulation shouldnt have stopped"),
         }
 
         debug!("saving the SFS for all timepoints");

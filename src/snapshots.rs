@@ -15,7 +15,7 @@ use log::debug;
 use crate::{
     genotype::{MutationalBurden, Sfs, SingleCellMutations},
     stemcell::StemCell,
-    subclone::{save_variant_fraction, CloneId, SubClones},
+    subclone::{CloneId, SubClones, save_variant_fraction},
 };
 
 /// The statistics/measurements we want to save from the simulations.
