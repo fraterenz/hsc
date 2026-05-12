@@ -78,7 +78,12 @@ impl Fitness {
 }
 
 /// Id of the [`SubClone`]s.
-pub type CloneId = usize;
+///
+/// `u16` is wide enough for `MAX_SUBCLONES = 3000` (≪ `u16::MAX = 65535`) and
+/// keeps `Option<CloneId>` at 4 bytes (vs 16 with `usize`), shrinking
+/// `SubClone` accordingly. `usize` is reserved for array-indexing call sites,
+/// which cast at the boundary.
+pub type CloneId = u16;
 
 fn default_parent_id(id: CloneId) -> Option<CloneId> {
     // wild-type has no parent; every other slot is, by default, a child of
@@ -125,7 +130,7 @@ impl SubClone {
         }
     }
 
-    pub fn with_capacity(id: usize, capacity: usize) -> SubClone {
+    pub fn with_capacity(id: CloneId, capacity: usize) -> SubClone {
         SubClone {
             cells: Vec::with_capacity(capacity),
             id,
@@ -133,7 +138,7 @@ impl SubClone {
         }
     }
 
-    pub fn empty_with_id(id: usize) -> SubClone {
+    pub fn empty_with_id(id: CloneId) -> SubClone {
         SubClone {
             cells: vec![],
             id,
@@ -149,7 +154,7 @@ impl SubClone {
         &self.cells
     }
 
-    pub fn get_cells_subclones_idx(&self) -> Vec<(&StemCell, usize)> {
+    pub fn get_cells_subclones_idx(&self) -> Vec<(&StemCell, CloneId)> {
         self.cells.iter().map(|cell| (cell, self.id)).collect()
     }
 
@@ -195,14 +200,14 @@ pub fn next_clone(
     // this will panic when u is not small and the cell hasn't divided much,
     // i.e. when p > 1
     if Bernoulli::new(p).unwrap().sample(rng) {
-        let mut rnd_clone_id = rng.random_range(0..MAX_SUBCLONES);
+        let mut rnd_clone_id = rng.random_range(0..MAX_SUBCLONES) as CloneId;
         let mut counter = 0;
         // the new random clone cannot have `subclone_id` id and must be empty
         while (rnd_clone_id == old_subclone_id
             || !subclones.get_clone(rnd_clone_id).unwrap().is_empty())
             && counter <= MAX_SUBCLONES
         {
-            rnd_clone_id = rng.random_range(0..MAX_SUBCLONES);
+            rnd_clone_id = rng.random_range(0..MAX_SUBCLONES) as CloneId;
             counter += 1;
         }
         assert!(counter <= MAX_SUBCLONES, "max number of clones reached");
@@ -228,7 +233,7 @@ impl SubClones {
         //! All clones have their own `capacity`.
         // initial state
         let mut subclones: Box<[SubClone]> = (0..MAX_SUBCLONES)
-            .map(|i| SubClone::new(i, capacity))
+            .map(|i| SubClone::new(i as CloneId, capacity))
             .collect();
         let tot_cells = cells.len();
         debug!("assigning {tot_cells} cells to the wild-type clone");
@@ -241,13 +246,17 @@ impl SubClones {
     }
 
     pub fn new_empty() -> Self {
-        SubClones((0..MAX_SUBCLONES).map(SubClone::empty_with_id).collect())
+        SubClones(
+            (0..MAX_SUBCLONES)
+                .map(|i| SubClone::empty_with_id(i as CloneId))
+                .collect(),
+        )
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
         SubClones(
             (0..MAX_SUBCLONES)
-                .map(|id| SubClone::with_capacity(id, capacity))
+                .map(|id| SubClone::with_capacity(id as CloneId, capacity))
                 .collect(),
         )
     }
@@ -256,12 +265,12 @@ impl SubClones {
         self.0.iter().map(|subclone| subclone.cell_count()).sum()
     }
 
-    pub(crate) fn get_clone(&self, id: usize) -> Option<&SubClone> {
-        self.0.get(id)
+    pub(crate) fn get_clone(&self, id: CloneId) -> Option<&SubClone> {
+        self.0.get(id as usize)
     }
 
-    pub(crate) fn get_mut_clone_unchecked(&mut self, id: usize) -> &mut SubClone {
-        &mut self.0[id]
+    pub(crate) fn get_mut_clone_unchecked(&mut self, id: CloneId) -> &mut SubClone {
+        &mut self.0[id as usize]
     }
 
     pub fn get_neutral_clone(&self) -> &SubClone {
@@ -269,7 +278,7 @@ impl SubClones {
     }
 
     pub fn array_of_gillespie_reactions(&self) -> [CloneId; MAX_SUBCLONES] {
-        core::array::from_fn(|i| i)
+        core::array::from_fn(|i| i as CloneId)
     }
 
     pub(crate) fn into_subsampled(self, nb_cells: NonZeroUsize, rng: &mut impl Rng) -> Self {
@@ -298,7 +307,7 @@ impl SubClones {
             })
             .choose_multiple(rng, nb_cells.get())
         {
-            subclones.0[clone_id].cells.push(cell);
+            subclones.0[clone_id as usize].cells.push(cell);
         }
 
         // `parent_id` is preserved for clones that retain at least one cell
@@ -327,7 +336,7 @@ impl SubClones {
             .collect()
     }
 
-    pub(crate) fn get_cells_with_clones_idx(&self) -> Vec<(&StemCell, usize)> {
+    pub(crate) fn get_cells_with_clones_idx(&self) -> Vec<(&StemCell, CloneId)> {
         self.0
             .iter()
             .flat_map(|subclone| subclone.get_cells_subclones_idx())
@@ -338,7 +347,7 @@ impl SubClones {
         &self,
         nb_cells: usize,
         rng: &mut impl Rng,
-    ) -> Vec<(&StemCell, usize)> {
+    ) -> Vec<(&StemCell, CloneId)> {
         self.0
             .iter()
             .flat_map(|subclone| subclone.get_cells_subclones_idx())
@@ -381,7 +390,7 @@ impl Default for SubClones {
         //! Create new subclones each having one cell (this creates also the cells).
         let subclones: Box<[SubClone]> = (0..MAX_SUBCLONES)
             .map(|i| {
-                let mut subclone = SubClone::new(i, 2);
+                let mut subclone = SubClone::new(i as CloneId, 2);
                 subclone.assign_cell(StemCell::new());
                 subclone
             })
@@ -390,8 +399,8 @@ impl Default for SubClones {
     }
 }
 
-impl From<Vec<(StemCell, usize)>> for SubClones {
-    fn from(cells: Vec<(StemCell, usize)>) -> Self {
+impl From<Vec<(StemCell, CloneId)>> for SubClones {
+    fn from(cells: Vec<(StemCell, CloneId)>) -> Self {
         let mut subclones = SubClones::new_empty();
         for (cell, id) in cells.into_iter() {
             subclones.get_mut_clone_unchecked(id).assign_cell(cell);
@@ -474,7 +483,7 @@ impl std::fmt::Display for ParentId {
 pub fn save_variant_phylogeny(subclones: &SubClones, path2file: &Path) -> anyhow::Result<()> {
     let path2file = path2file.with_extension("csv");
     let parent_ids: Vec<ParentId> = (0..MAX_SUBCLONES)
-        .map(|i| ParentId(subclones.get_clone(i).unwrap().get_parent_id()))
+        .map(|i| ParentId(subclones.get_clone(i as CloneId).unwrap().get_parent_id()))
         .collect();
     debug!("variant phylogeny in {path2file:#?}");
     write2file(&parent_ids, &path2file, None, false)?;
@@ -492,9 +501,9 @@ pub fn proliferating_cell(
     //! hence subclones are borrowed mutably.
     trace!(
         "a cell from clone {:#?} will divide",
-        subclones.0[subclone_id]
+        subclones.0[subclone_id as usize]
     );
-    subclones.0[subclone_id]
+    subclones.0[subclone_id as usize]
         .random_cell(rng)
         .with_context(|| "found empty subclone")
         .unwrap()
@@ -511,7 +520,7 @@ mod tests {
     use rand::{rngs::SmallRng, SeedableRng};
 
     #[quickcheck]
-    fn assign_cell_test(id: usize) -> bool {
+    fn assign_cell_test(id: CloneId) -> bool {
         let mut neutral_clone = SubClone {
             cells: vec![],
             id,
@@ -534,7 +543,7 @@ mod tests {
         let number_of_cells = subclones.0[subclone_id as usize].get_cells().len();
         let tot_cells = subclones.compute_tot_cells();
 
-        let _ = proliferating_cell(&mut subclones, subclone_id as usize, &mut rng);
+        let _ = proliferating_cell(&mut subclones, subclone_id as CloneId, &mut rng);
 
         let subclones_have_lost_cell =
             Variants::variant_counts(&subclones).iter().sum::<u64>() < tot_cells;
@@ -587,7 +596,7 @@ mod tests {
         // `parent_id`; clones that lost every cell fall back to the
         // constructor default (`None` for slot 0, `Some(0)` elsewhere).
         for i in 0..MAX_SUBCLONES {
-            let slot = subsampled.get_clone(i).unwrap();
+            let slot = subsampled.get_clone(i as CloneId).unwrap();
             let expected_parent: Option<CloneId> = match i {
                 0 => None,
                 7 if !slot.is_empty() => Some(3),
