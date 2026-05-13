@@ -1,5 +1,19 @@
 # Changelog
 The semantic versioning is kind of random.
+## 6.0.1
+- add docs
+
+## 6.0.0
+- Migrate to Rust edition 2024 (requires Rust ≥ 1.85).
+- Bump `sosa` 4.0.0 → 5.1, `rand` 0.9.2 → 0.10.1, `rand_distr` 0.5.1 → 0.6, `rand_chacha` 0.9.0 → 0.10. Note: same `--seed` will no longer reproduce v5.x simulation output.
+- Update other dependencies (`anyhow`, `quickcheck_macros`, `codecov-action`).
+### Added
+- New `--stats variants-phylogeny` option that persists the clone phylogeny (parent clone id per subclone slot) into a new `variant_phylogeny/` output folder. See `output.md`.
+- Track `parent_id` on `SubClone`.
+### Changed
+- Centralise background-mutation realisation on `Proliferation` (internal refactor, behaviour preserved).
+- Shrink `CloneId` from `usize` to `u16`.
+- Make `StemCell::mutations` private; expose via `get_mutations()` accessor.
 
 ## 5.1.1
 ### BugFix
