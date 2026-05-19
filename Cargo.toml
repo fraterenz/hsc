@@ -22,7 +22,7 @@ arrow-array = "58.0.0"
 arrow-schema = "58.0.0"
 parquet = { version = "58", default-features = false, features = ["arrow"] }
 log = "0.4.29"
-env_logger = "0.11.9"
+env_logger = "0.11.10"
 derive_builder = "0.20.2"
 enumset = "1.1.10"
 
