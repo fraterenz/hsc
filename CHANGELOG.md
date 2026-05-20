@@ -1,5 +1,8 @@
 # Changelog
 The semantic versioning is kind of random.
+## 6.0.3
+- Update dependencies with `cargo update`.
+
 ## 6.0.2
 ### Changed
 - The definition of a clone being empty now is based on whether the attribute `parent_id`
