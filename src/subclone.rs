@@ -79,6 +79,7 @@ impl Fitness {
 }
 
 /// Id of the [`SubClone`]s.
+/// The id of zero indicates the wild-type clone
 pub type CloneId = u16;
 
 /// Display wrapper for a subclone's optional parent.
@@ -122,11 +123,11 @@ impl Iterator for SubClone {
 }
 
 impl SubClone {
-    pub fn new(id: CloneId, cell_capacity: usize) -> SubClone {
+    pub fn new(id: CloneId, cell_capacity: usize, parent_id: Option<CloneId>) -> SubClone {
         SubClone {
             cells: Vec::with_capacity(cell_capacity),
             id,
-            parent_id: None,
+            parent_id,
         }
     }
 
@@ -167,7 +168,13 @@ impl SubClone {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.get_cells().is_empty()
+        //! A non-wild type subclone is empty is it's parent id is None.
+        //! If the subclone is the wild-type, it's empty if it has no cells.
+        if self.id == 0 {
+            self.get_cells().is_empty()
+        } else {
+            self.parent_id.is_none()
+        }
     }
 
     pub fn assign_cell(&mut self, cell: StemCell) {
@@ -229,10 +236,10 @@ impl SubClones {
         //! Returns all the newly initiated subclones by assigning all `cells`
         //! to the neutral clone.
         //!
-        //! All clones have their own `capacity`.
+        //! All clones have the same `capacity`.
         // initial state
         let mut subclones: [SubClone; MAX_SUBCLONES] =
-            std::array::from_fn(|i| SubClone::new(i as CloneId, capacity));
+            std::array::from_fn(|i| SubClone::new(i as CloneId, capacity, None));
         let tot_cells = cells.len();
         debug!("assigning {tot_cells} cells to the wild-type clone");
         for cell in cells {
@@ -365,7 +372,8 @@ impl Default for SubClones {
     fn default() -> Self {
         //! Create new subclones each having one cell (this creates also the cells).
         let subclones = std::array::from_fn(|i| {
-            let mut subclone = SubClone::new(i as CloneId, 2);
+            let parent_id = if i == 0 { None } else { Some(0) };
+            let mut subclone = SubClone::new(i as CloneId, 2, parent_id);
             subclone.assign_cell(StemCell::new());
             subclone
         });
@@ -553,20 +561,12 @@ mod tests {
     #[test]
     #[should_panic]
     fn assign_all_clones_occupied() {
-        let mut rng = SmallRng::seed_from_u64(26);
-
-        let subclones = SubClones::default();
-        let mut cell = StemCell::new();
-        cell.set_last_division_time(1.).unwrap();
-
-        next_clone(&subclones, 0, 1., &mut rng);
+        next_clone(&SubClones::default(), 0, 1., &mut rand::rng());
     }
 
     #[test]
-    fn parent_id_defaults_to_none_on_all_constructors() {
+    fn parent_id_defaults_to_none() {
         assert!(SubClone::default().parent_id().is_none());
-        assert!(SubClone::new(7, 4).parent_id().is_none());
-        assert!(SubClone::with_capacity(11, 4).parent_id().is_none());
         assert!(SubClone::empty_with_id(13).parent_id().is_none());
 
         for clone in SubClones::new(vec![StemCell::new()], 4).0.iter() {
@@ -579,7 +579,11 @@ mod tests {
             assert!(clone.parent_id().is_none());
         }
         for clone in SubClones::default().0.iter() {
-            assert!(clone.parent_id().is_none());
+            if clone.id == 0 {
+                assert!(clone.parent_id().is_none());
+            } else {
+                assert!(clone.parent_id().unwrap() == 0);
+            }
         }
     }
 

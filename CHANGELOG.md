@@ -1,5 +1,11 @@
 # Changelog
 The semantic versioning is kind of random.
+## 6.0.2
+### Changed
+- The definition of a clone being empty now is based on whether the attribute `parent_id`
+is set, unless it's the wild-type clone (which has `parent_id` set to `Option::None`) then
+it's based on whether the wild-type is carrying cells.
+
 ## 6.0.1
 - add docs
 
