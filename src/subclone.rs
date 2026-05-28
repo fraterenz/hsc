@@ -76,6 +76,21 @@ impl Fitness {
             }
         }
     }
+
+    /// Draw a Gillespie rate for a non-wild-type subclone under this fitness
+    /// model. `b0` is the wild-type birth rate; the returned value is
+    /// `b0 * (1 + s)` where `s` is fixed, sampled, or zero (for `Neutral`)
+    /// depending on the variant.
+    pub fn sample_rate(&self, b0: f32, rng: &mut impl Rng) -> f32 {
+        match self {
+            Fitness::Neutral => b0,
+            Fitness::Fixed { s } => b0 * (1. + s),
+            &Fitness::GammaSampled { shape, scale } => {
+                let gamma = Gamma::new(shape, scale).unwrap();
+                b0 * (1. + gamma.sample(rng))
+            }
+        }
+    }
 }
 
 /// Number of fit-mutation hits accumulated by a subclone lineage.
@@ -390,22 +405,13 @@ impl SubClones {
     ) -> ReactionRates<MAX_SUBCLONES> {
         //! Create the Gillespie reaction rates according to the `fitness`
         //! model with `b0` being the proliferative rate of the wild-type clone.
-        match fitness {
-            Fitness::Fixed { s } => ReactionRates(core::array::from_fn(|i| {
-                if i == 0 { b0 } else { b0 * (1. + s) }
-            })),
-            &Fitness::GammaSampled { shape, scale } => {
-                let gamma = Gamma::new(shape, scale).unwrap();
-                ReactionRates(core::array::from_fn(|i| {
-                    if i == 0 {
-                        b0
-                    } else {
-                        b0 * (1. + gamma.sample(rng))
-                    }
-                }))
+        ReactionRates(core::array::from_fn(|i| {
+            if i == 0 {
+                b0
+            } else {
+                fitness.sample_rate(b0, rng)
             }
-            &Fitness::Neutral => ReactionRates(core::array::from_fn(|_| b0)),
-        }
+        }))
     }
 }
 
@@ -625,6 +631,48 @@ mod tests {
             } else {
                 assert!(clone.parent_id().unwrap() == 0);
             }
+        }
+    }
+
+    #[test]
+    fn sample_rate_neutral_returns_b0() {
+        let mut rng = SmallRng::seed_from_u64(7);
+        let b0 = 1.7_f32;
+        for _ in 0..32 {
+            assert_eq!(Fitness::Neutral.sample_rate(b0, &mut rng), b0);
+        }
+    }
+
+    #[test]
+    fn sample_rate_fixed_returns_b0_times_one_plus_s() {
+        let mut rng = SmallRng::seed_from_u64(7);
+        let b0 = 1.7_f32;
+        let s = 0.3_f32;
+        for _ in 0..32 {
+            assert_eq!(
+                Fitness::Fixed { s }.sample_rate(b0, &mut rng),
+                b0 * (1.0 + s),
+            );
+        }
+    }
+
+    #[test]
+    fn sample_rate_gamma_returns_b0_times_one_plus_positive_draw() {
+        let mut rng = SmallRng::seed_from_u64(7);
+        let b0 = 1.7_f32;
+        let fitness = Fitness::GammaSampled {
+            shape: 2.0,
+            scale: 0.5,
+        };
+        for _ in 0..32 {
+            let rate = fitness.sample_rate(b0, &mut rng);
+            // Gamma(shape, scale) is supported on (0, +inf), so the rate is
+            // strictly greater than b0.
+            assert!(
+                rate > b0,
+                "expected rate > b0={b0}, got {rate} (b0*(1+gamma_sample))",
+            );
+            assert!(rate.is_finite());
         }
     }
 
