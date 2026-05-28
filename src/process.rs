@@ -161,7 +161,7 @@ impl AdvanceStep<MAX_SUBCLONES> for Exponential {
         // removes the cells from the clone with id `reaction.event`.**
         self.counter_divisions += 1;
         self.time += reaction.time;
-        self.proliferation.proliferate(
+        let _ = self.proliferation.proliferate(
             &mut self.subclones,
             self.time,
             reaction.event,
@@ -384,7 +384,7 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
         // id `reaction.event`.**
         self.time += reaction.time;
         self.counter_divisions += 1;
-        self.proliferation.proliferate(
+        let _ = self.proliferation.proliferate(
             &mut self.subclones,
             self.time,
             reaction.event,

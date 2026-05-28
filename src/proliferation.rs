@@ -5,8 +5,22 @@ use rand_distr::{Bernoulli, Distribution};
 
 use crate::{
     stemcell::{StemCell, assign_background_mutations, assign_divisional_mutations},
-    subclone::{CloneId, Distributions, SubClones, next_clone, proliferating_cell},
+    subclone::{CloneId, Distributions, HitCount, SubClones, next_clone, proliferating_cell},
 };
+
+/// Description of a birth of a new subclone during proliferation.
+///
+/// Returned by [`Proliferation::proliferate`] whenever a fit variant is drawn
+/// (so the proliferating cell is reassigned to a fresh, previously-empty
+/// subclone). Carries the new clone id, the parent's id, and the hit count
+/// the new clone was tagged with — used by the `--multihits` feature to
+/// resample the new clone's Gillespie rate from the matching fitness tier.
+#[derive(Clone, Copy, Debug)]
+pub struct BirthEvent {
+    pub new_clone_id: CloneId,
+    pub parent_clone_id: CloneId,
+    pub hit_count: HitCount,
+}
 
 #[derive(Debug, Clone, Default)]
 /// Stem cells can either self-renew by symmetric division or differentiate by
@@ -62,7 +76,7 @@ impl Proliferation {
         proliferating_subclone: CloneId,
         distributions: &Distributions,
         rng: &mut impl Rng,
-    ) {
+    ) -> Option<BirthEvent> {
         //! Sample a random cell from the subclones with id
         //! `proliferating_subclone`, assign neutral mutations (background and
         //! those upon proliferation) and finally assign `cell` to a subclone.
@@ -71,8 +85,10 @@ impl Proliferation {
         //!
         //! 1. if there is a new fit variant, then `cell` will be assigned to a
         //!    new **empty** random clone with an id different from `old_subclone_id`
-        //!    and panics if there aren't any empty subclones left
-        //! 2. else, reassign `cell` to the old subclone with id `old_subclone_id`
+        //!    and panics if there aren't any empty subclones left. Returns
+        //!    `Some(BirthEvent)` describing the birth.
+        //! 2. else, reassign `cell` to the old subclone with id `old_subclone_id`.
+        //!    Returns `None`.
         let mut stem_cell = proliferating_cell(subclones, proliferating_subclone, rng);
         let p = (distributions.u
             * stem_cell
@@ -81,11 +97,23 @@ impl Proliferation {
                 .unwrap()) as f64;
         // the fit variant is sampled here
         let clone_id = next_clone(subclones, proliferating_subclone, p, rng);
-        if clone_id != proliferating_subclone {
-            subclones
-                .get_mut_clone_unchecked(clone_id)
-                .set_parent_id(proliferating_subclone);
-        }
+        let birth_event = if clone_id != proliferating_subclone {
+            let hit_count = subclones
+                .get_clone(proliferating_subclone)
+                .unwrap()
+                .hit_count()
+                .child();
+            let new_clone = subclones.get_mut_clone_unchecked(clone_id);
+            new_clone.set_parent_id(proliferating_subclone);
+            new_clone.set_hit_count(hit_count);
+            Some(BirthEvent {
+                new_clone_id: clone_id,
+                parent_clone_id: proliferating_subclone,
+                hit_count,
+            })
+        } else {
+            None
+        };
         debug!("proliferation at time {time}");
         debug!(
             "cell with last division time {} is dividing",
@@ -117,6 +145,7 @@ impl Proliferation {
                 .get_mut_clone_unchecked(clone_id)
                 .assign_cell(stem_cell);
         }
+        birth_event
     }
 
     pub fn realise_background_mutations(
@@ -253,7 +282,7 @@ mod tests {
             for cell in subclones.get_mut_cells() {
                 cell.set_last_division_time(0.0).unwrap();
             }
-            proliferation.proliferate(&mut subclones, 1.0, 0, &distributions, rng);
+            let event = proliferation.proliferate(&mut subclones, 1.0, 0, &distributions, rng);
             let births: Vec<CloneId> = (1..crate::MAX_SUBCLONES as CloneId)
                 .filter(|id| !subclones.get_clone(*id).unwrap().is_empty())
                 .collect();
@@ -262,13 +291,69 @@ mod tests {
                     subclones.get_clone(new_id).unwrap().parent_id(),
                     Some(0_u16),
                 );
+                // BirthEvent must match the observed new clone, and the new
+                // clone's hit_count must be First (parent is WildType).
+                let event = event.expect("proliferate must report a BirthEvent on a fit birth");
+                assert_eq!(event.new_clone_id, new_id);
+                assert_eq!(event.parent_clone_id, 0);
+                assert_eq!(event.hit_count, HitCount::First);
+                assert_eq!(
+                    subclones.get_clone(new_id).unwrap().hit_count(),
+                    HitCount::First,
+                );
                 saw_birth = true;
                 break;
+            } else {
+                // No new clone born -> no event reported.
+                assert!(event.is_none());
             }
         }
         assert!(saw_birth, "no new fit clone born across 10 proliferations");
         // Wild type stays parentless.
         assert!(subclones.get_clone(0).unwrap().parent_id().is_none());
+    }
+
+    #[test]
+    fn proliferate_hit_count_chain_saturates_at_fourth() {
+        // Repeatedly birth new clones starting from the wild type, walking
+        // the hit_count chain WildType -> First -> Second -> Third -> Fourth
+        // and confirming the 5th and later births stay clamped at Fourth.
+        let rng = &mut ChaCha8Rng::seed_from_u64(42);
+        let mut subclones = make_subclones(5, 0.0);
+        let distributions = Distributions::new(Probs::new(50., 50., 99., 0., 100));
+        let proliferation = Proliferation::new(NeutralMutations::UponDivision, Division::Symmetric);
+
+        let expected = [
+            HitCount::First,
+            HitCount::Second,
+            HitCount::Third,
+            HitCount::Fourth,
+            HitCount::Fourth,
+            HitCount::Fourth,
+        ];
+        let mut parent_id: CloneId = 0;
+        for expected_hits in expected {
+            let mut event = None;
+            for _ in 0..100 {
+                for cell in subclones.get_mut_cells() {
+                    cell.set_last_division_time(0.0).unwrap();
+                }
+                if let Some(e) =
+                    proliferation.proliferate(&mut subclones, 1.0, parent_id, &distributions, rng)
+                {
+                    event = Some(e);
+                    break;
+                }
+            }
+            let event = event.expect("expected a birth within 100 tries");
+            assert_eq!(event.parent_clone_id, parent_id);
+            assert_eq!(event.hit_count, expected_hits);
+            assert_eq!(
+                subclones.get_clone(event.new_clone_id).unwrap().hit_count(),
+                expected_hits,
+            );
+            parent_id = event.new_clone_id;
+        }
     }
 
     #[test]

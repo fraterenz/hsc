@@ -78,6 +78,35 @@ impl Fitness {
     }
 }
 
+/// Number of fit-mutation hits accumulated by a subclone lineage.
+///
+/// Saturates at [`HitCount::Fourth`]: any further hit beyond the 4th maps back
+/// onto the 4th tier. Used by the `--multihits` feature to pick a fitness tier
+/// when a new subclone is born.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum HitCount {
+    #[default]
+    WildType,
+    First,
+    Second,
+    Third,
+    Fourth,
+}
+
+impl HitCount {
+    /// The following `HitCount` with a saturating successor when the hit reaches
+    /// `Fourth`: `WildType -> First -> Second -> Third -> Fourth -> Fourth`.
+    pub fn child(self) -> HitCount {
+        match self {
+            HitCount::WildType => HitCount::First,
+            HitCount::First => HitCount::Second,
+            HitCount::Second => HitCount::Third,
+            HitCount::Third => HitCount::Fourth,
+            HitCount::Fourth => HitCount::Fourth,
+        }
+    }
+}
+
 /// Id of the [`SubClone`]s.
 /// The id of zero indicates the wild-type clone
 pub type CloneId = u16;
@@ -112,6 +141,7 @@ pub struct SubClone {
     cells: Vec<StemCell>,
     pub id: CloneId,
     parent_id: Option<CloneId>,
+    hit_count: HitCount,
 }
 
 impl Iterator for SubClone {
@@ -128,6 +158,7 @@ impl SubClone {
             cells: Vec::with_capacity(cell_capacity),
             id,
             parent_id,
+            hit_count: HitCount::WildType,
         }
     }
 
@@ -136,6 +167,7 @@ impl SubClone {
             cells: Vec::with_capacity(capacity),
             id,
             parent_id: None,
+            hit_count: HitCount::WildType,
         }
     }
 
@@ -144,6 +176,7 @@ impl SubClone {
             cells: vec![],
             id,
             parent_id: None,
+            hit_count: HitCount::WildType,
         }
     }
 
@@ -153,6 +186,14 @@ impl SubClone {
 
     pub(crate) fn set_parent_id(&mut self, parent: CloneId) {
         self.parent_id = Some(parent);
+    }
+
+    pub(crate) fn hit_count(&self) -> HitCount {
+        self.hit_count
+    }
+
+    pub(crate) fn set_hit_count(&mut self, hit_count: HitCount) {
+        self.hit_count = hit_count;
     }
 
     pub fn get_mut_cells(&mut self) -> &mut [StemCell] {
@@ -584,6 +625,69 @@ mod tests {
             } else {
                 assert!(clone.parent_id().unwrap() == 0);
             }
+        }
+    }
+
+    #[test]
+    fn hit_count_child_saturates() {
+        assert_eq!(HitCount::WildType.child(), HitCount::First);
+        assert_eq!(HitCount::First.child(), HitCount::Second);
+        assert_eq!(HitCount::Second.child(), HitCount::Third);
+        assert_eq!(HitCount::Third.child(), HitCount::Fourth);
+        assert_eq!(HitCount::Fourth.child(), HitCount::Fourth);
+    }
+
+    #[test]
+    fn hit_count_defaults_to_wild_type() {
+        assert_eq!(HitCount::default(), HitCount::WildType);
+        assert_eq!(SubClone::default().hit_count(), HitCount::WildType);
+        assert_eq!(SubClone::empty_with_id(13).hit_count(), HitCount::WildType);
+        assert_eq!(
+            SubClone::with_capacity(4, 2).hit_count(),
+            HitCount::WildType
+        );
+        assert_eq!(SubClone::new(5, 2, Some(0)).hit_count(), HitCount::WildType);
+
+        for clone in SubClones::new(vec![StemCell::new()], 4).0.iter() {
+            assert_eq!(clone.hit_count(), HitCount::WildType);
+        }
+        for clone in SubClones::new_empty().0.iter() {
+            assert_eq!(clone.hit_count(), HitCount::WildType);
+        }
+        for clone in SubClones::with_capacity(4).0.iter() {
+            assert_eq!(clone.hit_count(), HitCount::WildType);
+        }
+        for clone in SubClones::default().0.iter() {
+            assert_eq!(clone.hit_count(), HitCount::WildType);
+        }
+    }
+
+    #[test]
+    fn hit_count_resets_on_subsample_and_from() {
+        // Build a SubClones, set a non-default hit_count, then run the
+        // reconstruction helpers and confirm hit_count resets to WildType.
+        let mut subclones = SubClones::new(vec![StemCell::new(); 4], 4);
+        subclones
+            .get_mut_clone_unchecked(2)
+            .set_hit_count(HitCount::Third);
+        assert_eq!(subclones.get_clone(2).unwrap().hit_count(), HitCount::Third);
+
+        let mut rng = SmallRng::seed_from_u64(42);
+        let resampled = subclones
+            .clone()
+            .into_subsampled(NonZeroUsize::new(2).unwrap(), &mut rng);
+        for clone in resampled.0.iter() {
+            assert_eq!(clone.hit_count(), HitCount::WildType);
+        }
+
+        let cells: Vec<(StemCell, CloneId)> = subclones
+            .0
+            .iter()
+            .flat_map(|s| s.get_cells().iter().map(move |c| (c.clone(), s.id)))
+            .collect();
+        let rebuilt = SubClones::from(cells);
+        for clone in rebuilt.0.iter() {
+            assert_eq!(clone.hit_count(), HitCount::WildType);
         }
     }
 
