@@ -142,7 +142,6 @@ impl RateSamplerMode {
 
     /// `true` only when the hit-count tier differs from what [`RateSampler::rates_for`]
     /// pre-sampled (i.e. `Multihits` + 2nd hit or later).
-    #[allow(dead_code)] // wired into Moran::advance_step in the next commit
     pub(crate) fn should_resample(&self, hits: HitCount) -> bool {
         match self {
             RateSamplerMode::Static => false,

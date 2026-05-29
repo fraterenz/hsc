@@ -474,13 +474,29 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
         // id `reaction.event`.**
         self.time += reaction.time;
         self.counter_divisions += 1;
-        let _ = self.proliferation.proliferate(
+        let birth = self.proliferation.proliferate(
             &mut self.subclones,
             self.time,
             reaction.event,
             &self.distributions,
             rng,
         );
+        // `--multihits` hook: when the new clone's hit-count tier differs from
+        // what `rate_sampler.rates_for` pre-sampled at construction
+        // (`RateSamplerMode::Multihits` + 2nd-or-later hit), redraw its rate
+        // from the matching tier and write it into `self.rates`. Static mode
+        // and 1st hits skip the redraw — the pre-sampled value is already
+        // correct.
+        if let Some(event) = birth {
+            if self.rate_sampler.mode.should_resample(event.hit_count) {
+                let new_rate = self.rate_sampler.pick(event.hit_count, rng);
+                debug!(
+                    "resampling rate for new clone {} (parent={}, hit_count={:?}): {new_rate}",
+                    event.new_clone_id, event.parent_clone_id, event.hit_count,
+                );
+                self.rates.0[event.new_clone_id as usize] = new_rate;
+            }
+        }
 
         // remove a cell from the population
         self.keep_const_population_upon_symmetric_division(rng);
@@ -501,7 +517,7 @@ mod tests {
     use rand::SeedableRng;
     use rand_chacha::ChaCha8Rng;
 
-    use crate::{Probs, genotype, stemcell::StemCell};
+    use crate::{Probs, genotype, stemcell::StemCell, subclone::HitCount};
 
     use super::*;
 
@@ -548,6 +564,43 @@ mod tests {
             SubClones::new(vec![StemCell::new(); cells.get() as usize], 3),
             0f32,
             Distributions::new(Probs::new(1., 1., mu, 1., cells.get())),
+            Proliferation::default(),
+            rate_sampler,
+            &mut rng,
+        )
+    }
+
+    fn create_moran_multihits_with_first_hit_seed(half: u64) -> Moran {
+        // Build a Moran in Multihits mode with `half` cells in clone 0
+        // (wild-type) and `half` cells in clone 1, where clone 1 is marked as
+        // a First-hit clone. Both clones are non-empty so `next_clone` cannot
+        // select them as the new clone target, and a birth from clone 1
+        // produces a child with `HitCount::Second`, which triggers the
+        // resample hook.
+        let cells = 2 * half;
+        let mut subclones = SubClones::new(vec![StemCell::new(); half as usize], cells as usize);
+        {
+            let clone1 = subclones.get_mut_clone_unchecked(1);
+            for _ in 0..half {
+                clone1.assign_cell(StemCell::new());
+            }
+            clone1.set_hit_count(HitCount::First);
+            clone1.set_parent_id(0);
+        }
+        let mut rng = ChaCha8Rng::seed_from_u64(0);
+        let rate_sampler = RateSampler::from_config(1.0, &FitnessConfig::Multihits);
+        Moran::new(
+            MoranConfig {
+                process_options: ProcessOptions::default(),
+                saving_options: SavingOptions {
+                    filename: PathBuf::default(),
+                    save_population: false,
+                },
+                stats: StatsConfig::default(),
+            },
+            subclones,
+            0f32,
+            Distributions::new(Probs::new(1., 1., 0.999, 1., cells)),
             Proliferation::default(),
             rate_sampler,
             &mut rng,
@@ -625,6 +678,122 @@ mod tests {
         );
 
         assert_eq!(initial, moran.process.subclones.compute_tot_cells());
+    }
+
+    #[quickcheck]
+    fn advance_step_static_keeps_rates_unchanged(seed: u64) {
+        // Static mode: `should_resample` is false for every HitCount, so
+        // `self.rates` must stay byte-equal across many advance_step calls
+        // — births may or may not fire, rates do not move either way.
+        // Fixed-size population (8 cells) and small reaction time keep the
+        // Bernoulli `p` inside `next_clone` below 1.
+        let mut moran = create_moran_fit_variants(NonZeroU64::new(8).unwrap()).process;
+        let initial = moran.rates.0;
+        let mut rng = ChaCha8Rng::seed_from_u64(seed);
+        for _ in 0..16 {
+            if moran.subclones.get_clone(0).unwrap().cell_count() == 0 {
+                break;
+            }
+            let reaction = NextReaction {
+                time: 0.5,
+                event: 0,
+            };
+            moran.advance_step(reaction, &mut rng);
+        }
+        assert_eq!(initial, moran.rates.0);
+    }
+
+    #[quickcheck]
+    fn advance_step_multihits_first_hit_does_not_resample(seed: u64) {
+        // Birth from a wild-type parent produces a child with HitCount::First.
+        // `should_resample(First)` is false (the slot's pre-sampled rate from
+        // tier 0 is already what a first hit expects), so rates must stay
+        // unchanged whether or not a birth fires.
+        let cells = 8_u64;
+        let mut rng_init = ChaCha8Rng::seed_from_u64(0);
+        let mut moran = Moran::new(
+            MoranConfig {
+                process_options: ProcessOptions::default(),
+                saving_options: SavingOptions {
+                    filename: PathBuf::default(),
+                    save_population: false,
+                },
+                stats: StatsConfig::default(),
+            },
+            SubClones::new(vec![StemCell::new(); cells as usize], 3),
+            0f32,
+            Distributions::new(Probs::new(1., 1., 0.999, 1., cells)),
+            Proliferation::default(),
+            RateSampler::from_config(1.0, &FitnessConfig::Multihits),
+            &mut rng_init,
+        );
+        let initial = moran.rates.0;
+        let mut rng = ChaCha8Rng::seed_from_u64(seed);
+        let reaction = NextReaction {
+            time: 0.5,
+            event: 0,
+        };
+        moran.advance_step(reaction, &mut rng);
+        assert_eq!(initial, moran.rates.0);
+    }
+
+    #[test]
+    fn advance_step_multihits_second_hit_resamples_target_slot() {
+        // Parent clone 1 has HitCount::First; a fit birth produces a child
+        // with HitCount::Second, which `should_resample` flags as true. The
+        // new clone's slot must be overwritten with a fresh draw from the
+        // matching tier; every other slot must be byte-equal to the initial
+        // table.
+        //
+        // The Bernoulli inside `next_clone` may roll false for some seeds, in
+        // which case no birth happens. We sweep a few seeds and assert that
+        // at least one triggers a resample with the expected invariants.
+        let mut saw_resample = false;
+        for seed in 0..32_u64 {
+            let mut moran = create_moran_multihits_with_first_hit_seed(4);
+            let initial = moran.rates.0;
+            let mut rng = ChaCha8Rng::seed_from_u64(seed);
+            // u = mu / cells = 0.999/8 ≈ 0.125; with reaction.time = 4 the
+            // Bernoulli p = u * time ≈ 0.5 — well under 1 and high enough that
+            // most seeds fire a birth.
+            let reaction = NextReaction {
+                time: 4.0,
+                event: 1,
+            };
+            moran.advance_step(reaction, &mut rng);
+            let changed: Vec<usize> = (0..MAX_SUBCLONES)
+                .filter(|&i| initial[i] != moran.rates.0[i])
+                .collect();
+            if changed.is_empty() {
+                continue;
+            }
+            assert_eq!(
+                changed.len(),
+                1,
+                "expected at most one slot to be resampled, got {changed:?}",
+            );
+            let slot = changed[0];
+            assert!(
+                slot >= 2,
+                "neither wild-type nor First-hit slot should change"
+            );
+            assert!(
+                moran.rates.0[slot].is_finite() && moran.rates.0[slot] > 0.0,
+                "resampled rate must be finite positive, got {}",
+                moran.rates.0[slot],
+            );
+            assert_eq!(
+                moran
+                    .subclones
+                    .get_clone(slot as CloneId)
+                    .unwrap()
+                    .hit_count(),
+                HitCount::Second,
+            );
+            saw_resample = true;
+            break;
+        }
+        assert!(saw_resample, "no seed triggered a resample-eligible birth");
     }
 
     #[quickcheck]
