@@ -3,7 +3,7 @@ use anyhow::Context;
 use clap_app::Parallel;
 use hsc::{
     Probs, ProbsPerYear,
-    process::{Exponential, Moran, ProcessOptions, switch_to_moran},
+    process::{DUMMY_RATES, Exponential, Moran, MoranConfig, ProcessOptions, switch_to_moran},
     proliferation::{Division, NeutralMutations, Proliferation},
     snapshots::{SavingCells, SavingOptions, Snapshot, StatsConfig},
     stemcell::StemCell,
@@ -176,14 +176,19 @@ fn main() {
             // switch_to_moran start with time 0
             let mut moran = switch_to_moran(
                 exp,
-                ProcessOptions {
-                    path: app.options_moran.process_options.path.clone(),
-                    snapshots,
+                MoranConfig {
+                    process_options: ProcessOptions {
+                        path: app.options_moran.process_options.path.clone(),
+                        snapshots,
+                    },
+                    saving_options: SavingOptions {
+                        filename: filename.clone(),
+                        save_population: app.options_moran.save_population,
+                    },
+                    stats: app.options_moran.stats,
                 },
                 moran_distributions,
-                filename.clone(),
-                app.options_moran.stats,
-                app.options_moran.save_population,
+                rates_moran.clone(),
                 rng,
             );
             moran
@@ -207,23 +212,26 @@ fn main() {
             let moran_distributions = Distributions::new(probs_moran);
             let proliferation = Proliferation::new(neutral_mutation, division);
             Moran::new(
-                app.options_moran.process_options.clone(),
+                MoranConfig {
+                    process_options: app.options_moran.process_options.clone(),
+                    saving_options: SavingOptions {
+                        filename: filename.clone(),
+                        save_population: app.options_moran.save_population,
+                    },
+                    stats: app.options_moran.stats,
+                },
                 subclones,
                 0.,
-                SavingOptions {
-                    filename: filename.clone(),
-                    save_population: app.options_moran.save_population,
-                },
-                app.options_moran.stats,
                 moran_distributions,
                 proliferation,
+                rates_moran.clone(),
             )
         };
         debug!("simulating Moran phase");
 
         let stop = simulate(
             state,
-            &rates_moran,
+            &DUMMY_RATES,
             &possible_reactions,
             &mut moran,
             options_moran_gillespie,
@@ -277,14 +285,19 @@ fn main() {
             );
             let mut moran = switch_to_moran(
                 regrowth,
-                ProcessOptions {
-                    path: app.options_moran.process_options.path.clone(),
-                    snapshots,
+                MoranConfig {
+                    process_options: ProcessOptions {
+                        path: app.options_moran.process_options.path.clone(),
+                        snapshots,
+                    },
+                    saving_options: SavingOptions {
+                        filename,
+                        save_population: app.options_moran.save_population,
+                    },
+                    stats: app.options_moran.stats,
                 },
                 moran_distributions,
-                filename,
-                app.options_moran.stats,
-                app.options_moran.save_population,
+                rates_moran.clone(),
                 rng,
             );
             // hack required because simulate always starts at time 0, this is
@@ -299,7 +312,7 @@ fn main() {
 
             let stop = simulate(
                 state,
-                &rates_moran,
+                &DUMMY_RATES,
                 &possible_reactions,
                 &mut moran,
                 &after_treatment_relative,

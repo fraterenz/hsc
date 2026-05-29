@@ -7,10 +7,30 @@ use log::{debug, info, trace};
 use rand::Rng;
 use rand_distr::Distribution;
 use rand_distr::weighted::WeightedIndex;
-use sosa::{AdvanceStep, CurrentState, NextReaction};
+use sosa::{
+    AdvanceStep, CurrentState, IterTime, NextReaction, ReactionRates, SimState, StopReason, exprand,
+};
 use std::collections::VecDeque;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
+
+/// Sentinel rates passed to [`sosa::simulate`] for the [`Moran`] phase.
+///
+/// [`Moran`] overrides [`AdvanceStep::next_reaction`] to read its own
+/// `rates` field, so the `&ReactionRates` argument given to `sosa::simulate`
+/// is ignored. We still need *some* value to pass — that's this static.
+pub static DUMMY_RATES: ReactionRates<MAX_SUBCLONES> = ReactionRates([0.0; MAX_SUBCLONES]);
+
+/// Output/configuration bundle used by [`Moran::new`] and [`switch_to_moran`].
+///
+/// Groups the three knobs that govern what the Moran phase writes to disk
+/// (path, snapshots, filename, save_population, per-snapshot stats).
+#[derive(Debug, Clone)]
+pub struct MoranConfig {
+    pub process_options: ProcessOptions,
+    pub saving_options: SavingOptions,
+    pub stats: StatsConfig,
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct ProcessOptions {
@@ -36,11 +56,9 @@ pub enum ExponentialPhase {
 
 pub fn switch_to_moran(
     mut exponential: Exponential,
-    process_options: ProcessOptions,
+    config: MoranConfig,
     distributions: Distributions,
-    filename: PathBuf,
-    stats: StatsConfig,
-    save_population: bool,
+    rates: ReactionRates<MAX_SUBCLONES>,
     rng: &mut impl Rng,
 ) -> Moran {
     //! End the exponential growing phase and switch to a fixed-size
@@ -74,13 +92,14 @@ pub fn switch_to_moran(
         counter_divisions: exponential.counter_divisions,
         // restart the time within the process
         time: time_to_restart,
-        snapshots: process_options.snapshots,
-        path2dir: process_options.path,
-        filename,
+        snapshots: config.process_options.snapshots,
+        path2dir: config.process_options.path,
+        filename: config.saving_options.filename,
         distributions,
-        stats,
-        save_population,
+        stats: config.stats,
+        save_population: config.saving_options.save_population,
         proliferation: exponential.proliferation,
+        rates,
     }
 }
 
@@ -192,26 +211,33 @@ pub struct Moran {
     pub save_population: bool,
     pub proliferation: Proliferation,
     pub stats: StatsConfig,
+    /// Per-clone Gillespie rates owned by this Moran. Read by the overridden
+    /// [`AdvanceStep::next_reaction`]; the `&ReactionRates` argument that
+    /// [`sosa::simulate`] supplies is ignored — see [`DUMMY_RATES`].
+    pub rates: ReactionRates<MAX_SUBCLONES>,
 }
 
 impl Default for Moran {
     fn default() -> Self {
-        let process_options = ProcessOptions {
-            path: PathBuf::from("./output"),
-            snapshots: VecDeque::default(),
-        };
-
-        Moran::new(
-            process_options,
-            SubClones::default(),
-            0.,
-            SavingOptions {
+        let config = MoranConfig {
+            process_options: ProcessOptions {
+                path: PathBuf::from("./output"),
+                snapshots: VecDeque::default(),
+            },
+            saving_options: SavingOptions {
                 filename: PathBuf::default(),
                 save_population: true,
             },
-            StatsConfig::default(),
+            stats: StatsConfig::default(),
+        };
+
+        Moran::new(
+            config,
+            SubClones::default(),
+            0.,
             Distributions::default(),
             Proliferation::default(),
+            ReactionRates([0.0; MAX_SUBCLONES]),
         )
     }
 }
@@ -220,25 +246,25 @@ impl Moran {
     /// A Moran process with wild-type subclone with neutral fitness, to which
     /// all cells will be assigned.
     pub fn new(
-        process_options: ProcessOptions,
+        config: MoranConfig,
         initial_subclones: SubClones,
         time: f32,
-        saving_options: SavingOptions,
-        stats: StatsConfig,
         distributions: Distributions,
         proliferation: Proliferation,
+        rates: ReactionRates<MAX_SUBCLONES>,
     ) -> Moran {
         let hsc = Moran {
             subclones: initial_subclones,
             distributions,
             counter_divisions: 0,
-            path2dir: process_options.path,
+            path2dir: config.process_options.path,
             time,
-            snapshots: process_options.snapshots,
-            filename: saving_options.filename,
-            stats,
-            save_population: saving_options.save_population,
+            snapshots: config.process_options.snapshots,
+            filename: config.saving_options.filename,
+            stats: config.stats,
+            save_population: config.saving_options.save_population,
             proliferation,
+            rates,
         };
         debug!("process created: {hsc:#?}");
         hsc
@@ -346,6 +372,57 @@ impl AdvanceStep<MAX_SUBCLONES> for Moran {
     /// The id of a subclone [`CloneId`].
     type Reaction = CloneId;
 
+    fn next_reaction(
+        &self,
+        state: &CurrentState<MAX_SUBCLONES>,
+        _rates: &ReactionRates<MAX_SUBCLONES>,
+        possible_reactions: &[Self::Reaction; MAX_SUBCLONES],
+        max_iter_and_time: IterTime,
+        iter_and_time: IterTime,
+        rng: &mut impl Rng,
+    ) -> (SimState, Option<NextReaction<Self::Reaction>>) {
+        //! Override of the default trait impl: reads Gillespie rates from
+        //! `self.rates` instead of the `_rates` argument, which lets the
+        //! `--multihits` feature mutate rates between steps. Body mirrors
+        //! `sosa-5.1.0/src/lib.rs:282-321`; the inlined Gillespie waiting-time
+        //! computation matches `ReactionRates::compute_times_events` (which is
+        //! crate-private in sosa).
+        if state.population.iter().sum::<u64>() == 0u64 {
+            return (SimState::Stop(StopReason::NoIndividualsLeft), None);
+        };
+        if iter_and_time.iter >= max_iter_and_time.iter {
+            return (SimState::Stop(StopReason::MaxItersReached), None);
+        };
+        if iter_and_time.time >= max_iter_and_time.time {
+            return (SimState::Stop(StopReason::MaxTimeReached), None);
+        };
+
+        let mut times = self.rates.0;
+        for (i, t) in times.iter_mut().enumerate() {
+            *t = exprand(*t * state.population[i] as f32, rng);
+        }
+        assert!(
+            times.iter().any(|t| t.is_normal()),
+            "all Gillespie waiting times are non-normal",
+        );
+
+        let mut selected_event = 0_usize;
+        let mut smaller_waiting_time = times[0];
+        for (idx, &waiting_time) in times.iter().enumerate() {
+            if waiting_time <= smaller_waiting_time {
+                smaller_waiting_time = waiting_time;
+                selected_event = idx;
+            }
+        }
+        (
+            SimState::Continue,
+            Some(NextReaction {
+                time: smaller_waiting_time,
+                event: possible_reactions[selected_event],
+            }),
+        )
+    }
+
     fn advance_step(&mut self, reaction: NextReaction<Self::Reaction>, rng: &mut impl Rng) {
         //! Update the process by simulating the next proliferative event
         //! according to the next `reaction` determined by the [Gillespie
@@ -442,19 +519,22 @@ mod tests {
     fn create_moran(fit_variants: bool, cells: NonZeroU64) -> Moran {
         let mu = if fit_variants { 0.999 } else { 0. };
         Moran::new(
-            ProcessOptions {
-                path: PathBuf::default(),
-                snapshots: VecDeque::default(),
+            MoranConfig {
+                process_options: ProcessOptions {
+                    path: PathBuf::default(),
+                    snapshots: VecDeque::default(),
+                },
+                saving_options: SavingOptions {
+                    filename: PathBuf::default(),
+                    save_population: true,
+                },
+                stats: StatsConfig::default(),
             },
             SubClones::new(vec![StemCell::new(); cells.get() as usize], 3),
             0f32,
-            SavingOptions {
-                filename: PathBuf::default(),
-                save_population: true,
-            },
-            StatsConfig::default(),
             Distributions::new(Probs::new(1., 1., mu, 1., cells.get())),
             Proliferation::default(),
+            ReactionRates([1.0; MAX_SUBCLONES]),
         )
     }
 
@@ -489,6 +569,46 @@ mod tests {
         assert_all_cells_in_wild_type(&moran.process, moran.tot_cells);
         let burden_after = genotype::MutationalBurden::from_moran(&moran.process).unwrap();
         assert!(burden_before.0.keys().sum::<u16>() < burden_after.0.keys().sum::<u16>());
+    }
+
+    #[quickcheck]
+    fn simulate_moran_uses_self_rates_and_preserves_population(cells: NonZeroU8, seed: u64) {
+        // End-to-end: run sosa::simulate against a Moran process, passing
+        // DUMMY_RATES as the rates argument. The override on Moran::next_reaction
+        // ignores that argument and reads `self.rates` instead; if it didn't,
+        // every waiting time would be infinite (DUMMY_RATES is all zeros) and
+        // the assert in next_reaction would fire. We also confirm the Moran
+        // invariant — population stays constant. Uses the no-fit-variants
+        // Moran so simulation time can grow freely without the p>1 panic in
+        // next_clone.
+        use sosa::{Options, simulate};
+        let cells = NonZeroU64::new(cells.get() as u64).unwrap();
+        let mut moran = create_moran_no_fit_variants(cells);
+        let initial = moran.process.subclones.compute_tot_cells();
+        let state = &mut CurrentState {
+            population: Variants::variant_counts(&moran.process.subclones),
+        };
+        let possible_reactions = moran.process.subclones.array_of_gillespie_reactions();
+        let options = Options {
+            init_iter: 0,
+            max_iter_time: IterTime {
+                iter: 8,
+                time: f32::INFINITY,
+            },
+            max_cells: u64::MAX,
+        };
+        let rng = &mut ChaCha8Rng::seed_from_u64(seed);
+
+        let _ = simulate(
+            state,
+            &DUMMY_RATES,
+            &possible_reactions,
+            &mut moran.process,
+            &options,
+            rng,
+        );
+
+        assert_eq!(initial, moran.process.subclones.compute_tot_cells());
     }
 
     #[quickcheck]
@@ -627,11 +747,16 @@ mod tests {
         let rng = &mut ChaCha8Rng::seed_from_u64(seed);
         let moran = switch_to_moran(
             exp.process,
-            ProcessOptions::default(),
+            MoranConfig {
+                process_options: ProcessOptions::default(),
+                saving_options: SavingOptions {
+                    filename: PathBuf::default(),
+                    save_population: false,
+                },
+                stats: StatsConfig::default(),
+            },
             Distributions::default(),
-            PathBuf::default(),
-            StatsConfig::default(),
-            false,
+            ReactionRates([1.0; MAX_SUBCLONES]),
             rng,
         );
 
@@ -649,11 +774,16 @@ mod tests {
         let rng = &mut ChaCha8Rng::seed_from_u64(seed);
         let moran = switch_to_moran(
             exp.process,
-            ProcessOptions::default(),
+            MoranConfig {
+                process_options: ProcessOptions::default(),
+                saving_options: SavingOptions {
+                    filename: PathBuf::default(),
+                    save_population: false,
+                },
+                stats: StatsConfig::default(),
+            },
             Distributions::default(),
-            PathBuf::default(),
-            StatsConfig::default(),
-            false,
+            ReactionRates([1.0; MAX_SUBCLONES]),
             rng,
         );
 
