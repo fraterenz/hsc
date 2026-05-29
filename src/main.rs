@@ -57,6 +57,7 @@ pub struct SimulationOptionsExp {
 #[derive(Clone, Debug)]
 pub struct AppOptions {
     fitness: Fitness,
+    fitness_config: FitnessConfig,
     runs: usize,
     seed: u64,
     parallel: Parallel,
@@ -100,9 +101,8 @@ fn main() {
         };
         let possible_reactions = subclones.array_of_gillespie_reactions();
 
-        let fitness_config = FitnessConfig::Static(app.fitness);
         let rate_sampler_moran =
-            RateSampler::from_config(1. / app.options_moran.tau, &fitness_config);
+            RateSampler::from_config(1. / app.options_moran.tau, &app.fitness_config);
         let snapshots = app.snapshots.clone();
 
         let (mean, std) = app.fitness.get_mean_std();
@@ -244,9 +244,7 @@ fn main() {
             .unwrap();
 
         // treatment
-        let stop = if let GillespieOptions::Treatment(op) =
-            &app.options_moran.gillespie_options
-        {
+        let stop = if let GillespieOptions::Treatment(op) = &app.options_moran.gillespie_options {
             let (moran_distributions, snapshots) =
                 (moran.distributions.clone(), moran.snapshots.clone());
 
@@ -329,7 +327,7 @@ fn main() {
                 .unwrap();
             stop
         } else {
-             stop
+            stop
         };
         match stop {
             StopReason::MaxTimeReached => {

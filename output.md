@@ -4,61 +4,67 @@ If the directory path given by the user is `/path/to/save/`, then the output of 
 ```$ tree /path/to/save/
 /path/to/save/
 test/
-├── 10cells
-│   ├── burden # single cell mutational burden mapping
-│   │   ├── 0dot0years
-│   │   │   ├── 0.json  # run 0
-│   │   │   ├── 1.json  # run 1
-│   │   │   └── ...
-│   │   ├── 1dot0years
-│   │   │   ├── 0.json
-│   │   │   ├── 1.json
-│   │   │   └── ...
-│   │   └── ...
-│   ├── mutations # single cell mut burden
-│   │   ├── 0dot0years
-│   │   │   ├── 0.parquet
-│   │   │   ├── 1.parquet
-│   │   │   └── ...
-│   │   ├── 1dot0years
-│   │   │   ├── 0.parquet
-│   │   │   ├── 1.parquet
-│   │   │   └── ...
-│   │   └── ...
-│   ├── sfs # site frequency spectrum vector
-│   │   ├── 0dot0years
-│   │   │   ├── 0.json
-│   │   │   ├── 1.json
-│   │   │   └── ...
-│   │   ├── 1dot0years
-│   │   │   ├── 0.json
-│   │   │   ├── 1.json
-│   │   │   └── ...
-│   │   └── ...
-│   ├── variant_fraction # the subclones' abbundance
-│   │   ├── 0dot0years
-│   │   │   ├── 0.csv
-│   │   │   ├── 1.csv
-│   │   │   └── ...
-│   │   ├── 1dot0years
-│   │   │   ├── 0.csv
-│   │   │   ├── 1.csv
-│   │   │   └── ...
-│   │   └── ...
-│   └── variant_phylogeny # the subclones' abbundance
-│       ├── 0dot0years
-│       │   ├── 0.csv
-│       │   ├── 1.csv
-│       │   └── ...
-│       ├── 1dot0years
-│       │   ├── 0.csv
-│       │   ├── 1.csv
-│       │   └── ...
-│       └── ...
-└── rates
-    ├── 0.csv
-    ├── 1.csv
-    └── ...
+└── 10cells
+    ├── burden # single cell mutational burden mapping
+    │   ├── 0dot0years
+    │   │   ├── 0.json  # run 0
+    │   │   ├── 1.json  # run 1
+    │   │   └── ...
+    │   ├── 1dot0years
+    │   │   ├── 0.json
+    │   │   ├── 1.json
+    │   │   └── ...
+    │   └── ...
+    ├── mutations # single cell mut burden
+    │   ├── 0dot0years
+    │   │   ├── 0.parquet
+    │   │   ├── 1.parquet
+    │   │   └── ...
+    │   ├── 1dot0years
+    │   │   ├── 0.parquet
+    │   │   ├── 1.parquet
+    │   │   └── ...
+    │   └── ...
+    ├── rates # the birth rates of fit clones
+    │   ├── 0dot0years
+    │   │   ├── 0.csv
+    │   │   ├── 1.csv
+    │   │   └── ...
+    │   ├── 1dot0years
+    │   │   ├── 0.csv
+    │   │   ├── 1.csv
+    │   │   └── ...
+    │   └── ...
+    ├── sfs # site frequency spectrum vector
+    │   ├── 0dot0years
+    │   │   ├── 0.json
+    │   │   ├── 1.json
+    │   │   └── ...
+    │   ├── 1dot0years
+    │   │   ├── 0.json
+    │   │   ├── 1.json
+    │   │   └── ...
+    │   └── ...
+    ├── variant_fraction # the subclones' abbundance
+    │   ├── 0dot0years
+    │   │   ├── 0.csv
+    │   │   ├── 1.csv
+    │   │   └── ...
+    │   ├── 1dot0years
+    │   │   ├── 0.csv
+    │   │   ├── 1.csv
+    │   │   └── ...
+    │   └── ...
+    └── variant_phylogeny # the subclones' abbundance
+        ├── 0dot0years
+        │   ├── 0.csv
+        │   ├── 1.csv
+        │   └── ...
+        ├── 1dot0years
+        │   ├── 0.csv
+        │   ├── 1.csv
+        │   └── ...
+        └── ...
 ```
 that is those measurements are saved at the end of the simulations, for each timepoint, for each run.
 

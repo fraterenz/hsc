@@ -4,7 +4,7 @@ use hsc::{
     ProbsPerYear,
     process::ProcessOptions,
     snapshots::{Snapshot, Stats2Save, StatsConfigBuilder},
-    subclone::{Fitness, from_mean_std_to_shape_scale},
+    subclone::{Fitness, FitnessConfig, from_mean_std_to_shape_scale},
 };
 use num_traits::{Float, NumCast};
 use sosa::{IterTime, NbIndividuals, Options};
@@ -52,9 +52,9 @@ pub struct FitnessArg {
     /// Proliferative advantage conferred by fit mutations assuming all clones
     /// have the same advantange, units: mutation / cell
     ///
-    /// s cannot be greater than 1.
-    #[arg(long, default_value_t = 0.11, value_parser = fitness_in_range)]
-    pub s: f32,
+    /// s cannot be greater than 1. Defaults to 0.11 when unset.
+    #[arg(long, value_parser = fitness_in_range)]
+    pub s: Option<f32>,
     /// The mean and the standard deviation of the Gamma distribution used to
     /// sample the fitness coefficients representing the proliferative
     /// advantage conferred by fit mutations.
@@ -62,6 +62,13 @@ pub struct FitnessArg {
     /// The mean and the std cannot be greater than 1 and 0.1 respectively
     #[arg(long, num_args = 2)]
     pub mean_std: Option<Vec<f32>>,
+    /// Sample per-clone Gillespie rates from a hardcoded four-tier fitness
+    /// table keyed by hit count, redrawing on 2nd-or-later hits.
+    ///
+    /// Mutually exclusive with `--neutral`, `--s`, and `--mean-std` through
+    /// the [`FitnessArg`] group.
+    #[arg(long, action = ArgAction::SetTrue, default_value_t = false)]
+    pub multihits: bool,
 }
 
 const MEAN_RANGE: RangeInclusive<f32> = 0.01..=4.;
@@ -227,6 +234,10 @@ impl Cli {
     }
 
     pub fn build() -> anyhow::Result<AppOptions> {
+        // Mutual exclusion between `--multihits`, `--neutral`, `--s`, and
+        // `--mean-std` is enforced by clap via the `FitnessArg` group
+        // (`multiple = false`), so any conflicting combination errors at
+        // parse time rather than here.
         let cli = Cli::parse();
 
         // `Rates` is forced on so per-timepoint Gillespie rates are always
@@ -463,15 +474,28 @@ impl Cli {
             }
             let (shape, scale) = from_mean_std_to_shape_scale(mean_std[0], mean_std[1]);
             Fitness::GammaSampled { shape, scale }
-        } else if cli.fitness.neutral {
+        } else if cli.fitness.neutral || cli.fitness.multihits {
+            // With `--multihits`, the Exponential phase still needs *some*
+            // Fitness because rate sampling there pre-dates the RateSampler
+            // abstraction. Neutral gives no exp-phase fit births, which keeps
+            // multihits scoped to the Moran phase per the design.
             Fitness::Neutral
         } else {
-            Fitness::Fixed { s: cli.fitness.s }
+            Fitness::Fixed {
+                s: cli.fitness.s.unwrap_or(0.11),
+            }
+        };
+
+        let fitness_config = if cli.fitness.multihits {
+            FitnessConfig::Multihits
+        } else {
+            FitnessConfig::Static(fitness)
         };
 
         Ok(AppOptions {
             parallel,
             fitness,
+            fitness_config,
             runs,
             seed: cli.seed,
             snapshots,
@@ -485,10 +509,73 @@ impl Cli {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use clap::Parser;
 
     #[test]
     fn verify_cli() {
         use clap::CommandFactory;
         Cli::command().debug_assert()
+    }
+
+    fn parse(args: &[&str]) -> Result<Cli, clap::Error> {
+        Cli::try_parse_from(args)
+    }
+
+    #[test]
+    fn multihits_alone_parses() {
+        let cli = parse(&["hsc", "--multihits", "/tmp/hsc-multihits", "moran"])
+            .expect("multihits alone must parse");
+        assert!(cli.fitness.multihits);
+    }
+
+    fn assert_argument_conflict(args: &[&str]) {
+        let err = parse(args).expect_err("conflict must be rejected by clap");
+        assert_eq!(
+            err.kind(),
+            clap::error::ErrorKind::ArgumentConflict,
+            "got: {err}",
+        );
+    }
+
+    #[test]
+    fn multihits_with_neutral_rejected() {
+        assert_argument_conflict(&[
+            "hsc",
+            "--multihits",
+            "--neutral",
+            "/tmp/hsc-multihits",
+            "moran",
+        ]);
+    }
+
+    #[test]
+    fn multihits_with_mean_std_rejected() {
+        assert_argument_conflict(&[
+            "hsc",
+            "--multihits",
+            "--mean-std",
+            "0.1",
+            "0.01",
+            "/tmp/hsc-multihits",
+            "moran",
+        ]);
+    }
+
+    #[test]
+    fn multihits_with_s_rejected() {
+        assert_argument_conflict(&[
+            "hsc",
+            "--multihits",
+            "--s",
+            "0.2",
+            "/tmp/hsc-multihits",
+            "moran",
+        ]);
+    }
+
+    #[test]
+    fn s_defaults_to_none_when_unset() {
+        let cli = parse(&["hsc", "/tmp/hsc-default-s", "moran"]).unwrap();
+        assert_eq!(cli.fitness.s, None);
     }
 }
