@@ -7,7 +7,7 @@ use hsc::{
     proliferation::{Division, NeutralMutations, Proliferation},
     snapshots::{SavingCells, SavingOptions, Snapshot, StatsConfig},
     stemcell::StemCell,
-    subclone::{Distributions, Fitness, SubClones, Variants},
+    subclone::{Distributions, Fitness, FitnessConfig, RateSampler, SubClones, Variants},
     write2file,
 };
 use indicatif::ParallelProgressIterator;
@@ -101,7 +101,9 @@ fn main() {
         };
         let possible_reactions = subclones.array_of_gillespie_reactions();
 
-        let rates_moran = subclones.gillespie_rates(&app.fitness, 1. / app.options_moran.tau, rng);
+        let fitness_config = FitnessConfig::Static(app.fitness);
+        let rate_sampler_moran =
+            RateSampler::from_config(1. / app.options_moran.tau, &fitness_config);
         let snapshots = app.snapshots.clone();
 
         let (mean, std) = app.fitness.get_mean_std();
@@ -188,7 +190,7 @@ fn main() {
                     stats: app.options_moran.stats,
                 },
                 moran_distributions,
-                rates_moran.clone(),
+                rate_sampler_moran,
                 rng,
             );
             moran
@@ -224,7 +226,8 @@ fn main() {
                 0.,
                 moran_distributions,
                 proliferation,
-                rates_moran.clone(),
+                rate_sampler_moran,
+                rng,
             )
         };
         debug!("simulating Moran phase");
@@ -297,7 +300,7 @@ fn main() {
                     stats: app.options_moran.stats,
                 },
                 moran_distributions,
-                rates_moran.clone(),
+                rate_sampler_moran,
                 rng,
             );
             // hack required because simulate always starts at time 0, this is
@@ -341,7 +344,7 @@ fn main() {
 
         debug!("saving the SFS for all timepoints");
         write2file(
-            &rates_moran.0,
+            &moran.rates.0,
             &moran.path2dir.join("rates").join(format!("{idx}.csv")),
             None,
             false,

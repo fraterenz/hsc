@@ -1,10 +1,12 @@
 use crate::proliferation::Proliferation;
 use crate::snapshots::{SavingCells, SavingOptions, Snapshot, StatsConfig, save_it};
-use crate::subclone::{CloneId, Distributions, SubClones, Variants};
+use crate::subclone::{
+    CloneId, Distributions, Fitness, FitnessConfig, RateSampler, SubClones, Variants,
+};
 use crate::{MAX_SUBCLONES, TIME_AT_BIRTH};
 use anyhow::Context;
 use log::{debug, info, trace};
-use rand::Rng;
+use rand::{Rng, SeedableRng};
 use rand_distr::Distribution;
 use rand_distr::weighted::WeightedIndex;
 use sosa::{
@@ -58,7 +60,7 @@ pub fn switch_to_moran(
     mut exponential: Exponential,
     config: MoranConfig,
     distributions: Distributions,
-    rates: ReactionRates<MAX_SUBCLONES>,
+    rate_sampler: RateSampler,
     rng: &mut impl Rng,
 ) -> Moran {
     //! End the exponential growing phase and switch to a fixed-size
@@ -87,6 +89,7 @@ pub fn switch_to_moran(
     for stem_cell in exponential.subclones.get_mut_cells() {
         stem_cell.set_last_division_time(time_to_restart).unwrap();
     }
+    let rates = rate_sampler.rates_for(&exponential.subclones, rng);
     Moran {
         subclones: exponential.subclones,
         counter_divisions: exponential.counter_divisions,
@@ -100,6 +103,7 @@ pub fn switch_to_moran(
         save_population: config.saving_options.save_population,
         proliferation: exponential.proliferation,
         rates,
+        rate_sampler,
     }
 }
 
@@ -215,6 +219,9 @@ pub struct Moran {
     /// [`AdvanceStep::next_reaction`]; the `&ReactionRates` argument that
     /// [`sosa::simulate`] supplies is ignored — see [`DUMMY_RATES`].
     pub rates: ReactionRates<MAX_SUBCLONES>,
+    /// Owns the rate-sampling strategy. Used to draw [`Self::rates`] at
+    /// construction and (in a later commit) to resample on births.
+    pub rate_sampler: RateSampler,
 }
 
 impl Default for Moran {
@@ -230,6 +237,8 @@ impl Default for Moran {
             },
             stats: StatsConfig::default(),
         };
+        let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(0);
+        let rate_sampler = RateSampler::from_config(0.0, &FitnessConfig::Static(Fitness::Neutral));
 
         Moran::new(
             config,
@@ -237,7 +246,8 @@ impl Default for Moran {
             0.,
             Distributions::default(),
             Proliferation::default(),
-            ReactionRates([0.0; MAX_SUBCLONES]),
+            rate_sampler,
+            &mut rng,
         )
     }
 }
@@ -251,8 +261,10 @@ impl Moran {
         time: f32,
         distributions: Distributions,
         proliferation: Proliferation,
-        rates: ReactionRates<MAX_SUBCLONES>,
+        rate_sampler: RateSampler,
+        rng: &mut impl Rng,
     ) -> Moran {
+        let rates = rate_sampler.rates_for(&initial_subclones, rng);
         let hsc = Moran {
             subclones: initial_subclones,
             distributions,
@@ -265,6 +277,7 @@ impl Moran {
             save_population: config.saving_options.save_population,
             proliferation,
             rates,
+            rate_sampler,
         };
         debug!("process created: {hsc:#?}");
         hsc
@@ -518,6 +531,8 @@ mod tests {
 
     fn create_moran(fit_variants: bool, cells: NonZeroU64) -> Moran {
         let mu = if fit_variants { 0.999 } else { 0. };
+        let mut rng = ChaCha8Rng::seed_from_u64(0);
+        let rate_sampler = RateSampler::from_config(1.0, &FitnessConfig::Static(Fitness::Neutral));
         Moran::new(
             MoranConfig {
                 process_options: ProcessOptions {
@@ -534,7 +549,8 @@ mod tests {
             0f32,
             Distributions::new(Probs::new(1., 1., mu, 1., cells.get())),
             Proliferation::default(),
-            ReactionRates([1.0; MAX_SUBCLONES]),
+            rate_sampler,
+            &mut rng,
         )
     }
 
@@ -609,6 +625,43 @@ mod tests {
         );
 
         assert_eq!(initial, moran.process.subclones.compute_tot_cells());
+    }
+
+    #[quickcheck]
+    fn moran_new_rates_match_gillespie_rates_for_static(cells: NonZeroU8, seed: u64) {
+        // Moran::new(rate_sampler, rng) must initialise self.rates identically
+        // to the old setup of `subclones.gillespie_rates(&fitness, b0, rng)`
+        // for the Static case, given the same RNG sequence.
+        let cells = NonZeroU64::new(cells.get() as u64).unwrap();
+        let b0 = 1.5_f32;
+        let fitness = Fitness::GammaSampled {
+            shape: 2.0,
+            scale: 0.5,
+        };
+        let make_subclones = || SubClones::new(vec![StemCell::new(); cells.get() as usize], 3);
+        let subclones = make_subclones();
+
+        let mut rng_old = ChaCha8Rng::seed_from_u64(seed);
+        let expected = subclones.gillespie_rates(&fitness, b0, &mut rng_old);
+
+        let mut rng_new = ChaCha8Rng::seed_from_u64(seed);
+        let moran = Moran::new(
+            MoranConfig {
+                process_options: ProcessOptions::default(),
+                saving_options: SavingOptions {
+                    filename: PathBuf::default(),
+                    save_population: false,
+                },
+                stats: StatsConfig::default(),
+            },
+            make_subclones(),
+            0.,
+            Distributions::default(),
+            Proliferation::default(),
+            RateSampler::from_config(b0, &FitnessConfig::Static(fitness)),
+            &mut rng_new,
+        );
+        assert_eq!(moran.rates.0, expected.0);
     }
 
     #[quickcheck]
@@ -756,7 +809,7 @@ mod tests {
                 stats: StatsConfig::default(),
             },
             Distributions::default(),
-            ReactionRates([1.0; MAX_SUBCLONES]),
+            RateSampler::from_config(1.0, &FitnessConfig::Static(Fitness::Neutral)),
             rng,
         );
 
@@ -783,7 +836,7 @@ mod tests {
                 stats: StatsConfig::default(),
             },
             Distributions::default(),
-            ReactionRates([1.0; MAX_SUBCLONES]),
+            RateSampler::from_config(1.0, &FitnessConfig::Static(Fitness::Neutral)),
             rng,
         );
 

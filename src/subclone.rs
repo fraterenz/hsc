@@ -2,7 +2,7 @@ use crate::Probs;
 use crate::genotype::NeutralMutationPoisson;
 use crate::{MAX_SUBCLONES, stemcell::StemCell, write2file};
 use anyhow::{Context, ensure};
-use log::{debug, trace};
+use log::{debug, info, trace};
 use rand::Rng;
 use rand::RngExt;
 use rand::seq::{IndexedRandom, IteratorRandom};
@@ -10,6 +10,13 @@ use rand_distr::{Bernoulli, Distribution, Gamma};
 use sosa::ReactionRates;
 use std::num::NonZeroUsize;
 use std::path::Path;
+
+// The mean and std values of the Gamma distribution for the mutilhit model
+// based on Watson et al. 2024 preprint, Figure 5.
+// These values are inferred from pre-AML cases, so slightly higher compared
+// to the values inferred by Mon Pere, Terenzi and Werner 2026.
+// TODO double check
+const FITNESS_MEAN_STD: [(f32, f32); 4] = [(0.2, 0.025), (0.38, 0.1), (0.81, 0.3), (2.12, 0.8)];
 
 /// Distribution probabilities for the simulations upon cell division.
 #[derive(Debug, Default, Clone)]
@@ -90,6 +97,163 @@ impl Fitness {
                 b0 * (1. + gamma.sample(rng))
             }
         }
+    }
+}
+
+/// User-facing fitness configuration consumed by [`RateSampler`].
+///
+/// `Static` keeps the historical behaviour: one fitness model applied to every
+/// non-wild-type clone. `Multihits` selects a four-tier [`Fitness::GammaSampled`]
+/// table keyed by [`HitCount`], parameterised from [`FITNESS_MEAN_STD`].
+#[derive(Debug, Clone)]
+pub enum FitnessConfig {
+    Static(Fitness),
+    Multihits,
+}
+
+/// Branching strategy for [`RateSampler`]. All conditional logic lives in the
+/// predicate methods on this enum so that [`RateSampler`] is free of `match`
+/// statements over its mode.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum RateSamplerMode {
+    Static,
+    Multihits,
+}
+
+impl RateSamplerMode {
+    /// Which fitness tier to draw from for a clone with `hits` hits.
+    ///
+    /// `Static` collapses every hit count onto tier 0 (the only populated
+    /// slot). `Multihits` maps `WildType` and `First` to tier 0 — empty slots
+    /// are pre-sampled from tier 0 because the first birth into them is, by
+    /// definition, a first hit — and `Second`/`Third`/`Fourth` to tiers 1, 2,
+    /// 3 respectively.
+    pub(crate) fn index_for(&self, hits: HitCount) -> usize {
+        match self {
+            RateSamplerMode::Static => 0,
+            RateSamplerMode::Multihits => match hits {
+                HitCount::WildType | HitCount::First => 0,
+                HitCount::Second => 1,
+                HitCount::Third => 2,
+                HitCount::Fourth => 3,
+            },
+        }
+    }
+
+    /// `true` only when the hit-count tier differs from what [`RateSampler::rates_for`]
+    /// pre-sampled (i.e. `Multihits` + 2nd hit or later).
+    #[allow(dead_code)] // wired into Moran::advance_step in the next commit
+    pub(crate) fn should_resample(&self, hits: HitCount) -> bool {
+        match self {
+            RateSamplerMode::Static => false,
+            RateSamplerMode::Multihits => match hits {
+                HitCount::WildType | HitCount::First => false,
+                HitCount::Second | HitCount::Third | HitCount::Fourth => true,
+            },
+        }
+    }
+}
+
+/// Owns the per-clone Gillespie rate generation strategy for the Moran phase.
+///
+/// Holds the wild-type rate `b0` and a 4-entry fitness table keyed by
+/// [`HitCount`] tier. Built from a [`FitnessConfig`] via
+/// [`RateSampler::from_config`]; the `fitness` table is private and the only
+/// way to draw a rate is through [`RateSampler::pick`] / [`RateSampler::rates_for`].
+#[derive(Debug, Clone, Copy)]
+pub struct RateSampler {
+    b0: f32,
+    fitness: [Fitness; 4],
+    pub(crate) mode: RateSamplerMode,
+}
+
+impl RateSampler {
+    /// Build a sampler from a [`FitnessConfig`].
+    ///
+    /// `Static(f)` populates every tier with `f` so [`pick`](Self::pick) always
+    /// returns a draw from `f`. `Multihits` uses hardcoded placeholder
+    /// fitnesses per tier.
+    pub fn from_config(b0: f32, cfg: &FitnessConfig) -> Self {
+        match cfg {
+            FitnessConfig::Static(f) => {
+                info!("building Static RateSampler with b0={b0} and fitness {f:?}");
+                RateSampler {
+                    b0,
+                    fitness: [*f; 4],
+                    mode: RateSamplerMode::Static,
+                }
+            }
+            FitnessConfig::Multihits => {
+                let scale_shape = FITNESS_MEAN_STD
+                    .into_iter()
+                    .map(|(mean, std)| from_mean_std_to_shape_scale(mean, std))
+                    .collect::<Vec<(f32, f32)>>();
+                info!(
+                    "building Multihits RateSampler with b0={b0} and per-tier (shape,scale)={scale_shape:?}"
+                );
+                RateSampler {
+                    b0,
+                    fitness: [
+                        Fitness::GammaSampled {
+                            shape: scale_shape[0].0,
+                            scale: scale_shape[0].1,
+                        },
+                        Fitness::GammaSampled {
+                            shape: scale_shape[1].0,
+                            scale: scale_shape[1].1,
+                        },
+                        Fitness::GammaSampled {
+                            shape: scale_shape[2].0,
+                            scale: scale_shape[2].1,
+                        },
+                        Fitness::GammaSampled {
+                            shape: scale_shape[3].0,
+                            scale: scale_shape[3].1,
+                        },
+                    ],
+                    mode: RateSamplerMode::Multihits,
+                }
+            }
+        }
+    }
+
+    /// Draw a Gillespie rate for a clone with `hits` hits, by sampling from
+    /// the matching fitness tier.
+    pub fn pick(&self, hits: HitCount, rng: &mut impl Rng) -> f32 {
+        let idx = self.mode.index_for(hits);
+        let rate = self.fitness[idx].sample_rate(self.b0, rng);
+        trace!(
+            "RateSampler::pick mode={:?} hits={hits:?} -> tier={idx} rate={rate}",
+            self.mode,
+        );
+        rate
+    }
+
+    /// Pre-sample a rate per slot in `subclones`, matching the layout produced
+    /// by [`SubClones::gillespie_rates`] in the `Static` case.
+    ///
+    /// Slot 0 (the wild-type clone) gets `b0`; every other slot is drawn via
+    /// [`pick`](Self::pick) using the clone's current [`HitCount`]. Empty
+    /// slots default to [`HitCount::WildType`], which falls into tier 0 for
+    /// both modes — that is the rate the first birth into the slot would
+    /// expect.
+    pub fn rates_for(
+        &self,
+        subclones: &SubClones,
+        rng: &mut impl Rng,
+    ) -> ReactionRates<MAX_SUBCLONES> {
+        info!(
+            "RateSampler::rates_for pre-sampling {MAX_SUBCLONES} slots in mode={:?}",
+            self.mode,
+        );
+        ReactionRates(core::array::from_fn(|i| {
+            if i == 0 {
+                self.b0
+            } else {
+                let hits = subclones.get_clone(i as CloneId).unwrap().hit_count();
+                self.pick(hits, rng)
+            }
+        }))
     }
 }
 
@@ -818,6 +982,142 @@ mod tests {
         }
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn rate_sampler_static_always_uses_first_tier() {
+        // Static mode collapses all hit counts onto fitness[0]; pick must equal
+        // a fresh draw from that fitness regardless of HitCount.
+        let b0 = 1.7_f32;
+        let s = 0.3_f32;
+        let sampler = RateSampler::from_config(b0, &FitnessConfig::Static(Fitness::Fixed { s }));
+        let mut rng = SmallRng::seed_from_u64(7);
+        for hits in [
+            HitCount::WildType,
+            HitCount::First,
+            HitCount::Second,
+            HitCount::Third,
+            HitCount::Fourth,
+        ] {
+            assert_eq!(sampler.pick(hits, &mut rng), b0 * (1.0 + s));
+        }
+    }
+
+    #[test]
+    fn rate_sampler_multihits_routes_hits_to_distinct_tiers() {
+        // Multihits draws each tier from a Gamma parameterised by
+        // FITNESS_MEAN_STD = [(0.2, _), (0.38, _), (0.81, _), (2.12, _)].
+        // Averaging many draws per tier, the sample mean of `pick` must land
+        // near `b0 * (1 + tier_mean)` for the tier that the hit count routes
+        // to. Routing itself is asserted in the index_for test below.
+        let b0 = 1.0_f32;
+        let sampler = RateSampler::from_config(b0, &FitnessConfig::Multihits);
+        let n = 5000_u32;
+        let tier_mean = |hits: HitCount, seed: u64| {
+            let mut rng = SmallRng::seed_from_u64(seed);
+            let sum: f32 = (0..n).map(|_| sampler.pick(hits, &mut rng)).sum();
+            sum / n as f32
+        };
+
+        // Expected sample means per tier and a tolerance ~5 standard errors of
+        // the mean (σ / sqrt(n)) padded with slack for f32 noise.
+        let expected = [
+            b0 * (1.0 + 0.2),
+            b0 * (1.0 + 0.38),
+            b0 * (1.0 + 0.81),
+            b0 * (1.0 + 2.12),
+        ];
+        let tols = [0.01_f32, 0.02, 0.05, 0.12];
+        let observed = [
+            tier_mean(HitCount::First, 1),
+            tier_mean(HitCount::Second, 2),
+            tier_mean(HitCount::Third, 3),
+            tier_mean(HitCount::Fourth, 4),
+        ];
+        for ((obs, exp), tol) in observed.iter().zip(expected.iter()).zip(tols.iter()) {
+            assert!(
+                (obs - exp).abs() < *tol,
+                "expected mean rate {exp} ± {tol}, observed {obs}",
+            );
+        }
+    }
+
+    #[test]
+    fn rate_sampler_mode_should_resample_only_on_multihits_past_first() {
+        let static_mode = RateSamplerMode::Static;
+        let multihits = RateSamplerMode::Multihits;
+        for hits in [
+            HitCount::WildType,
+            HitCount::First,
+            HitCount::Second,
+            HitCount::Third,
+            HitCount::Fourth,
+        ] {
+            assert!(!static_mode.should_resample(hits));
+        }
+        assert!(!multihits.should_resample(HitCount::WildType));
+        assert!(!multihits.should_resample(HitCount::First));
+        assert!(multihits.should_resample(HitCount::Second));
+        assert!(multihits.should_resample(HitCount::Third));
+        assert!(multihits.should_resample(HitCount::Fourth));
+    }
+
+    #[test]
+    fn rate_sampler_rates_for_matches_gillespie_rates_static() {
+        // In Static mode rates_for must produce the same ReactionRates as the
+        // historical SubClones::gillespie_rates path for any fitness model,
+        // given the same RNG sequence — they iterate slots in the same order
+        // and call sample_rate on the same fitness.
+        let b0 = 1.5_f32;
+        let fitness = Fitness::GammaSampled {
+            shape: 2.0,
+            scale: 0.5,
+        };
+        let subclones = SubClones::new(vec![StemCell::new(); 4], 4);
+
+        let mut rng_old = SmallRng::seed_from_u64(42);
+        let old = subclones.gillespie_rates(&fitness, b0, &mut rng_old);
+
+        let mut rng_new = SmallRng::seed_from_u64(42);
+        let sampler = RateSampler::from_config(b0, &FitnessConfig::Static(fitness));
+        let new = sampler.rates_for(&subclones, &mut rng_new);
+
+        assert_eq!(old.0, new.0);
+    }
+
+    #[test]
+    fn rate_sampler_rates_for_walks_populated_slots_by_hit_count() {
+        // Mark a few slots with non-default hit counts; rates_for must put b0
+        // in slot 0 and a strictly positive finite draw in every non-WT slot
+        // (every Multihits tier is a strictly-positive Gamma). The
+        // routing-to-tier check is covered statistically by
+        // rate_sampler_multihits_routes_hits_to_distinct_tiers.
+        let b0 = 2.0_f32;
+        let mut subclones = SubClones::new(vec![StemCell::new(); 1], 4);
+        subclones
+            .get_mut_clone_unchecked(1)
+            .set_hit_count(HitCount::First);
+        subclones
+            .get_mut_clone_unchecked(2)
+            .set_hit_count(HitCount::Second);
+        subclones
+            .get_mut_clone_unchecked(3)
+            .set_hit_count(HitCount::Third);
+        subclones
+            .get_mut_clone_unchecked(4)
+            .set_hit_count(HitCount::Fourth);
+
+        let sampler = RateSampler::from_config(b0, &FitnessConfig::Multihits);
+        let mut rng = SmallRng::seed_from_u64(7);
+        let rates = sampler.rates_for(&subclones, &mut rng);
+        assert_eq!(rates.0[0], b0);
+        for i in 1..=4 {
+            assert!(
+                rates.0[i] > b0 && rates.0[i].is_finite(),
+                "slot {i}: rate {} must be finite and > b0={b0}",
+                rates.0[i],
+            );
+        }
     }
 
     #[quickcheck]
