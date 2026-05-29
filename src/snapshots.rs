@@ -11,11 +11,14 @@ use anyhow::Context;
 use derive_builder::Builder;
 use enumset::{EnumSet, EnumSetType};
 use log::debug;
+use sosa::ReactionRates;
 
 use crate::{
+    MAX_SUBCLONES,
     genotype::{MutationalBurden, Sfs, SingleCellMutations},
     stemcell::StemCell,
     subclone::{CloneId, SubClones, save_phylogeny, save_variant_fraction},
+    write2file,
 };
 
 /// The statistics/measurements we want to save from the simulations.
@@ -26,6 +29,9 @@ pub enum Stats2Save {
     VariantFraction,
     SingleCellMutations,
     VariantsPhylogeny,
+    /// Per-clone Gillespie rates owned by the Moran process. Useful when
+    /// rates evolve over time (e.g. `--multihits` resampling).
+    Rates,
 }
 
 /// Specify whether to save the whole population or a subsampling.
@@ -96,6 +102,7 @@ fn make_path(
         Stats2Save::Burden => path2dir.join("burden"),
         Stats2Save::Sfs => path2dir.join("sfs"),
         Stats2Save::VariantsPhylogeny => path2dir.join("variant_phylogeny"),
+        Stats2Save::Rates => path2dir.join("rates"),
     };
     let path2file = path2file.join(timepoint);
 
@@ -111,6 +118,7 @@ pub(crate) fn save_it(
     time: f32,
     cells_with_idx: Vec<(&StemCell, CloneId)>,
     subclones: &SubClones,
+    rates: &ReactionRates<MAX_SUBCLONES>,
     stats: &StatsConfig,
 ) -> anyhow::Result<()> {
     debug!("saving data at time {time}");
@@ -207,6 +215,13 @@ pub(crate) fn save_it(
         )?;
     }
 
+    if stats.enabled.contains(Stats2Save::Rates) {
+        let path =
+            make_path(path2dir, filename, Stats2Save::Rates, nb_cells, time)?.with_extension("csv");
+        write2file(&rates.0, &path, None, false)
+            .with_context(|| "cannot save the Gillespie rates of the subclones")?;
+    }
+
     Ok(())
 }
 
@@ -235,12 +250,22 @@ mod tests {
 
         let cells_with_idx = subclones.get_cells_with_clones_idx();
         let nb_cells = cells_with_idx.len();
+        let rates = ReactionRates([0.0_f32; MAX_SUBCLONES]);
 
         let stats = StatsConfig {
             enabled: EnumSet::only(Stats2Save::VariantsPhylogeny),
         };
 
-        save_it(&dir, &filename, 0.0, cells_with_idx, &subclones, &stats).unwrap();
+        save_it(
+            &dir,
+            &filename,
+            0.0,
+            cells_with_idx,
+            &subclones,
+            &rates,
+            &stats,
+        )
+        .unwrap();
 
         let csv = dir
             .join(format!("{nb_cells}cells"))
@@ -257,6 +282,54 @@ mod tests {
         assert_eq!(fields.len(), MAX_SUBCLONES);
         assert_eq!(fields[0], "");
         assert_eq!(fields[3], "1");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn save_it_emits_rates_when_enabled() {
+        let dir = unique_tmpdir("save_it_rates");
+        let filename = PathBuf::from("0");
+        let subclones = SubClones::new(vec![StemCell::new(); 3], 4);
+        let cells_with_idx = subclones.get_cells_with_clones_idx();
+        let nb_cells = cells_with_idx.len();
+
+        // Distinct entries at slot 0 (wild-type b0) and slot 1 (fit) so we can
+        // assert the dense row layout end-to-end.
+        let mut rates_arr = [0.5_f32; MAX_SUBCLONES];
+        rates_arr[0] = 1.5;
+        let rates = ReactionRates(rates_arr);
+
+        let stats = StatsConfig {
+            enabled: EnumSet::only(Stats2Save::Rates),
+        };
+
+        save_it(
+            &dir,
+            &filename,
+            1.0,
+            cells_with_idx,
+            &subclones,
+            &rates,
+            &stats,
+        )
+        .unwrap();
+
+        let csv = dir
+            .join(format!("{nb_cells}cells"))
+            .join("rates")
+            .join("1dot0years")
+            .join("0.csv");
+        assert!(csv.exists(), "expected {csv:?}");
+        let content = std::fs::read_to_string(&csv).unwrap();
+        let fields: Vec<&str> = content
+            .strip_suffix(',')
+            .unwrap_or(&content)
+            .split(',')
+            .collect();
+        assert_eq!(fields.len(), MAX_SUBCLONES);
+        assert!((fields[0].parse::<f32>().unwrap() - 1.5).abs() < 1e-5);
+        assert!((fields[1].parse::<f32>().unwrap() - 0.5).abs() < 1e-5);
 
         let _ = std::fs::remove_dir_all(&dir);
     }

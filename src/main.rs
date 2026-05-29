@@ -8,7 +8,6 @@ use hsc::{
     snapshots::{SavingCells, SavingOptions, Snapshot, StatsConfig},
     stemcell::StemCell,
     subclone::{Distributions, Fitness, FitnessConfig, RateSampler, SubClones, Variants},
-    write2file,
 };
 use indicatif::ParallelProgressIterator;
 use log::{debug, info};
@@ -245,7 +244,7 @@ fn main() {
             .unwrap();
 
         // treatment
-        let (moran, stop) = if let GillespieOptions::Treatment(op) =
+        let stop = if let GillespieOptions::Treatment(op) =
             &app.options_moran.gillespie_options
         {
             let (moran_distributions, snapshots) =
@@ -328,9 +327,9 @@ fn main() {
             moran
                 .save(moran.time, &SavingCells::WholePopulation, rng)
                 .unwrap();
-            (moran, stop)
+            stop
         } else {
-            (moran, stop)
+             stop
         };
         match stop {
             StopReason::MaxTimeReached => {
@@ -341,15 +340,6 @@ fn main() {
             ),
             _ => unreachable!("the simulation shouldnt have stopped"),
         }
-
-        debug!("saving the SFS for all timepoints");
-        write2file(
-            &moran.rates.0,
-            &moran.path2dir.join("rates").join(format!("{idx}.csv")),
-            None,
-            false,
-        )
-        .expect("cannot save the fitness of the subclones");
     };
 
     std::process::exit({

@@ -229,8 +229,16 @@ impl Cli {
     pub fn build() -> anyhow::Result<AppOptions> {
         let cli = Cli::parse();
 
+        // `Rates` is forced on so per-timepoint Gillespie rates are always
+        // written, preserving the unconditional output the old flat
+        // `rates/<idx>.csv` layout provided.
         let stats = StatsConfigBuilder::default()
-            .stats(cli.stats.into_iter().map(Into::into))
+            .stats(
+                cli.stats
+                    .into_iter()
+                    .map(Into::into)
+                    .chain(std::iter::once(Stats2Save::Rates)),
+            )
             .build()?;
 
         let (parallel, runs) = if cli.debug {
