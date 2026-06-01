@@ -16,7 +16,7 @@ use std::path::Path;
 // These values are inferred from pre-AML cases, so slightly higher compared
 // to the values inferred by Mon Pere, Terenzi and Werner 2026.
 // TODO double check
-const FITNESS_MEAN_STD: [(f32, f32); 4] = [(0.2, 0.025), (0.38, 0.1), (0.81, 0.3), (2.12, 0.8)];
+pub const FITNESS_MEAN_STD: [(f32, f32); 4] = [(0.2, 0.025), (0.38, 0.1), (0.81, 0.3), (2.12, 0.8)];
 
 /// Distribution probabilities for the simulations upon cell division.
 #[derive(Debug, Default, Clone)]
