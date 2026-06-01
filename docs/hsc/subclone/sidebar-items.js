@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["Fitness"],"fn":["from_mean_std_to_shape_scale","next_clone","proliferating_cell"],"struct":["Distributions","SubClone","SubClones","Variants"],"type":["CloneId"]};
+window.SIDEBAR_ITEMS = {"constant":["FITNESS_MEAN_STD"],"enum":["Fitness","FitnessConfig","HitCount"],"fn":["from_mean_std_to_shape_scale","next_clone","proliferating_cell"],"struct":["Distributions","RateSampler","SubClone","SubClones","Variants"],"type":["CloneId"]};

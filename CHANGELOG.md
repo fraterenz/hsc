@@ -1,5 +1,10 @@
 # Changelog
 The semantic versioning is kind of random.
+## 6.0.4
+#### Added
+- Support for multiple hits and nested clones. For now, the fitness distributions for
+  nested clones are fixed and defiend by `FITNESS_MEAN_STD`.
+
 ## 6.0.3
 - Update dependencies with `cargo update`.
 

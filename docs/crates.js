@@ -1,2 +1,2 @@
-window.ALL_CRATES = ["arrow_schema","bytes","cfg_if","crossbeam_utils","hsc","libc","libm","memchr","proc_macro2","rand_core","unicode_ident","utf8parse"];
-//{"start":21,"fragment_lengths":[14,8,9,18,6,7,7,9,14,12,16,12]}
+window.ALL_CRATES = ["hsc"];
+//{"start":21,"fragment_lengths":[5]}

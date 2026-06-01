@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["Division","NeutralMutations"],"struct":["Proliferation"]};
+window.SIDEBAR_ITEMS = {"enum":["Division","NeutralMutations"],"struct":["BirthEvent","Proliferation"]};
