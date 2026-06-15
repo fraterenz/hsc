@@ -18,7 +18,7 @@ rand_distr = "0.6"
 rayon = "1.11"
 rustc-hash = "2.1"
 rand_chacha = "0.10"
-arrow-array = "58"
+arrow-array = "59"
 arrow-schema = "58"
 parquet = { version = "58", default-features = false, features = ["arrow"] }
 log = "0.4"
